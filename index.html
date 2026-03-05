@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -452,8 +451,9 @@
           <div id="emailList" style="display:flex;flex-direction:column;gap:8px;margin-top:8px"></div>
           <button class="btn btn-outline sm" style="margin-top:10px" onclick="App.addEmailDest()">+ Adicionar e-mail</button>
         </div>
-        <div style="margin-top:16px">
+        <div style="margin-top:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
           <button class="btn btn-primary" onclick="App.saveEmailConfig()">💾 Salvar Configurações</button>
+          <span style="font-size:.78rem;color:var(--muted)">⚠️ Clique em Salvar após adicionar ou remover e-mails.</span>
         </div>
         <div class="msg" id="emailConfigMsg"></div>
       </div>
@@ -811,10 +811,28 @@
           <span class="badge-status ${o.ativa!==false?"active":"inactive"}">${o.ativa!==false?"✅ Ativa":"⛔ Inativa"}</span>
           <div class="list-item-actions">
             <button class="btn btn-outline sm" onclick="App.toggleObra('${d.id}',${o.ativa!==false})">${o.ativa!==false?"Desativar":"Ativar"}</button>
+            <button class="btn btn-danger sm" onclick="App.deleteObra('${d.id}','${o.nome.replace(/'/g,\'\'')}')">🗑️</button>
           </div>`;
         el.appendChild(div);
       });
     } catch(e){ el.innerHTML=`<p style="color:var(--danger);padding:12px">Erro ao carregar obras.</p>`; }
+  }
+
+  async function deleteObra(id, nome) {
+    showModal(
+      "Excluir obra",
+      "Tem certeza que deseja excluir ""+nome+"" permanentemente? Esta ação não pode ser desfeita e todos os dados da obra serão removidos.",
+      async () => {
+        try {
+          await deleteDoc(doc(db,"obras",id));
+          toast("Obra excluída permanentemente.");
+          await loadObras();
+          const snap = await getDocs(collection(db,"obras"));
+          $("statObras").textContent = snap.docs.filter(d=>d.data().ativa!==false).length;
+        } catch(e){ toast("Erro: "+e.message, false); }
+      },
+      true // botão vermelho
+    );
   }
 
   async function toggleObra(id,ativa) {
@@ -1807,10 +1825,19 @@
   function renderEmailList(emails) {
     const el = $("emailList"); if(!el) return;
     el.innerHTML = "";
-    (emails.length?emails:[""]).forEach((email,i) => {
+    const lista = emails.length ? emails : [""];
+    lista.forEach((email, i) => {
       const div = document.createElement("div");
-      div.style.cssText = "display:flex;gap:8px;align-items:center";
-      div.innerHTML = '<input type="email" value="'+email+'" placeholder="email@exemplo.com" style="flex:1"><button class="btn btn-outline sm" style="padding:6px 10px" onclick="this.parentElement.remove()">✕</button>';
+      div.style.cssText = "display:flex;gap:8px;align-items:center;background:#f8f9fc;border:1.5px solid var(--border);border-radius:10px;padding:8px 12px";
+      div.innerHTML =
+        '<span style="font-size:.82rem;color:var(--muted);min-width:16px;font-weight:600">'+(i+1)+'.</span>' +
+        '<input type="email" value="'+email+'" placeholder="email@exemplo.com" style="flex:1;border:none;background:transparent;padding:0;font-size:.9rem" ' +
+        'onfocus="this.parentElement.style.borderColor='var(--brand)'" ' +
+        'onblur="this.parentElement.style.borderColor='var(--border)'">' +
+        '<button style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:1rem;padding:2px 6px;border-radius:6px;transition:background .15s" ' +
+        'title="Remover este e-mail" ' +
+        'onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background='none'" ' +
+        'onclick="if(confirm('Remover este e-mail da lista?'))this.parentElement.remove()">🗑️</button>';
       el.appendChild(div);
     });
   }
@@ -1818,9 +1845,18 @@
   function addEmailDest() {
     const el = $("emailList"); if(!el) return;
     if(el.children.length >= 5){ toast("Máximo 5 e-mails!",false); return; }
+    const i = el.children.length + 1;
     const div = document.createElement("div");
-    div.style.cssText = "display:flex;gap:8px;align-items:center";
-    div.innerHTML = '<input type="email" placeholder="email@exemplo.com" style="flex:1"><button class="btn btn-outline sm" style="padding:6px 10px" onclick="this.parentElement.remove()">✕</button>';
+    div.style.cssText = "display:flex;gap:8px;align-items:center;background:#f8f9fc;border:1.5px solid var(--border);border-radius:10px;padding:8px 12px";
+    div.innerHTML =
+      '<span style="font-size:.82rem;color:var(--muted);min-width:16px;font-weight:600">'+i+'.</span>' +
+      '<input type="email" placeholder="email@exemplo.com" style="flex:1;border:none;background:transparent;padding:0;font-size:.9rem" ' +
+      'onfocus="this.parentElement.style.borderColor='var(--brand)'" ' +
+      'onblur="this.parentElement.style.borderColor='var(--border)'" autofocus>' +
+      '<button style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:1rem;padding:2px 6px;border-radius:6px;transition:background .15s" ' +
+      'title="Remover este e-mail" ' +
+      'onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background='none'" ' +
+      'onclick="if(confirm('Remover este e-mail da lista?'))this.parentElement.remove()">🗑️</button>';
     el.appendChild(div);
   }
 
@@ -1894,7 +1930,7 @@
   window.App = {
     login, logout, togglePass, goTab, adminTab,
     changePassword,
-    saveObra, loadObras, toggleObra,
+    saveObra, loadObras, toggleObra, deleteObra,
     saveUser, loadUsers, filterUsers, toggleUser,
     openAlocModal, saveAlocacao, closeAlocModal,
     toggleReemb, onFileSelect, removeFile,
