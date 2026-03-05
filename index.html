@@ -623,7 +623,7 @@
   async function deleteObra(id, nome) {
     showModal(
       "Excluir obra",
-      "Tem certeza que deseja excluir ""+nome+"" permanentemente? Esta ação não pode ser desfeita e todos os dados da obra serão removidos.",
+      "Tem certeza que deseja excluir a obra permanentemente? Esta ação não pode ser desfeita.",
       async () => {
         try {
           await deleteDoc(doc(db,"obras",id));
@@ -741,7 +741,7 @@
         </div>
         ${badges}
         <div class="list-item-actions">
-          <button class="btn btn-outline sm" data-uid="${u.id}" data-nome="${(u.nome||u.email).replace(/'/g,'\'')}" onclick="App.openAlocModal(this.dataset.uid, this.dataset.nome)">🏗️ Alocar</button>
+          <button class="btn btn-outline sm" data-uid="${u.id}" data-nome="${u.nome||u.email}" onclick="App.openAlocModal(this.dataset.uid, this.dataset.nome)">🏗️ Alocar</button>
           ${acaoBtn}
         </div>`;
       el.appendChild(div);
