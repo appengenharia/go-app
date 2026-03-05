@@ -613,7 +613,7 @@
           <span class="badge-status ${o.ativa!==false?"active":"inactive"}">${o.ativa!==false?"✅ Ativa":"⛔ Inativa"}</span>
           <div class="list-item-actions">
             <button class="btn btn-outline sm" onclick="App.toggleObra('${d.id}',${o.ativa!==false})">${o.ativa!==false?"Desativar":"Ativar"}</button>
-            <button class="btn btn-danger sm" onclick="App.deleteObra('${d.id}','${o.nome.replace(/'/g,\'\'')}')">🗑️</button>
+            <button class="btn btn-danger sm" data-id="${d.id}" data-nome="${o.nome}" onclick="App.deleteObra(this.dataset.id, this.dataset.nome)">🗑️</button>
           </div>`;
         el.appendChild(div);
       });
