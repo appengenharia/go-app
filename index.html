@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>CFO — Controle Financeiro</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --brand:     #0f3460;
+      --brand2:    #16213e;
+      --accent:    #e94560;
+      --accent2:   #f5a623;
+      --bg:        #f0f2f7;
+      --card:      #ffffff;
+      --text:      #1a1a2e;
+      --muted:     #6b7280;
+      --border:    #e5e7eb;
+      --success:   #10b981;
+      --danger:    #ef4444;
+      --radius:    14px;
+      --shadow:    0 4px 24px rgba(15,52,96,.10);
+    }
+
+    html, body {
+      height: 100%;
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .hidden { display: none !important; }
+
+    /* ── TOPBAR ── */
+    .topbar {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      height: 58px;
+      background: var(--brand2);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 20px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.25);
+    }
+    .topbar-brand {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800; font-size: 1.05rem; color: #fff; letter-spacing: .5px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .topbar-brand .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--accent);
+    }
+    .topbar-right { display: flex; align-items: center; gap: 10px; }
+    .pill {
+      background: rgba(255,255,255,.12); color: #fff;
+      font-size: .78rem; font-weight: 500;
+      padding: 4px 12px; border-radius: 20px;
+    }
+
+    /* ── OFFLINE BANNER ── */
+    .offline-banner {
+      position: fixed; top: 58px; left: 0; right: 0; z-index: 99;
+      background: var(--accent2); color: #fff;
+      text-align: center; font-size: .82rem; font-weight: 500;
+      padding: 6px 16px;
+    }
+
+    /* ── BUTTONS ── */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 10px 18px; border-radius: var(--radius);
+      font-family: 'DM Sans', sans-serif; font-size: .9rem; font-weight: 500;
+      border: none; cursor: pointer; transition: all .18s;
+    }
+    .btn:disabled { opacity: .55; cursor: not-allowed; }
+    .btn.full { width: 100%; }
+    .btn.sm   { padding: 6px 12px; font-size: .8rem; border-radius: 8px; }
+    .btn-primary {
+      background: var(--brand); color: #fff;
+      box-shadow: 0 4px 14px rgba(15,52,96,.3);
+    }
+    .btn-primary:hover:not(:disabled) { background: #0a2744; transform: translateY(-1px); }
+    .btn-ghost {
+      background: transparent; color: rgba(255,255,255,.8);
+      border: 1px solid rgba(255,255,255,.25);
+    }
+    .btn-ghost:hover { background: rgba(255,255,255,.1); color: #fff; }
+
+    /* ── FORM ── */
+    label {
+      display: block; font-size: .82rem; font-weight: 500;
+      color: var(--muted); margin-bottom: 6px; margin-top: 16px;
+    }
+    label:first-of-type { margin-top: 0; }
+    input, select, textarea {
+      width: 100%; padding: 11px 14px;
+      border: 1.5px solid var(--border); border-radius: 10px;
+      font-family: 'DM Sans', sans-serif; font-size: .92rem;
+      background: #f8f9fc; color: var(--text);
+      transition: border-color .18s, box-shadow .18s; outline: none;
+    }
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--brand);
+      box-shadow: 0 0 0 3px rgba(15,52,96,.1);
+      background: #fff;
+    }
+    .pass-row { position: relative; }
+    .pass-row input { padding-right: 44px; }
+    .eye-btn {
+      position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; cursor: pointer;
+      font-size: 1rem; color: var(--muted); padding: 4px;
+      transition: color .15s;
+    }
+    .eye-btn:hover { color: var(--brand); }
+
+    /* ── MESSAGES ── */
+    .msg { font-size: .84rem; margin-top: 10px; min-height: 20px; border-radius: 8px; }
+    .msg.ok  { color: var(--success); background: #ecfdf5; padding: 8px 12px; }
+    .msg.err { color: var(--danger);  background: #fef2f2; padding: 8px 12px; }
+
+    /* ── LOADING ── */
+    .loading-screen {
+      position: fixed; inset: 0; z-index: 9999;
+      background: var(--brand2);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 16px;
+    }
+    .loading-screen .l-logo {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800; font-size: 2.2rem; color: #fff;
+    }
+    .loading-screen .l-logo span { color: var(--accent); }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid rgba(255,255,255,.2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-screen p { color: rgba(255,255,255,.5); font-size: .85rem; }
+
+    /* ════════════════════════════
+       LOGIN PAGE
+    ════════════════════════════ */
+    .login-page {
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px 16px;
+      background: linear-gradient(135deg, #16213e 0%, #0f3460 60%, #1a1a2e 100%);
+      position: relative; overflow: hidden;
+    }
+    .login-page::before {
+      content: '';
+      position: absolute; inset: 0;
+      background:
+        radial-gradient(ellipse 60% 50% at 80% 20%, rgba(233,69,96,.15) 0%, transparent 60%),
+        radial-gradient(ellipse 40% 40% at 10% 80%, rgba(245,166,35,.10) 0%, transparent 55%);
+      pointer-events: none;
+    }
+    .deco {
+      position: absolute; border-radius: 50%; pointer-events: none;
+    }
+    .deco-1 {
+      width: 320px; height: 320px;
+      border: 1px solid rgba(255,255,255,.05);
+      top: -80px; right: -80px;
+    }
+    .deco-2 {
+      width: 200px; height: 200px;
+      border: 1px solid rgba(233,69,96,.12);
+      bottom: 60px; left: -60px;
+    }
+    .login-box {
+      width: 100%; max-width: 400px;
+      background: rgba(255,255,255,.97);
+      border-radius: 20px;
+      box-shadow: 0 24px 60px rgba(0,0,0,.35);
+      padding: 36px 32px;
+      position: relative; z-index: 1;
+      animation: slideUp .4s ease;
+    }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .login-logo {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 28px;
+    }
+    .login-logo .icon {
+      width: 46px; height: 46px; border-radius: 12px;
+      background: linear-gradient(135deg, var(--brand), var(--accent));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem;
+      box-shadow: 0 4px 14px rgba(15,52,96,.3);
+    }
+    .login-logo .name {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800; font-size: 1.15rem; color: var(--brand2); line-height: 1.2;
+    }
+    .login-logo .sub { font-size: .72rem; color: var(--muted); }
+    .login-box h2 {
+      font-family: 'Syne', sans-serif;
+      font-weight: 700; font-size: 1.4rem; color: var(--text); margin-bottom: 4px;
+    }
+    .login-box .subtitle { font-size: .88rem; color: var(--muted); margin-bottom: 24px; }
+    .login-box .btn-primary {
+      margin-top: 20px; padding: 13px;
+      font-size: .95rem; font-weight: 600; border-radius: 12px;
+    }
+    .login-hint {
+      margin-top: 16px; text-align: center;
+      font-size: .78rem; color: var(--muted);
+    }
+
+    /* ════════════════════════════
+       APP LAYOUT
+    ════════════════════════════ */
+    .app-layout {
+      padding-top: 58px; min-height: 100vh;
+      display: flex; flex-direction: column;
+    }
+
+    /* mobile bottom nav */
+    .bottom-nav {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+      background: var(--brand2);
+      display: flex; height: 60px;
+      box-shadow: 0 -2px 12px rgba(0,0,0,.2);
+    }
+    .bottom-nav .nav-item {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 2px;
+      color: rgba(255,255,255,.5); font-size: .68rem; font-weight: 500;
+      cursor: pointer; border: none; background: none; transition: color .18s;
+    }
+    .bottom-nav .nav-item .nav-icon { font-size: 1.25rem; line-height: 1; }
+    .bottom-nav .nav-item.active { color: #fff; }
+
+    @media (min-width: 768px) {
+      .bottom-nav { display: none; }
+      .app-layout { flex-direction: row; }
+      .side-nav {
+        width: 220px; min-height: calc(100vh - 58px);
+        background: var(--brand2);
+        display: flex; flex-direction: column;
+        padding: 20px 10px; gap: 2px; flex-shrink: 0;
+      }
+      .side-nav .nav-item {
+        display: flex; align-items: center; gap: 10px;
+        padding: 10px 14px; border-radius: 10px;
+        color: rgba(255,255,255,.55); font-size: .88rem; font-weight: 500;
+        cursor: pointer; border: none; background: none;
+        transition: all .18s; text-align: left; width: 100%;
+      }
+      .side-nav .nav-item .nav-icon { font-size: 1.05rem; }
+      .side-nav .nav-item:hover { background: rgba(255,255,255,.08); color: #fff; }
+      .side-nav .nav-item.active { background: var(--brand); color: #fff; }
+      .side-nav .nav-divider { height: 1px; background: rgba(255,255,255,.08); margin: 8px 0; }
+    }
+
+    .app-content {
+      flex: 1; padding: 24px 16px 80px;
+    }
+    @media (min-width: 768px) {
+      .app-content { padding: 28px; }
+    }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── WELCOME CARD ── */
+    .welcome-card {
+      background: linear-gradient(135deg, var(--brand), #1a4a8a);
+      border-radius: var(--radius); padding: 24px 28px;
+      color: #fff; margin-bottom: 20px;
+      position: relative; overflow: hidden;
+    }
+    .welcome-card::after {
+      content: '💼';
+      position: absolute; right: 24px; top: 50%; transform: translateY(-50%);
+      font-size: 3.5rem; opacity: .12;
+    }
+    .welcome-card h2 {
+      font-family: 'Syne', sans-serif;
+      font-weight: 700; font-size: 1.25rem; margin-bottom: 4px;
+    }
+    .welcome-card p { font-size: .88rem; opacity: .8; }
+    .welcome-card .badge {
+      display: inline-block; margin-top: 12px;
+      background: rgba(255,255,255,.2); border-radius: 20px;
+      padding: 4px 12px; font-size: .78rem; font-weight: 600;
+    }
+
+    /* ── STATS GRID ── */
+    .stats-grid {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;
+      margin-bottom: 20px;
+    }
+    @media (min-width: 600px) {
+      .stats-grid { grid-template-columns: repeat(4, 1fr); }
+    }
+    .stat-card {
+      background: var(--card); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 16px;
+      border-left: 3px solid var(--brand);
+    }
+    .stat-card.c-accent  { border-left-color: var(--accent); }
+    .stat-card.c-success { border-left-color: var(--success); }
+    .stat-card.c-warning { border-left-color: var(--accent2); }
+    .stat-label { font-size: .72rem; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: .5px; }
+    .stat-value { font-family: 'Syne', sans-serif; font-size: 1.2rem; font-weight: 700; color: var(--text); margin-top: 4px; }
+
+    /* ── CARD ── */
+    .card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 24px; }
+
+    /* ── EMPTY STATE ── */
+    .empty { text-align: center; padding: 40px 20px; color: var(--muted); }
+    .empty .empty-icon { font-size: 2.5rem; margin-bottom: 10px; }
+    .empty p { font-size: .88rem; }
+
+    /* ── PAGE HEADER ── */
+    .page-header { margin-bottom: 20px; }
+    .page-header h1 { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 1.35rem; }
+    .page-header p  { font-size: .88rem; color: var(--muted); margin-top: 2px; }
+  </style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div class="loading-screen" id="loadingScreen">
+  <div class="l-logo">CF<span>O</span></div>
+  <div class="spinner"></div>
+  <p>Carregando...</p>
+</div>
+
+<!-- TOPBAR -->
+<div class="topbar hidden" id="topbar">
+  <div class="topbar-brand">
+    <span class="dot"></span>
+    CFO — Controle Financeiro
+  </div>
+  <div class="topbar-right">
+    <div id="pillUser" class="pill hidden"></div>
+    <button class="btn btn-ghost sm hidden" id="btnLogout" onclick="App.logout()">Sair</button>
+  </div>
+</div>
+
+<!-- OFFLINE BANNER -->
+<div class="offline-banner hidden" id="offlineBanner">
+  ⚡ Você está offline — dados serão sincronizados quando a conexão voltar
+</div>
+
+<!-- ══════════════════════════
+     LOGIN
+══════════════════════════ -->
+<div class="login-page hidden" id="loginPage">
+  <div class="deco deco-1"></div>
+  <div class="deco deco-2"></div>
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="icon">💼</div>
+      <div>
+        <div class="name">CFO</div>
+        <div class="sub">Controle Financeiro de Obras</div>
+      </div>
+    </div>
+    <h2>Bem-vindo</h2>
+    <p class="subtitle">Entre com seu e-mail e senha para continuar.</p>
+
+    <label>E-mail</label>
+    <input id="loginEmail" type="email" placeholder="seu@email.com" autocomplete="email">
+
+    <label>Senha</label>
+    <div class="pass-row">
+      <input id="loginPass" type="password" placeholder="••••••••" autocomplete="current-password">
+      <button class="eye-btn" type="button" onclick="App.togglePass('loginPass')" title="Mostrar/ocultar senha">👁</button>
+    </div>
+
+    <button class="btn btn-primary full" id="btnLogin" onclick="App.login()">Entrar</button>
+    <div class="msg" id="loginMsg"></div>
+    <p class="login-hint">Problemas para entrar? Fale com o administrador.</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════
+     APP
+══════════════════════════ -->
+<div class="app-layout hidden" id="appLayout">
+
+  <!-- SIDE NAV (desktop) -->
+  <nav class="side-nav hidden" id="sideNav">
+    <button class="nav-item active" onclick="App.goTab('dashboard')" data-tab="dashboard">
+      <span class="nav-icon">📊</span> Dashboard
+    </button>
+    <button class="nav-item" onclick="App.goTab('lancamentos')" data-tab="lancamentos">
+      <span class="nav-icon">➕</span> Lançamentos
+    </button>
+    <button class="nav-item" onclick="App.goTab('relatorios')" data-tab="relatorios">
+      <span class="nav-icon">📋</span> Relatórios
+    </button>
+    <div class="nav-divider"></div>
+    <button class="nav-item hidden" id="sideAdmin" onclick="App.goTab('admin')" data-tab="admin">
+      <span class="nav-icon">⚙️</span> Administração
+    </button>
+  </nav>
+
+  <!-- CONTENT -->
+  <main class="app-content">
+
+    <!-- DASHBOARD -->
+    <div class="tab-panel active" id="tab-dashboard">
+      <div class="welcome-card">
+        <h2 id="welcomeName">Olá! 👋</h2>
+        <p>Acompanhe os gastos das obras em tempo real.</p>
+        <div class="badge" id="welcomeRole">-</div>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Total do Mês</div>
+          <div class="stat-value" id="statTotal">R$ 0,00</div>
+        </div>
+        <div class="stat-card c-accent">
+          <div class="stat-label">Lançamentos</div>
+          <div class="stat-value" id="statCount">0</div>
+        </div>
+        <div class="stat-card c-success">
+          <div class="stat-label">Obras Ativas</div>
+          <div class="stat-value" id="statObras">0</div>
+        </div>
+        <div class="stat-card c-warning">
+          <div class="stat-label">Pendentes Sync</div>
+          <div class="stat-value" id="statPending">0</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="empty">
+          <div class="empty-icon">🚧</div>
+          <p>Dashboard completo vem na Parte 4.</p>
+          <p style="margin-top:6px;color:#aaa;font-size:.8rem">Login funcionando ✅ Firebase conectado ✅</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- LANÇAMENTOS -->
+    <div class="tab-panel" id="tab-lancamentos">
+      <div class="page-header">
+        <h1>Registrar Despesa</h1>
+        <p>Adicione um novo gasto à obra selecionada.</p>
+      </div>
+      <div class="card">
+        <div class="empty">
+          <div class="empty-icon">➕</div>
+          <p>Formulário de lançamento — Parte 2.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- RELATÓRIOS -->
+    <div class="tab-panel" id="tab-relatorios">
+      <div class="page-header">
+        <h1>Relatórios</h1>
+        <p>Visualize e exporte os dados por obra e período.</p>
+      </div>
+      <div class="card">
+        <div class="empty">
+          <div class="empty-icon">📋</div>
+          <p>Relatórios — Parte 5.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ADMIN -->
+    <div class="tab-panel" id="tab-admin">
+      <div class="page-header">
+        <h1>Administração</h1>
+        <p>Gerencie usuários e obras do sistema.</p>
+      </div>
+      <div class="card">
+        <div class="empty">
+          <div class="empty-icon">⚙️</div>
+          <p>Painel administrativo — Parte 6.</p>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- BOTTOM NAV (mobile) -->
+  <nav class="bottom-nav" id="bottomNav">
+    <button class="nav-item active" onclick="App.goTab('dashboard')" data-tab="dashboard">
+      <span class="nav-icon">📊</span>
+      <span>Dashboard</span>
+    </button>
+    <button class="nav-item" onclick="App.goTab('lancamentos')" data-tab="lancamentos">
+      <span class="nav-icon">➕</span>
+      <span>Lançar</span>
+    </button>
+    <button class="nav-item" onclick="App.goTab('relatorios')" data-tab="relatorios">
+      <span class="nav-icon">📋</span>
+      <span>Relatórios</span>
+    </button>
+    <button class="nav-item hidden" id="bottomAdmin" onclick="App.goTab('admin')" data-tab="admin">
+      <span class="nav-icon">⚙️</span>
+      <span>Admin</span>
+    </button>
+  </nav>
+
+</div>
+
+<!-- ══════════════════════════
+     FIREBASE + LÓGICA
+══════════════════════════ -->
+<script type="module">
+  import { initializeApp }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getFirestore, doc, getDoc, collection, getDocs, enableIndexedDbPersistence }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  // ── CONFIG FIREBASE ──
+  const firebaseConfig = {
+    apiKey:            "AIzaSyBtjWPDJWQ1OZOK48gr4n7KxsZ6aILhy9o",
+    authDomain:        "controle-de-gastos-6c9e0.firebaseapp.com",
+    projectId:         "controle-de-gastos-6c9e0",
+    storageBucket:     "controle-de-gastos-6c9e0.firebasestorage.app",
+    messagingSenderId: "762360030642",
+    appId:             "1:762360030642:web:c041f5526c1a274ed0b0ab"
+  };
+
+  const firebase = initializeApp(firebaseConfig);
+  const auth     = getAuth(firebase);
+  const db       = getFirestore(firebase);
+
+  // ── HABILITAR OFFLINE (IndexedDB) ──
+  enableIndexedDbPersistence(db).catch(() => {});
+
+  // ── HELPERS ──
+  const $  = id => document.getElementById(id);
+  const brl = n  => Number(n||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+
+  function setMsg(id, text, ok = false) {
+    const el = $(id); if (!el) return;
+    if (!text) { el.className = "msg"; el.textContent = ""; return; }
+    el.className = "msg " + (ok ? "ok" : "err");
+    el.textContent = text;
+  }
+
+  // ── OFFLINE MONITOR ──
+  function initOffline() {
+    const b = $("offlineBanner");
+    const upd = () => b && b.classList.toggle("hidden", navigator.onLine);
+    window.addEventListener("online",  upd);
+    window.addEventListener("offline", upd);
+    upd();
+  }
+
+  // ── NAV ──
+  function goTab(tab) {
+    document.querySelectorAll(".tab-panel")
+      .forEach(p => p.classList.remove("active"));
+    document.querySelectorAll(".nav-item[data-tab]")
+      .forEach(b => b.classList.remove("active"));
+    const panel = $(`tab-${tab}`);
+    if (panel) panel.classList.add("active");
+    document.querySelectorAll(`[data-tab="${tab}"]`)
+      .forEach(b => b.classList.add("active"));
+  }
+
+  // ── TOGGLE SENHA ──
+  function togglePass(id) {
+    const el = $(id);
+    if (el) el.type = el.type === "password" ? "text" : "password";
+  }
+
+  // ── LOGIN ──
+  async function login() {
+    setMsg("loginMsg", "");
+    const email    = $("loginEmail").value.trim();
+    const password = $("loginPass").value;
+    const btn      = $("btnLogin");
+
+    if (!email)    { setMsg("loginMsg", "Informe o e-mail.");  return; }
+    if (!password) { setMsg("loginMsg", "Informe a senha."); return; }
+
+    btn.disabled = true; btn.textContent = "Entrando...";
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      // onAuthStateChanged cuida do restante
+    } catch (e) {
+      const msgs = {
+        "auth/user-not-found":     "Usuário não encontrado.",
+        "auth/wrong-password":     "Senha incorreta.",
+        "auth/invalid-email":      "E-mail inválido.",
+        "auth/too-many-requests":  "Muitas tentativas. Aguarde e tente novamente.",
+        "auth/invalid-credential": "E-mail ou senha incorretos."
+      };
+      setMsg("loginMsg", msgs[e.code] || "Erro ao entrar: " + e.message);
+    } finally {
+      btn.disabled = false; btn.textContent = "Entrar";
+    }
+  }
+
+  // ── LOGOUT ──
+  async function logout() {
+    await signOut(auth);
+  }
+
+  // ── CARREGAR PERFIL DO FIRESTORE ──
+  async function loadProfile(uid) {
+    try {
+      const snap = await getDoc(doc(db, "usuarios", uid));
+      if (snap.exists()) return snap.data();
+    } catch (_) {}
+    return null;
+  }
+
+  // ── INICIAR APP ──
+  async function initApp(user) {
+    const profile = await loadProfile(user.uid);
+    const nome    = profile?.nome || user.email.split("@")[0];
+    const role    = profile?.role || "USER";
+
+    $("welcomeName").textContent = `Olá, ${nome}! 👋`;
+    $("welcomeRole").textContent = role === "ADMIN" ? "👑 Administrador" : "👤 Usuário";
+    $("pillUser").textContent    = nome;
+    $("pillUser").classList.remove("hidden");
+    $("btnLogout").classList.remove("hidden");
+
+    if (role === "ADMIN") {
+      $("sideAdmin")?.classList.remove("hidden");
+      $("bottomAdmin")?.classList.remove("hidden");
+    }
+
+    // contar obras ativas
+    try {
+      const snap = await getDocs(collection(db, "obras"));
+      $("statObras").textContent = snap.size || "0";
+    } catch (_) {}
+
+    // mostrar app
+    $("loginPage").classList.add("hidden");
+    $("appLayout").classList.remove("hidden");
+    $("topbar").classList.remove("hidden");
+    $("sideNav").classList.remove("hidden");
+    goTab("dashboard");
+  }
+
+  // ── AUTH STATE CHANGED ──
+  onAuthStateChanged(auth, async (user) => {
+    $("loadingScreen").style.display = "none";
+
+    if (user) {
+      await initApp(user);
+    } else {
+      $("appLayout").classList.add("hidden");
+      $("sideNav").classList.add("hidden");
+      $("loginPage").classList.remove("hidden");
+      $("topbar").classList.remove("hidden");
+      $("pillUser").classList.add("hidden");
+      $("btnLogout").classList.add("hidden");
+    }
+  });
+
+  initOffline();
+
+  // ── EXPOR FUNÇÕES GLOBAIS ──
+  window.App = { login, logout, togglePass, goTab };
+</script>
+
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('sw.js').catch(function () {});
+    });
+  }
+</script>
+
+</body>
+</html>
