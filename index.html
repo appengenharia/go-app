@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -1092,8 +1093,11 @@
         const div=document.createElement("div");
         div.className="lanc-item";
         const dataFmt = l.data ? new Date(l.data+"T12:00:00").toLocaleDateString("pt-BR") : "—";
+        const isPdf = l.comprovante?.tipo === "pdf";
         const compLink = l.comprovante?.url
-          ? `<a href="${l.comprovante.url}" target="_blank" style="font-size:.78rem;color:var(--brand);text-decoration:none">📎 Ver comprovante</a>`
+          ? isPdf
+            ? `<a href="${l.comprovante.url}" download="${l.comprovante.nome||'comprovante.pdf'}" target="_blank" style="font-size:.78rem;color:var(--brand);text-decoration:none">📄 Baixar PDF</a>`
+            : `<a href="${l.comprovante.url}" target="_blank" style="font-size:.78rem;color:var(--brand);text-decoration:none">📎 Ver comprovante</a>`
           : "";
         div.innerHTML=`
           <div class="lanc-item-top">
