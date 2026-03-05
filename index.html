@@ -315,7 +315,7 @@
             <input type="hidden" id="lancReemb" value="nao">
           </div>
         </div>
-        <label>Comprovante (foto ou PDF — opcional)</label>
+        <label id="lancComprLabel">Comprovante (foto ou PDF)</label>
         <div class="upload-area" id="uploadArea" onclick="document.getElementById('lancFile').click()">
           <div class="upload-icon">📎</div>
           <div class="upload-text">Clique para anexar foto ou PDF</div>
@@ -913,9 +913,7 @@
   async function uploadFile() {
     if(!selectedFile) return null;
     const isPdf = selectedFile.type === "application/pdf";
-    // PDFs usam resource_type=raw, imagens usam image
-    const resourceType = isPdf ? "raw" : "image";
-    const url = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/${resourceType}/upload`;
+    const url = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`;
     const fd = new FormData();
     fd.append("file", selectedFile);
     fd.append("upload_preset", CLOUDINARY_PRESET);
@@ -923,8 +921,13 @@
     try {
       const r = await fetch(url, {method:"POST", body:fd});
       const d = await r.json();
-      if(d.error) { console.error(d.error); return null; }
-      return { url: d.secure_url, tipo: isPdf ? "pdf" : "imagem", nome: selectedFile.name };
+      if(d.error) { console.error("Cloudinary error:", d.error); return null; }
+      let finalUrl = d.secure_url;
+      if(isPdf) {
+        // Força entrega como PDF substituindo /image/upload/ por /image/upload/fl_attachment/
+        finalUrl = finalUrl.replace("/image/upload/", "/image/upload/fl_attachment/");
+      }
+      return { url: finalUrl, tipo: isPdf ? "pdf" : "imagem", nome: selectedFile.name };
     } catch(e) { console.error(e); return null; }
   }
 
@@ -949,6 +952,9 @@
     if(!cat)         { setMsg("lancMsg","Selecione a categoria.");return; }
     if(!desc)        { setMsg("lancMsg","Informe a descrição.");return; }
     if(isNaN(valor)||valor<=0) { setMsg("lancMsg","Informe um valor válido.");return; }
+    if(currentRole !== "ADMIN" && !selectedFile && !editingLancId) {
+      setMsg("lancMsg","⚠️ Anexe o comprovante (foto ou PDF) para continuar.");return;
+    }
 
     btn.disabled = true;
     btn.textContent = selectedFile ? "Enviando arquivo..." : "Salvando...";
