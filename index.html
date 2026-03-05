@@ -692,12 +692,11 @@
       obrasSnap.forEach(d=>{ obrasMap[d.id]=d.data().nome; obrasMapRender[d.id]=d.data().nome; });
 
       const snap=await getDocs(query(collection(db,"usuarios"),orderBy("criadoEm","desc")));
-      allUsers=snap.docs.map(d=>{
-        const data=d.data();
+      allUsers=snap.docs.map(d=>{const data=d.data();
         return {
           id:d.id,
           ...data,
-          obra_nome: data.obra_id ? (obrasMap[data.obra_id]||"Obra não e ncontrada") : ""
+          obra_nome: data.obra_id ? (obrasMap[data.obra_id]||"Obra não encontrada") : ""
         };
       });
       renderUsers();
@@ -1638,15 +1637,15 @@
     lista.forEach((email, i) => {
       const div = document.createElement("div");
       div.style.cssText = "display:flex;gap:8px;align-items:center;background:#f8f9fc;border:1.5px solid var(--border);border-radius:10px;padding:8px 12px";
-      div.innerHTML =
-        '<span style="font-size:.82rem;color:var(--muted);min-width:16px;font-weight:600">'+(i+1)+'.</span>' +
-        '<input type="email" value="'+email+'" placeholder="email@exemplo.com" style="flex:1;border:none;background:transparent;padding:0;font-size:.9rem" ' +
-        'onfocus="this.parentElement.style.borderColor='var(--brand)'" ' +
-        'onblur="this.parentElement.style.borderColor='var(--border)'">' +
-        '<button style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:1rem;padding:2px 6px;border-radius:6px;transition:background .15s" ' +
-        'title="Remover este e-mail" ' +
-        'onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background='none'" ' +
-        'onclick="if(confirm('Remover este e-mail da lista?'))this.parentElement.remove()">🗑️</button>';
+      div.innerHTML = `
+        <span style="font-size:.82rem;color:var(--muted);min-width:16px;font-weight:600">${i+1}.</span>
+        <input type="email" value="${email}" placeholder="email@exemplo.com"
+          style="flex:1;border:none;background:transparent;padding:0;font-size:.9rem"
+          onfocus="this.parentElement.style.borderColor='var(--brand)'"
+          onblur="this.parentElement.style.borderColor='var(--border)'">
+        <button style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:1rem;padding:2px 6px;border-radius:6px"
+          title="Remover este e-mail"
+          onclick="if(confirm('Remover este e-mail?'))this.parentElement.remove()">🗑️</button>`;
       el.appendChild(div);
     });
   }
@@ -1657,15 +1656,15 @@
     const i = el.children.length + 1;
     const div = document.createElement("div");
     div.style.cssText = "display:flex;gap:8px;align-items:center;background:#f8f9fc;border:1.5px solid var(--border);border-radius:10px;padding:8px 12px";
-    div.innerHTML =
-      '<span style="font-size:.82rem;color:var(--muted);min-width:16px;font-weight:600">'+i+'.</span>' +
-      '<input type="email" placeholder="email@exemplo.com" style="flex:1;border:none;background:transparent;padding:0;font-size:.9rem" ' +
-      'onfocus="this.parentElement.style.borderColor='var(--brand)'" ' +
-      'onblur="this.parentElement.style.borderColor='var(--border)'" autofocus>' +
-      '<button style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:1rem;padding:2px 6px;border-radius:6px;transition:background .15s" ' +
-      'title="Remover este e-mail" ' +
-      'onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background='none'" ' +
-      'onclick="if(confirm('Remover este e-mail da lista?'))this.parentElement.remove()">🗑️</button>';
+    div.innerHTML = `
+      <span style="font-size:.82rem;color:var(--muted);min-width:16px;font-weight:600">${i}.</span>
+      <input type="email" placeholder="email@exemplo.com" autofocus
+        style="flex:1;border:none;background:transparent;padding:0;font-size:.9rem"
+        onfocus="this.parentElement.style.borderColor='var(--brand)'"
+        onblur="this.parentElement.style.borderColor='var(--border)'">
+      <button style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:1rem;padding:2px 6px;border-radius:6px"
+        title="Remover este e-mail"
+        onclick="if(confirm('Remover este e-mail?'))this.parentElement.remove()">🗑️</button>`;
     el.appendChild(div);
   }
 
