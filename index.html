@@ -924,8 +924,8 @@
       if(d.error) { console.error("Cloudinary error:", d.error); return null; }
       let finalUrl = d.secure_url;
       if(isPdf) {
-        // Força entrega como PDF substituindo /image/upload/ por /image/upload/fl_attachment/
-        finalUrl = finalUrl.replace("/image/upload/", "/image/upload/fl_attachment/");
+        // Abre PDF via Google Docs Viewer — funciona 100% sem custo
+        finalUrl = "https://docs.google.com/viewer?url=" + encodeURIComponent(d.secure_url) + "&embedded=true";
       }
       return { url: finalUrl, tipo: isPdf ? "pdf" : "imagem", nome: selectedFile.name };
     } catch(e) { console.error(e); return null; }
