@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>CFO — Controle Financeiro</title>
+  <title>CFO v05032347</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -232,7 +232,7 @@
         <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
           <button class="btn btn-primary" onclick="App.previewRelatorio()">👁️ Visualizar</button>
           <button class="btn btn-success" onclick="App.gerarPDF()">📄 Baixar PDF</button>
-          <button class="btn btn-outline" id="btnEnviarEmail" onclick="App.enviarRelatorioEmail()" style="display:none">📧 Enviar por E-mail</button>
+          <button class="btn btn-outline" id="btnEnviarEmail" onclick="App.enviarRelatorioEmail()" style="display:none">📧 Enviar Agora</button>
         </div>
         <div class="msg" id="relMsg"></div>
       </div>
@@ -692,7 +692,8 @@
       obrasSnap.forEach(d=>{ obrasMap[d.id]=d.data().nome; obrasMapRender[d.id]=d.data().nome; });
 
       const snap=await getDocs(query(collection(db,"usuarios"),orderBy("criadoEm","desc")));
-      allUsers=snap.docs.map(d=>{const data=d.data();
+      allUsers=snap.docs.map(d=>{
+        const data=d.data();
         return {
           id:d.id,
           ...data,
@@ -773,7 +774,7 @@
   // ── AUTH STATE ──
   // Timeout de segurança — esconde loading após 8s mesmo se Firebase travar
   setTimeout(() => {
-    const ls = $("loadingScreen");
+    const ls= $("loadingScreen");
     if(ls && ls.style.display !== "none") {
       ls.style.display = "none";
       $("loginPage").classList.remove("hidden");
@@ -1587,8 +1588,70 @@
       doc.setTextColor(0,0,0);
       doc.setFontSize(11); doc.setFont("helvetica","bold");
       doc.text("Lançamentos", 14, 38);
-      const rows = lancs.map(l => [formatDate(l.data), l.categoria||"—", (l.descricao||"—").substring(0,30), (l.colaborador_nome||"—").substring(0,20), brl(l.valor), l.reembolsavel?"Reimb.":"Empresa"]);
-      doc.autoTable({startY:42, head:[["Data","Categoria","Descrição","Colaborador","Valor","Tipo"]], body:rows, styles:{fontSize:8,cellPadding:2}, headStyles:{fillColor:[15,52,96],textColor:255,fontStyle:"bold"}, alternateRowStyles:{fillColor:[245,247,250]}, columnStyles:{4:{halign:"right"},5:{halign:"center"}}, margin:{left:14,right:14}});
+      // Agrupar lançamentos por colaborador
+      const porColab = {};
+      lancs.forEach(l => {
+        const nome = l.colaborador_nome || "Sem nome";
+        if(!porColab[nome]) porColab[nome] = [];
+        porColab[nome].push(l);
+      });
+
+      let startY = 42;
+      for(const [colaborador, lancColab] of Object.entries(porColab)) {
+        // Título do colaborador
+        doc.setFontSize(10); doc.setFont("helvetica","bold");
+        doc.setTextColor(15,52,96);
+        doc.text("👤 " + colaborador, 14, startY);
+        startY += 5;
+
+        const rows = lancColab.map(l => [
+          formatDate(l.data),
+          l.categoria||"—",
+          (l.descricao||"—").substring(0,35),
+          brl(l.valor),
+          l.reembolsavel ? "✓ REIMB." : "EMPRESA"
+        ]);
+
+        // Total do colaborador
+        const totalColab = lancColab.reduce((s,l)=>s+Number(l.valor||0),0);
+        const reembColab = lancColab.filter(l=>l.reembolsavel).reduce((s,l)=>s+Number(l.valor||0),0);
+        rows.push(["","TOTAL","", brl(totalColab), ""]);
+
+        doc.autoTable({
+          startY,
+          head:[["Data","Categoria","Descrição","Valor","Tipo"]],
+          body: rows,
+          styles:{fontSize:8,cellPadding:2.5},
+          headStyles:{fillColor:[15,52,96],textColor:255,fontStyle:"bold"},
+          alternateRowStyles:{fillColor:[245,247,250]},
+          columnStyles:{
+            3:{halign:"right",fontStyle:"bold"},
+            4:{halign:"center",fontStyle:"bold"}
+          },
+          didParseCell: (data) => {
+            // Destacar reembolsável em amarelo
+            if(data.column.index===4 && data.cell.raw==="✓ REIMB.") {
+              data.cell.styles.textColor = [180,120,0];
+              data.cell.styles.fillColor = [255,251,230];
+            }
+            // Destacar linha de total
+            if(data.row.index===rows.length-1) {
+              data.cell.styles.fontStyle="bold";
+              data.cell.styles.fillColor=[230,240,255];
+            }
+          },
+          margin:{left:14,right:14}
+        });
+
+        // Resumo do colaborador
+        const fy = doc.lastAutoTable.finalY + 3;
+        doc.setFontSize(8); doc.setFont("helvetica","normal"); doc.setTextColor(80,80,80);
+        doc.text(`  Total: ${brl(totalColab)}  |  Empresa: ${brl(totalColab-reembColab)}  |  Reembolsável: ${brl(reembColab)}`, 14, fy);
+        startY = fy + 8;
+
+        // Nova página se necessário
+        if(startY > 250) { doc.addPage(); startY = 20; }
+      }
       // Resumo por categoria
       const cats = Object.keys(CATEGORIAS_CORES);
       const totCat = {}; cats.forEach(c=>totCat[c]=0);
@@ -1702,13 +1765,104 @@
       const totCat={}; cats.forEach(c=>totCat[c]=0);
       let totalGeral=0,totalReemb=0,totalEmp=0;
       lancs.forEach(l=>{ const v=Number(l.valor||0),cat=cats.includes(l.categoria)?l.categoria:"Outros gastos"; totCat[cat]+=v;totalGeral+=v; if(l.reembolsavel)totalReemb+=v;else totalEmp+=v; });
-      const tabCats = cats.map(c=>"  "+c+": "+brl(totCat[c])).join("\n");
-      const message = "Relatório de Despesas — "+obraNome+"\nPeríodo: "+deFmt+" a "+ateFmt+"\n\nTotal de lançamentos: "+lancs.length+"\nTotal Geral: "+brl(totalGeral)+"\nEmpresa: "+brl(totalEmp)+"\nReembolsável: "+brl(totalReemb)+"\n\nPor Categoria:\n"+tabCats+"\n\nCFO — Controle Financeiro de Obras";
+      // Montar e-mail HTML formatado
+      const tabCatsHTML = cats.map(c =>
+        `<tr><td style="padding:6px 12px;border-bottom:1px solid #eee">${c}</td><td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right;font-weight:600">${brl(totCat[c])}</td></tr>`
+      ).join("");
+
+      const lancRows = lancs.map(l =>
+        `<tr>
+          <td style="padding:5px 8px;border-bottom:1px solid #f0f0f0;font-size:12px">${formatDate(l.data)}</td>
+          <td style="padding:5px 8px;border-bottom:1px solid #f0f0f0;font-size:12px">${l.categoria||"—"}</td>
+          <td style="padding:5px 8px;border-bottom:1px solid #f0f0f0;font-size:12px">${l.descricao||"—"}</td>
+          <td style="padding:5px 8px;border-bottom:1px solid #f0f0f0;font-size:12px">${l.colaborador_nome||"—"}</td>
+          <td style="padding:5px 8px;border-bottom:1px solid #f0f0f0;font-size:12px;text-align:right;font-weight:600">${brl(l.valor)}</td>
+          <td style="padding:5px 8px;border-bottom:1px solid #f0f0f0;font-size:12px;text-align:center">${l.reembolsavel?"Reimb.":"Empresa"}</td>
+          <td style="padding:5px 8px;border-bottom:1px solid #f0f0f0;font-size:12px;text-align:center">${l.comprovante?.url?`<a href="${l.comprovante.url}" style="color:#e94560">📎 Ver nota</a>`:"—"}</td>
+        </tr>`
+      ).join("");
+
+      const dataEnvio = new Date().toLocaleDateString("pt-BR");
+      const message = `
+<div style="font-family:Arial,sans-serif;max-width:700px;margin:0 auto">
+  <div style="background:#0f3460;color:white;padding:24px 28px;border-radius:8px 8px 0 0">
+    <h2 style="margin:0;font-size:20px">📊 Relatório de Gastos Mensal</h2>
+    <p style="margin:8px 0 0;opacity:.85;font-size:14px">
+      <strong>Obra:</strong> ${obraNome} &nbsp;|&nbsp;
+      <strong>Período:</strong> ${deFmt} a ${ateFmt} &nbsp;|&nbsp;
+      <strong>Emitido em:</strong> ${dataEnvio}
+    </p>
+  </div>
+
+  <div style="background:#f8f9fc;padding:20px 28px;border:1px solid #e0e0e0">
+    <div style="display:flex;gap:24px;flex-wrap:wrap">
+      <div style="background:white;padding:14px 20px;border-radius:8px;border-left:4px solid #e94560;min-width:140px">
+        <div style="font-size:11px;color:#888;text-transform:uppercase">Total Geral</div>
+        <div style="font-size:22px;font-weight:700;color:#e94560">${brl(totalGeral)}</div>
+      </div>
+      <div style="background:white;padding:14px 20px;border-radius:8px;border-left:4px solid #10b981;min-width:140px">
+        <div style="font-size:11px;color:#888;text-transform:uppercase">Empresa</div>
+        <div style="font-size:18px;font-weight:700;color:#10b981">${brl(totalEmp)}</div>
+      </div>
+      <div style="background:white;padding:14px 20px;border-radius:8px;border-left:4px solid #f59e0b;min-width:140px">
+        <div style="font-size:11px;color:#888;text-transform:uppercase">Reembolsável</div>
+        <div style="font-size:18px;font-weight:700;color:#f59e0b">${brl(totalReemb)}</div>
+      </div>
+      <div style="background:white;padding:14px 20px;border-radius:8px;border-left:4px solid #6366f1;min-width:140px">
+        <div style="font-size:11px;color:#888;text-transform:uppercase">Lançamentos</div>
+        <div style="font-size:18px;font-weight:700;color:#6366f1">${lancs.length}</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="padding:20px 28px;border:1px solid #e0e0e0;border-top:none">
+    <h3 style="color:#0f3460;margin-top:0">Monitoramento por Categoria</h3>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:24px">
+      <thead>
+        <tr style="background:#0f3460;color:white">
+          <th style="padding:8px 12px;text-align:left;font-size:13px">Categoria</th>
+          <th style="padding:8px 12px;text-align:right;font-size:13px">Total Acumulado</th>
+        </tr>
+      </thead>
+      <tbody>${tabCatsHTML}</tbody>
+      <tr style="background:#fff0f2">
+        <td style="padding:10px 12px;font-weight:700;color:#e94560">TOTAL GERAL</td>
+        <td style="padding:10px 12px;font-weight:700;color:#e94560;text-align:right">${brl(totalGeral)}</td>
+      </tr>
+    </table>
+
+    <h3 style="color:#0f3460">Detalhamento de Lançamentos</h3>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead>
+        <tr style="background:#f0f4f8">
+          <th style="padding:8px;text-align:left;border-bottom:2px solid #ddd">Data</th>
+          <th style="padding:8px;text-align:left;border-bottom:2px solid #ddd">Categoria</th>
+          <th style="padding:8px;text-align:left;border-bottom:2px solid #ddd">Descrição</th>
+          <th style="padding:8px;text-align:left;border-bottom:2px solid #ddd">Colaborador</th>
+          <th style="padding:8px;text-align:right;border-bottom:2px solid #ddd">Valor</th>
+          <th style="padding:8px;text-align:center;border-bottom:2px solid #ddd">Tipo</th>
+          <th style="padding:8px;text-align:center;border-bottom:2px solid #ddd">Nota</th>
+        </tr>
+      </thead>
+      <tbody>${lancRows}</tbody>
+    </table>
+  </div>
+
+  <div style="background:#0f3460;color:white;padding:14px 28px;border-radius:0 0 8px 8px;font-size:12px;text-align:center;opacity:.85">
+    CFO — Controle Financeiro de Obras · Relatório gerado automaticamente em ${dataEnvio}
+  </div>
+</div>`;
+
       if(typeof emailjs==="undefined"){ setMsg("relMsg","❌ EmailJS não carregado."); return; }
       emailjs.init(EMAILJS_KEY);
       let enviados=0;
       for(const email of emails){
-        await emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {to_email:email, obra_nome:obraNome, periodo:deFmt+" a "+ateFmt, message});
+        await emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
+          to_email: email,
+          obra_nome: obraNome,
+          periodo: deFmt+" a "+ateFmt,
+          message
+        });
         enviados++;
       }
       await setDoc(doc(db,"relatorios_enviados","REL_"+Date.now()),{obra_nome:obraNome, periodo_de:$("relDe")?.value, periodo_ate:$("relAte")?.value, total:totalGeral, enviado_por:currentUser.uid, enviado_em:serverTimestamp(), destinatarios:emails});
