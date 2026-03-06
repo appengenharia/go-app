@@ -774,7 +774,7 @@
   // ── AUTH STATE ──
   // Timeout de segurança — esconde loading após 8s mesmo se Firebase travar
   setTimeout(() => {
-    const ls= $("loadingScreen");
+    const ls = $("loadingScreen");
     if(ls && ls.style.display !== "none") {
       ls.style.display = "none";
       $("loginPage").classList.remove("hidden");
@@ -1765,95 +1765,71 @@
       const totCat={}; cats.forEach(c=>totCat[c]=0);
       let totalGeral=0,totalReemb=0,totalEmp=0;
       lancs.forEach(l=>{ const v=Number(l.valor||0),cat=cats.includes(l.categoria)?l.categoria:"Outros gastos"; totCat[cat]+=v;totalGeral+=v; if(l.reembolsavel)totalReemb+=v;else totalEmp+=v; });
-      // Montar e-mail HTML formatado
-      const tabCatsHTML = cats.map(c =>
-        `<tr><td style="padding:6px 12px;border-bottom:1px solid #eee">${c}</td><td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right;font-weight:600">${brl(totCat[c])}</td></tr>`
-      ).join("");
-
-      const lancRows = lancs.map(l =>
-        `<tr>
-          <td style="padding:5px 8px;border-bottom:1px solid #f0f0f0;font-size:12px">${formatDate(l.data)}</td>
-          <td style="padding:5px 8px;border-bottom:1px solid #f0f0f0;font-size:12px">${l.categoria||"—"}</td>
-          <td style="padding:5px 8px;border-bottom:1px solid #f0f0f0;font-size:12px">${l.descricao||"—"}</td>
-          <td style="padding:5px 8px;border-bottom:1px solid #f0f0f0;font-size:12px">${l.colaborador_nome||"—"}</td>
-          <td style="padding:5px 8px;border-bottom:1px solid #f0f0f0;font-size:12px;text-align:right;font-weight:600">${brl(l.valor)}</td>
-          <td style="padding:5px 8px;border-bottom:1px solid #f0f0f0;font-size:12px;text-align:center">${l.reembolsavel?"Reimb.":"Empresa"}</td>
-          <td style="padding:5px 8px;border-bottom:1px solid #f0f0f0;font-size:12px;text-align:center">${l.comprovante?.url?`<a href="${l.comprovante.url}" style="color:#e94560">📎 Ver nota</a>`:"—"}</td>
-        </tr>`
-      ).join("");
-
+      // Montar mensagem de texto simples e limpa
       const dataEnvio = new Date().toLocaleDateString("pt-BR");
-      const message = `
-<div style="font-family:Arial,sans-serif;max-width:700px;margin:0 auto">
-  <div style="background:#0f3460;color:white;padding:24px 28px;border-radius:8px 8px 0 0">
-    <h2 style="margin:0;font-size:20px">📊 Relatório de Gastos Mensal</h2>
-    <p style="margin:8px 0 0;opacity:.85;font-size:14px">
-      <strong>Obra:</strong> ${obraNome} &nbsp;|&nbsp;
-      <strong>Período:</strong> ${deFmt} a ${ateFmt} &nbsp;|&nbsp;
-      <strong>Emitido em:</strong> ${dataEnvio}
-    </p>
-  </div>
+      const separador = "─".repeat(45);
 
-  <div style="background:#f8f9fc;padding:20px 28px;border:1px solid #e0e0e0">
-    <div style="display:flex;gap:24px;flex-wrap:wrap">
-      <div style="background:white;padding:14px 20px;border-radius:8px;border-left:4px solid #e94560;min-width:140px">
-        <div style="font-size:11px;color:#888;text-transform:uppercase">Total Geral</div>
-        <div style="font-size:22px;font-weight:700;color:#e94560">${brl(totalGeral)}</div>
-      </div>
-      <div style="background:white;padding:14px 20px;border-radius:8px;border-left:4px solid #10b981;min-width:140px">
-        <div style="font-size:11px;color:#888;text-transform:uppercase">Empresa</div>
-        <div style="font-size:18px;font-weight:700;color:#10b981">${brl(totalEmp)}</div>
-      </div>
-      <div style="background:white;padding:14px 20px;border-radius:8px;border-left:4px solid #f59e0b;min-width:140px">
-        <div style="font-size:11px;color:#888;text-transform:uppercase">Reembolsável</div>
-        <div style="font-size:18px;font-weight:700;color:#f59e0b">${brl(totalReemb)}</div>
-      </div>
-      <div style="background:white;padding:14px 20px;border-radius:8px;border-left:4px solid #6366f1;min-width:140px">
-        <div style="font-size:11px;color:#888;text-transform:uppercase">Lançamentos</div>
-        <div style="font-size:18px;font-weight:700;color:#6366f1">${lancs.length}</div>
-      </div>
-    </div>
-  </div>
+      // Resumo por colaborador
+      const porColab = {};
+      lancs.forEach(l => {
+        const nome = l.colaborador_nome || "Sem nome";
+        if(!porColab[nome]) porColab[nome] = {empresa:0, reemb:0, itens:[]};
+        const v = Number(l.valor||0);
+        if(l.reembolsavel) porColab[nome].reemb += v;
+        else porColab[nome].empresa += v;
+        porColab[nome].itens.push(l);
+      });
 
-  <div style="padding:20px 28px;border:1px solid #e0e0e0;border-top:none">
-    <h3 style="color:#0f3460;margin-top:0">Monitoramento por Categoria</h3>
-    <table style="width:100%;border-collapse:collapse;margin-bottom:24px">
-      <thead>
-        <tr style="background:#0f3460;color:white">
-          <th style="padding:8px 12px;text-align:left;font-size:13px">Categoria</th>
-          <th style="padding:8px 12px;text-align:right;font-size:13px">Total Acumulado</th>
-        </tr>
-      </thead>
-      <tbody>${tabCatsHTML}</tbody>
-      <tr style="background:#fff0f2">
-        <td style="padding:10px 12px;font-weight:700;color:#e94560">TOTAL GERAL</td>
-        <td style="padding:10px 12px;font-weight:700;color:#e94560;text-align:right">${brl(totalGeral)}</td>
-      </tr>
-    </table>
+      let resumoColab = "";
+      for(const [nome, dados] of Object.entries(porColab)) {
+        resumoColab += `  ${nome}\n`;
+        resumoColab += `    Empresa:      ${brl(dados.empresa)}\n`;
+        resumoColab += `    Reembolsável: ${brl(dados.reemb)}\n`;
+        resumoColab += `    Total:        ${brl(dados.empresa + dados.reemb)}\n\n`;
+      }
 
-    <h3 style="color:#0f3460">Detalhamento de Lançamentos</h3>
-    <table style="width:100%;border-collapse:collapse;font-size:12px">
-      <thead>
-        <tr style="background:#f0f4f8">
-          <th style="padding:8px;text-align:left;border-bottom:2px solid #ddd">Data</th>
-          <th style="padding:8px;text-align:left;border-bottom:2px solid #ddd">Categoria</th>
-          <th style="padding:8px;text-align:left;border-bottom:2px solid #ddd">Descrição</th>
-          <th style="padding:8px;text-align:left;border-bottom:2px solid #ddd">Colaborador</th>
-          <th style="padding:8px;text-align:right;border-bottom:2px solid #ddd">Valor</th>
-          <th style="padding:8px;text-align:center;border-bottom:2px solid #ddd">Tipo</th>
-          <th style="padding:8px;text-align:center;border-bottom:2px solid #ddd">Nota</th>
-        </tr>
-      </thead>
-      <tbody>${lancRows}</tbody>
-    </table>
-  </div>
+      // Resumo por colaborador - só reembolsável
+      let resumoColabTxt = "";
+      for(const [nome, dados] of Object.entries(porColab)) {
+        if(dados.reemb > 0) {
+          resumoColabTxt += `  ${nome}\n`;
+          resumoColabTxt += `    Reembolsável: ${brl(dados.reemb)}\n`;
+          resumoColabTxt += `    Total:        ${brl(dados.empresa + dados.reemb)}\n\n`;
+        } else {
+          resumoColabTxt += `  ${nome}\n`;
+          resumoColabTxt += `    Total:        ${brl(dados.empresa + dados.reemb)}\n\n`;
+        }
+      }
 
-  <div style="background:#0f3460;color:white;padding:14px 28px;border-radius:0 0 8px 8px;font-size:12px;text-align:center;opacity:.85">
-    CFO — Controle Financeiro de Obras · Relatório gerado automaticamente em ${dataEnvio}
-  </div>
-</div>`;
+      // Links dos comprovantes — só URLs
+      const comprovantes = lancs.filter(l=>l.comprovante?.url);
+      const linksComp = comprovantes.length > 0
+        ? comprovantes.map(l => `  ${l.comprovante.url}`).join("\n")
+        : "  Nenhum comprovante anexado.";
 
-      if(typeof emailjs==="undefined"){ setMsg("relMsg","❌ EmailJS não carregado."); return; }
+      const message =
+`RELATÓRIO DE GASTOS — ${obraNome.toUpperCase()}
+${separador}
+Período:    ${deFmt} a ${ateFmt}
+Emitido em: ${dataEnvio}
+${separador}
+
+RESUMO FINANCEIRO
+  Empresa:        ${brl(totalEmp)}
+  Reembolsável:   ${brl(totalReemb)}
+${separador}
+  TOTAL GERAL:    ${brl(totalGeral)}
+${separador}
+  Lançamentos:    ${lancs.length}
+
+${separador}
+COMPROVANTES (notas fiscais)
+${linksComp}
+
+${separador}
+CFO — Controle Financeiro de Obras`;
+
+            if(typeof emailjs==="undefined"){ setMsg("relMsg","❌ EmailJS não carregado."); return; }
       emailjs.init(EMAILJS_KEY);
       let enviados=0;
       for(const email of emails){
