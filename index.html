@@ -501,7 +501,7 @@
       const el = $(id); if(el) el.innerHTML = "";
     });
     // Força reload para garantir estado limpo
-    window.location.reload();
+    window.location.href = window.location.href.split('?')[0] + '?t=' + Date.now();
   }
 
   // ── TROCA DE SENHA ──
@@ -531,6 +531,9 @@
 
   async function initApp(user) {
     currentUser=user;
+    // Resetar UI antes de carregar perfil
+    $("sideAdmin")?.classList.add("hidden");
+    $("bottomAdmin")?.classList.add("hidden");
     const profile=await loadProfile(user.uid);
     const nome=profile?.nome||user.email.split("@")[0];
     currentRole=profile?.role||"USER";
