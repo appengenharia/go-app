@@ -1242,8 +1242,8 @@
   <!-- ══════════════════════════════════════════════════════════
        TAB: EVOLUÇÃO DE OBRAS — Hierarquia: Obra > Grupos > Unidades > Serviços
        ══════════════════════════════════════════════════════════ -->
-  <div class="tab-panel" id="tab-evolucao" style="padding:0">
-    <div style="padding:20px 16px 100px">
+  <div class="tab-panel" id="tab-evolucao">
+    <div style="max-width:1100px;margin:0 auto;width:100%">
 
       <!-- HEADER -->
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
@@ -3247,21 +3247,41 @@
     el.style.columns="1";
     el.innerHTML=Object.entries(porData).map(([data,fotos])=>{
       const dtFmt=new Date(data+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"short",year:"numeric"});
-      const cards=fotos.map(r=>{
+       const podeEditarAdm = currentRole==="ADMIN" || currentProfile?.evolResponsavel===true;
+       const cards=fotos.map(r=>{
         const unid=(_eCfg?.unidades||[]).find(u=>u.id===r.unidId);
         const delta=r.pctDepois-r.pctAntes;
+        const tipo = r.tipoFoto||"antes";
+        const tipoCor   = tipo==="depois"?"#10b981":"#f5a623";
+        const tipoLabel = tipo==="depois"?"✅ Depois":"📸 Antes";
+        const safeId = r.id.replace(/[^a-zA-Z0-9]/g,"_");
         return `
-        <div style="display:flex;gap:12px;background:#f8f9fc;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:8px;cursor:pointer"
-             onclick="App.evolVerFotoAmp('${r.fotoUrl}','${(r.unidNome||"").replace(/'/g,"&#39;")}','${(r.svcDesc||"").replace(/'/g,"&#39;")}','${data}','${delta.toFixed(1)}')">
-          <img src="${r.fotoUrl}" style="width:90px;height:80px;object-fit:cover;flex-shrink:0" alt="" loading="lazy">
-          <div style="padding:9px 10px;min-width:0;flex:1">
-            <div style="font-weight:700;font-size:.82rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${unid?.nome||r.unidNome||"—"}</div>
-            <div style="font-size:.75rem;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.svcDesc||"—"}</div>
-            <div style="font-size:.73rem;margin-top:5px">
-              <span style="background:${delta>0?"#dcfce7":"#f3f4f6"};color:${delta>0?"var(--success)":"var(--muted)"};padding:2px 7px;border-radius:20px;font-weight:600">${delta>0?"+":""}${delta.toFixed(1)}%</span>
-              ${r.obs?`<span style="color:var(--muted);font-size:.7rem;margin-left:6px">${r.obs.slice(0,40)}${r.obs.length>40?"…":""}</span>`:""}
+        <div style="background:#f8f9fc;border:1.5px solid ${tipo==="depois"?"#bbf7d0":"#fde68a"};border-radius:10px;overflow:hidden;margin-bottom:8px">
+          <div style="display:flex;gap:12px;cursor:pointer"
+               onclick="App.evolVerFotoAmp('${r.fotoUrl}','${(r.unidNome||"").replace(/'/g,"&#39;")}','${(r.svcDesc||"").replace(/'/g,"&#39;")}','${data}','${delta.toFixed(1)}')">
+            <div style="position:relative;flex-shrink:0">
+              <img src="${r.fotoUrl}" style="width:90px;height:80px;object-fit:cover;display:block" alt="" loading="lazy">
+              <span style="position:absolute;top:4px;left:4px;background:${tipoCor};color:#fff;font-size:.58rem;font-weight:700;padding:1px 5px;border-radius:10px">${tipoLabel}</span>
+            </div>
+            <div style="padding:9px 10px;min-width:0;flex:1">
+              <div style="font-weight:700;font-size:.82rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${unid?.nome||r.unidNome||"—"}</div>
+              <div style="font-size:.75rem;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.svcDesc||"—"}</div>
+              <div style="font-size:.73rem;margin-top:5px">
+                <span style="background:${delta>0?"#dcfce7":"#f3f4f6"};color:${delta>0?"var(--success)":"var(--muted)"};padding:2px 7px;border-radius:20px;font-weight:600">${delta>0?"+":""}${delta.toFixed(1)}%</span>
+                ${r.obs?`<span style="color:var(--muted);font-size:.7rem;margin-left:6px">${r.obs.slice(0,40)}${r.obs.length>40?"…":""}</span>`:""}
+              </div>
             </div>
           </div>
+          ${podeEditarAdm?`
+          <div style="display:flex;gap:6px;padding:6px 10px;border-top:1px solid var(--border);background:#fff">
+            <label id="lblEvolTrocar_${safeId}" style="flex:1;margin:0;cursor:pointer;background:#f0f7ff;border:1px solid #bfdbfe;border-radius:6px;padding:4px 8px;text-align:center;font-size:.72rem;color:var(--brand);font-weight:500">
+              🔄 Trocar
+              <input type="file" id="fileEvolTrocar_${safeId}" accept="image/*" style="display:none">
+            </label>
+            <button id="btnEvolApagar_${safeId}" style="flex:1;background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;padding:4px 8px;font-size:.72rem;color:var(--danger);cursor:pointer;font-weight:500">
+              🗑️ Apagar
+            </button>
+          </div>`:""}
         </div>`;
       }).join("");
       return `
@@ -3270,6 +3290,48 @@
         ${cards}
       </div>`;
     }).join("");
+
+    // Listeners dos botões de edição na galeria ADM
+    if(podeEditarAdm) {
+      regs.forEach(r=>{
+        const safeId = r.id.replace(/[^a-zA-Z0-9]/g,"_");
+        const fileInput = document.getElementById("fileEvolTrocar_"+safeId);
+        const btnApagar = document.getElementById("btnEvolApagar_"+safeId);
+        if(fileInput) fileInput.addEventListener("change", ()=> _evolTrocarFotoAdm(r.id, fileInput));
+        if(btnApagar) btnApagar.addEventListener("click",  ()=> _evolApagarFotoAdm(r.id));
+      });
+    }
+  }
+
+  async function _evolApagarFotoAdm(regId) {
+    if(!_eObraId || !regId) return;
+    if(!confirm("Apagar esta foto permanentemente?")) return;
+    try {
+      await deleteDoc(doc(db,"obras",_eObraId,"evolRegistros",regId));
+      toast("🗑️ Foto apagada!");
+      await evolAbrirGaleria();
+    } catch(e) { toast("Erro: "+e.message); }
+  }
+
+  async function _evolTrocarFotoAdm(regId, input) {
+    if(!input.files[0] || !_eObraId || !regId) return;
+    const file = input.files[0];
+    toast("⏳ Enviando foto...");
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("upload_preset", "cfo_uploads");
+      fd.append("folder", "go");
+      const r = await fetch("https://api.cloudinary.com/v1_1/dibvvm6ix/image/upload", {method:"POST", body:fd});
+      const j = await r.json();
+      if(!j.secure_url) throw new Error("Falha no upload");
+      await updateDoc(doc(db,"obras",_eObraId,"evolRegistros",regId), {
+        fotoUrl: j.secure_url,
+        atualizadoEm: serverTimestamp()
+      });
+      toast("✅ Foto atualizada!");
+      await evolAbrirGaleria();
+    } catch(e) { toast("Erro: "+e.message); }
   }
 
   function evolVerFotoAmp(url,unid,svc,data,delta){
