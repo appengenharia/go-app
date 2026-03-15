@@ -13,7 +13,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>GO – Gestão de Obras</title>
+  <title>GO – Gestão de Obras [DEV]</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -1575,6 +1575,16 @@
       </div>
       <div id="evolRegPreview" style="margin-top:6px;min-height:21px;font-size:.8rem;font-weight:600;padding:5px 9px;border-radius:7px;background:transparent"></div>
       <label style="margin-top:11px">📷 Foto <span style="color:var(--muted);font-weight:400">(recomendada)</span></label>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <label style="margin:0;flex:1;cursor:pointer">
+          <input type="radio" name="evolRegTipoFoto" id="evolRegFotoAntes" value="antes" style="width:auto;margin-right:5px" checked>
+          <span style="font-size:.82rem;font-weight:600;color:var(--accent)">📸 Antes</span>
+        </label>
+        <label style="margin:0;flex:1;cursor:pointer">
+          <input type="radio" name="evolRegTipoFoto" id="evolRegFotoDepois" value="depois" style="width:auto;margin-right:5px">
+          <span style="font-size:.82rem;font-weight:600;color:var(--success)">✅ Depois</span>
+        </label>
+      </div>
       <div id="evolRegFotoArea" style="border:2px dashed var(--border);border-radius:10px;padding:11px;text-align:center;cursor:pointer;background:var(--bg)" onclick="document.getElementById('evolRegFotoInput').click()">
         <div id="evolRegFotoPreview" style="display:none"><img id="evolRegFotoImg" style="max-height:110px;border-radius:7px;max-width:100%" alt=""></div>
         <div id="evolRegFotoPlaceholder" style="color:var(--muted);font-size:.8rem">Toque para foto do serviço</div>
@@ -1836,12 +1846,12 @@
   const SENHA_PADRAO = "user123";
 
   const firebaseConfig = {
-    apiKey:            "AIzaSyCdzLjNlN_LucTX-9P7M4yUaQhcdjiKBjg",
-    authDomain:        "go-app-prod-53ab5.firebaseapp.com",
-    projectId:         "go-app-prod-53ab5",
-    storageBucket:     "go-app-prod-53ab5.firebasestorage.app",
-    messagingSenderId: "354997193181",
-    appId:             "1:354997193181:web:0729a32728505bfa3f4e34"
+    apiKey:            "AIzaSyDo9am2JsYE9AX5BavNCGvNjK9FDfVBr-A",
+    authDomain:        "go-app-dev-bc1be.firebaseapp.com",
+    projectId:         "go-app-dev-bc1be",
+    storageBucket:     "go-app-dev-bc1be.firebasestorage.app",
+    messagingSenderId: "908787123120",
+    appId:             "1:908787123120:web:6214f2e5cf548b25008c75"
   };
 
   const firebaseMain   = initializeApp(firebaseConfig, "main");
@@ -3160,6 +3170,7 @@
         unidId:uid,unidNome:u.nome,svcId:sid,svcDesc:s.desc,
         data:hoje,qtdHoje:qh,qtdExec:nq,qtdTotal:qt,
         pctAntes:_ePctSvc(uid,sid),pctDepois:np,obs,fotoUrl,
+        tipoFoto: document.querySelector('input[name="evolRegTipoFoto"]:checked')?.value || "antes",
         criadoPor:currentUser?.uid||pontoUser?.uid||"",criadoEm:serverTimestamp()
       });
 
@@ -4359,7 +4370,7 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
     const fd = new FormData();
     fd.append("file", selectedFile);
     fd.append("upload_preset", CLOUDINARY_PRESET);
-    fd.append("folder", "go");
+    fd.append("folder", "cfo");
     try {
       const r = await fetch(url, {method:"POST", body:fd});
       const d = await r.json();
@@ -4565,7 +4576,7 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
   // ─────────────────────────────────────────
   // OFFLINE / SYNC
   // ─────────────────────────────────────────
-  const OFFLINE_DB_NAME    = "go_offline";
+  const OFFLINE_DB_NAME    = "cfo_offline";
   const OFFLINE_DB_VERSION = 2;          // ← versão 2: adiciona store de pontos
   const OFFLINE_STORE      = "lancamentos_pendentes";
   const OFFLINE_PONTO_STORE = "pontos_pendentes";
@@ -4623,7 +4634,7 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
   }
 
   // ── Cache de credenciais para autenticação offline no ponto ──
-  const CRED_CACHE_KEY = "go_prod_ponto_cred_cache";
+  const CRED_CACHE_KEY = "go_ponto_cred_cache";
 
   function salvarCredenciaisCache(email, uid, nome, fotoUrl, obras, obra_id, role, obraData) {
     // Salva apenas dados não sensíveis — senha NUNCA é armazenada
@@ -9663,28 +9674,51 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
       return;
     }
 
-    grid.innerHTML = regs.map(r=>{
+    // Agrupar por data e limitar 4 por dia: 2 antes + 2 depois
+    const porData = {};
+    regs.forEach(r=>{
+      const d = r.data||"sem-data";
+      if(!porData[d]) porData[d]={antes:[],depois:[]};
+      const tipo = r.tipoFoto||"antes";
+      if(tipo==="depois"){ if(porData[d].depois.length<2) porData[d].depois.push(r); }
+      else               { if(porData[d].antes.length<2)  porData[d].antes.push(r); }
+    });
+    const regsLimitadas = Object.entries(porData)
+      .sort((a,b)=>b[0].localeCompare(a[0]))
+      .flatMap(([,g])=>[...g.antes,...g.depois]);
+
+    grid.style.gridTemplateColumns = "repeat(2,1fr)";
+    grid.innerHTML = regsLimitadas.map(r=>{
       const dtFmt = new Date((r.data||"")+"T12:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"});
       const unid = (_vCfg?.unidades||[]).find(u=>u.id===r.unidId);
       const delta = r.pctDepois-r.pctAntes;
+      const tipo = r.tipoFoto||"antes";
+      const tipoCor   = tipo==="depois"?"#10b981":"#f5a623";
+      const tipoLabel = tipo==="depois"?"✅ Depois":"📸 Antes";
       return `
-      <div onclick="App.vVerFotoAmp('${r.fotoUrl}','${(r.unidNome||"").replace(/'/g,"&#39;")}','${(r.svcDesc||"").replace(/'/g,"&#39;")}','${r.data||""}','${delta.toFixed(1)}')"
-           style="cursor:zoom-in;border-radius:10px;overflow:hidden;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);transition:transform .15s,box-shadow .15s"
-           onmouseover="this.style.transform='scale(1.03)';this.style.boxShadow='0 8px 24px rgba(0,0,0,.4)'"
+      <div onclick="App.vVerFotoAmp('${r.fotoUrl}','${(r.unidNome||"").replace(/'/g,"&#39;")}','${(r.svcDesc||"").replace(/'/g,"&#39;")}','${r.data||""}','${delta.toFixed(1)}','${tipo}')"
+           style="cursor:zoom-in;border-radius:10px;overflow:hidden;background:rgba(255,255,255,.06);border:1.5px solid ${tipo==="depois"?"rgba(16,185,129,.3)":"rgba(245,166,35,.3)"};transition:transform .15s,box-shadow .15s"
+           onmouseover="this.style.transform='scale(1.02)';this.style.boxShadow='0 8px 24px rgba(0,0,0,.4)'"
            onmouseout="this.style.transform='';this.style.boxShadow=''">
-        <img src="${r.fotoUrl}" style="width:100%;height:120px;object-fit:cover;display:block" loading="lazy" alt="">
+        <div style="position:relative">
+          <img src="${r.fotoUrl}" style="width:100%;height:130px;object-fit:cover;display:block" loading="lazy" alt="">
+          <span style="position:absolute;top:6px;left:6px;background:${tipoCor};color:#fff;font-size:.65rem;font-weight:700;padding:2px 7px;border-radius:20px">${tipoLabel}</span>
+        </div>
         <div style="padding:7px 9px">
-          <div style="font-size:.73rem;font-weight:600;color:rgba(255,255,255,.85);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${unid?.nome||r.unidNome||"—"}</div>
-          <div style="font-size:.67rem;color:rgba(255,255,255,.45);margin-top:1px">${dtFmt} · <span style="color:#10b981">+${delta.toFixed(1)}%</span></div>
+          <div style="font-size:.72rem;font-weight:600;color:rgba(255,255,255,.85);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${unid?.nome||r.unidNome||"—"}</div>
+          <div style="font-size:.65rem;color:rgba(255,255,255,.45);margin-top:1px">${dtFmt} · <span style="color:#10b981">+${delta.toFixed(1)}%</span></div>
         </div>
       </div>`;
     }).join("");
   }
 
-  function vVerFotoAmp(url, unid, svc, data, delta) {
+  function vVerFotoAmp(url, unid, svc, data, delta, tipo) {
     $("vFotoAmpImg").src = url;
     const dtFmt = data ? new Date(data+"T12:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"}) : "";
-    $("vFotoAmpInfo").innerHTML = `<strong>${unid}</strong> · ${svc} · ${dtFmt} · <span style="color:#86efac">+${delta}%</span>`;
+    const tipoLabel = tipo==="depois"
+      ? `<span style="background:#10b981;color:#fff;padding:1px 8px;border-radius:12px;font-size:.75rem">✅ Depois</span>`
+      : `<span style="background:#f5a623;color:#fff;padding:1px 8px;border-radius:12px;font-size:.75rem">📸 Antes</span>`;
+    $("vFotoAmpInfo").innerHTML = `${tipoLabel} <strong>${unid}</strong> · ${svc} · ${dtFmt} · <span style="color:#86efac">+${delta}%</span>`;
     $("vModalFotoAmp").classList.remove("hidden");
   }
 
@@ -9816,89 +9850,126 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
       </div>
 
       <!-- Conteúdo principal (oculto até carregar) -->
-      <div id="vMain" style="display:none;max-width:900px;margin:0 auto">
+      <div id="vMain" style="display:none;max-width:1400px;margin:0 auto">
 
-        <!-- KPIs -->
-        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:20px" id="vKpiGrid">
-          <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:18px;text-align:center">
-            <div style="font-family:'Syne',sans-serif;font-size:2.2rem;font-weight:800;color:#fff" id="vPctGlobal">—</div>
-            <div style="font-size:.78rem;color:rgba(255,255,255,.55);margin-top:2px">Progresso Global</div>
-          </div>
-          <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:18px;text-align:center">
-            <div style="font-family:'Syne',sans-serif;font-size:2.2rem;font-weight:800;color:#fff" id="vTotalUnids">—</div>
-            <div style="font-size:.78rem;color:rgba(255,255,255,.55);margin-top:2px" id="vLblUnids">Unidades</div>
-          </div>
-          <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:18px;text-align:center">
-            <div style="font-family:'Syne',sans-serif;font-size:2.2rem;font-weight:800;color:#10b981" id="vConcluidas">—</div>
-            <div style="font-size:.78rem;color:rgba(255,255,255,.55);margin-top:2px">Concluídas</div>
-          </div>
-          <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:18px;text-align:center">
-            <div style="font-family:'Syne',sans-serif;font-size:2.2rem;font-weight:800;color:#f5a623" id="vEmAndamento">—</div>
-            <div style="font-size:.78rem;color:rgba(255,255,255,.55);margin-top:2px">Em andamento</div>
-          </div>
-        </div>
+        <!-- Layout 3 colunas desktop, 1 coluna mobile -->
+        <div style="display:grid;grid-template-columns:1fr 1.6fr 1.4fr;gap:16px;align-items:start" id="vGrid3col">
 
-        <!-- Barra de progresso global -->
-        <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:18px;margin-bottom:20px">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-            <span style="color:rgba(255,255,255,.8);font-weight:600;font-size:.88rem">Progresso Geral</span>
-            <span style="font-family:'Syne',sans-serif;font-weight:800;color:#fff;font-size:1.1rem" id="vBarPct">0%</span>
-          </div>
-          <div style="background:rgba(255,255,255,.1);border-radius:999px;height:14px;overflow:hidden">
-            <div id="vBarFill" style="height:100%;border-radius:999px;width:0%;transition:width 1s cubic-bezier(.4,0,.2,1);background:linear-gradient(90deg,#e94560,#f5a623)"></div>
-          </div>
-          <div style="font-size:.72rem;color:rgba(255,255,255,.4);margin-top:6px;text-align:right" id="vDataAtualizacao"></div>
-        </div>
+          <!-- ═══ COLUNA ESQUERDA: KPIs + Progresso Geral ═══ -->
+          <div style="display:flex;flex-direction:column;gap:12px">
 
-        <!-- Lista de unidades (igual ao ADM) -->
-        <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:18px;margin-bottom:20px">
-          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:14px">
-            <div style="font-weight:600;color:rgba(255,255,255,.8);font-size:.88rem">🏗️ Progresso por <span id="vLblTipoUnid">Unidade</span></div>
-            <select id="vFiltroGrupo" onchange="App.vFiltrarGrupo()" style="display:none;margin:0;font-size:.76rem;padding:5px 8px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:7px;width:auto">
-              <option value="">Todos os grupos</option>
-            </select>
-          </div>
-          <div id="vListaUnidades">
-            <div style="color:rgba(255,255,255,.35);text-align:center;padding:20px;font-size:.82rem">Carregando...</div>
-          </div>
-        </div>
-
-        <!-- Gráfico de barras -->
-        <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:18px;margin-bottom:20px">
-          <div style="font-weight:600;color:rgba(255,255,255,.8);font-size:.88rem;margin-bottom:14px">📊 Gráfico de Progresso</div>
-          <canvas id="vChartBarra" style="max-height:320px"></canvas>
-        </div>
-
-        <!-- Gráfico de linha (histórico) -->
-        <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:18px;margin-bottom:20px;display:none" id="vCardHistorico">
-          <div style="font-weight:600;color:rgba(255,255,255,.8);font-size:.88rem;margin-bottom:14px">📈 Evolução ao Longo do Tempo</div>
-          <canvas id="vChartLinha" style="max-height:220px"></canvas>
-        </div>
-
-        <!-- Galeria de fotos -->
-        <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:18px;margin-bottom:20px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
-            <div style="font-weight:600;color:rgba(255,255,255,.8);font-size:.88rem">🖼️ Registro Fotográfico</div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap">
-              <select id="vGaleriaFiltroUnid" onchange="App.vFiltrarGaleria()" style="margin:0;font-size:.76rem;padding:5px 8px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:7px;width:auto">
-                <option value="">Todas as unidades</option>
-              </select>
-              <select id="vGaleriaFiltroPeriodo" onchange="App.vFiltrarGaleria()" style="margin:0;font-size:.76rem;padding:5px 8px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:7px;width:auto">
-                <option value="30" selected>Últimos 30 dias</option>
-                <option value="90">Últimos 90 dias</option>
-                <option value="0">Todos</option>
-              </select>
+            <!-- KPI: Progresso Global -->
+            <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:18px;text-align:center">
+              <div style="font-family:'Syne',sans-serif;font-size:2.8rem;font-weight:800;color:#fff;line-height:1" id="vPctGlobal">—</div>
+              <div style="font-size:.78rem;color:rgba(255,255,255,.55);margin-top:4px;text-transform:uppercase;letter-spacing:.5px">Progresso Global</div>
             </div>
-          </div>
-          <div id="vGaleriaGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px">
-            <div style="color:rgba(255,255,255,.4);font-size:.82rem;text-align:center;padding:24px;grid-column:1/-1">📷 Nenhuma foto registrada ainda</div>
-          </div>
-          <div style="font-size:.72rem;color:rgba(255,255,255,.4);text-align:center;margin-top:10px" id="vGaleriaTotais"></div>
-        </div>
 
+            <!-- KPI: Total unidades -->
+            <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:16px;text-align:center">
+              <div style="font-family:'Syne',sans-serif;font-size:2rem;font-weight:800;color:#fff" id="vTotalUnids">—</div>
+              <div style="font-size:.75rem;color:rgba(255,255,255,.5);margin-top:3px" id="vLblUnids">Unidades</div>
+            </div>
 
+            <!-- KPI: Concluídas -->
+            <div style="background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);border-radius:14px;padding:16px;text-align:center">
+              <div style="font-family:'Syne',sans-serif;font-size:2rem;font-weight:800;color:#10b981" id="vConcluidas">—</div>
+              <div style="font-size:.75rem;color:rgba(255,255,255,.5);margin-top:3px">Concluídas</div>
+            </div>
+
+            <!-- KPI: Em andamento -->
+            <div style="background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.3);border-radius:14px;padding:16px;text-align:center">
+              <div style="font-family:'Syne',sans-serif;font-size:2rem;font-weight:800;color:#f5a623" id="vEmAndamento">—</div>
+              <div style="font-size:.75rem;color:rgba(255,255,255,.5);margin-top:3px">Em andamento</div>
+            </div>
+
+            <!-- Barra Progresso Geral -->
+            <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:16px">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                <span style="color:rgba(255,255,255,.7);font-weight:600;font-size:.82rem">Progresso Geral</span>
+                <span style="font-family:'Syne',sans-serif;font-weight:800;color:#fff;font-size:1rem" id="vBarPct">0%</span>
+              </div>
+              <div style="background:rgba(255,255,255,.1);border-radius:999px;height:12px;overflow:hidden">
+                <div id="vBarFill" style="height:100%;border-radius:999px;width:0%;transition:width 1s cubic-bezier(.4,0,.2,1);background:linear-gradient(90deg,#e94560,#f5a623)"></div>
+              </div>
+              <div style="font-size:.68rem;color:rgba(255,255,255,.35);margin-top:5px;text-align:right" id="vDataAtualizacao"></div>
+            </div>
+
+          </div><!-- /col esquerda -->
+
+          <!-- ═══ COLUNA CENTRAL: Lista de unidades + Gráfico de barras ═══ -->
+          <div style="display:flex;flex-direction:column;gap:12px">
+
+            <!-- Lista de unidades -->
+            <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:18px">
+              <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:14px">
+                <div style="font-weight:600;color:rgba(255,255,255,.8);font-size:.88rem">🏗️ Progresso por <span id="vLblTipoUnid">Unidade</span></div>
+                <select id="vFiltroGrupo" onchange="App.vFiltrarGrupo()" style="display:none;margin:0;font-size:.76rem;padding:5px 8px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:7px;width:auto">
+                  <option value="">Todos os grupos</option>
+                </select>
+              </div>
+              <div id="vListaUnidades">
+                <div style="color:rgba(255,255,255,.35);text-align:center;padding:20px;font-size:.82rem">Carregando...</div>
+              </div>
+            </div>
+
+            <!-- Gráfico de barras -->
+            <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:18px">
+              <div style="font-weight:600;color:rgba(255,255,255,.8);font-size:.88rem;margin-bottom:12px">📊 Gráfico de Progresso</div>
+              <div id="vBarraWrap" style="position:relative;width:100%;height:220px">
+                <canvas id="vChartBarra" style="position:absolute;inset:0"></canvas>
+              </div>
+            </div>
+
+          </div><!-- /col central -->
+
+          <!-- ═══ COLUNA DIREITA: Histórico + Galeria ═══ -->
+          <div style="display:flex;flex-direction:column;gap:12px">
+
+            <!-- Gráfico histórico -->
+            <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:18px;display:none" id="vCardHistorico">
+              <div style="font-weight:600;color:rgba(255,255,255,.8);font-size:.88rem;margin-bottom:12px">📈 Evolução no Tempo</div>
+              <div style="position:relative;width:100%;height:140px">
+                <canvas id="vChartLinha" style="position:absolute;inset:0"></canvas>
+              </div>
+            </div>
+
+            <!-- Galeria — 4 fotos diárias: 2 antes + 2 depois -->
+            <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:18px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+                <div style="font-weight:600;color:rgba(255,255,255,.8);font-size:.88rem">🖼️ Registro Fotográfico</div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                  <select id="vGaleriaFiltroUnid" onchange="App.vFiltrarGaleria()" style="margin:0;font-size:.72rem;padding:4px 7px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:7px;width:auto">
+                    <option value="">Todas</option>
+                  </select>
+                  <select id="vGaleriaFiltroPeriodo" onchange="App.vFiltrarGaleria()" style="margin:0;font-size:.72rem;padding:4px 7px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:7px;width:auto">
+                    <option value="7">7 dias</option>
+                    <option value="30" selected>30 dias</option>
+                    <option value="90">90 dias</option>
+                    <option value="0">Todos</option>
+                  </select>
+                </div>
+              </div>
+              <div id="vGaleriaGrid">
+                <div style="color:rgba(255,255,255,.4);font-size:.82rem;text-align:center;padding:24px">📷 Nenhuma foto registrada ainda</div>
+              </div>
+              <div style="font-size:.68rem;color:rgba(255,255,255,.35);text-align:center;margin-top:8px" id="vGaleriaTotais"></div>
+            </div>
+
+          </div><!-- /col direita -->
+
+        </div><!-- /grid 3 colunas -->
 
       </div><!-- /vMain -->
+
+      <style>
+        @media(max-width:900px){
+          #vGrid3col { grid-template-columns: 1fr !important; }
+        }
+        @media(min-width:901px) and (max-width:1100px){
+          #vGrid3col { grid-template-columns: 1fr 1fr !important; }
+          #vGrid3col > div:last-child { grid-column: 1 / -1; }
+        }
+      </style>
     </div><!-- /scroll -->
 
     <!-- Modal foto ampliada (visitante) -->
