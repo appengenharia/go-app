@@ -1898,9 +1898,7 @@
     if(tab==="rh"       && currentRole!=="ADMIN") return;
     // Evolução: ADMIN sempre, colaborador só se for responsável pela evolução
     if(tab==="evolucao" && currentRole!=="ADMIN") {
-      // Verificar se é colaborador responsável pela evolução
-      const profEvol = allUsers?.find(u=>u.id===currentUser?.uid);
-      if(!profEvol?.evolResponsavel) return;
+      if(!currentProfile?.evolResponsavel) return;
     }
     document.querySelectorAll(".tab-panel").forEach(p=>p.classList.remove("active"));
     document.querySelectorAll(".nav-item[data-tab]").forEach(b=>b.classList.remove("active"));
@@ -2051,7 +2049,7 @@
     return null;
   }
 
-  let currentUser=null, currentRole="USER";
+  let currentUser=null, currentRole="USER", currentProfile=null;
 
   async function initApp(user) {
     currentUser=user;
@@ -2062,6 +2060,7 @@
     const profile=await loadProfile(user.uid);
     const nome=profile?.nome||user.email.split("@")[0];
     currentRole=profile?.role||"USER";
+    currentProfile=profile;
 
     if(profile?.ativo===false){
       await signOut(auth);
