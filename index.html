@@ -9703,13 +9703,14 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
       const tipo = r.tipoFoto||"antes";
       const tipoCor   = tipo==="depois"?"#10b981":"#f5a623";
       const tipoLabel = tipo==="depois"?"✅ Depois":"📸 Antes";
+      const safeId = r.id.replace(/[^a-zA-Z0-9]/g,"_");
       const btnEditar = podeEditar ? `
         <div style="display:flex;gap:4px;padding:5px 7px;border-top:1px solid rgba(255,255,255,.08)" onclick="event.stopPropagation()">
-          <label style="flex:1;margin:0;cursor:pointer;background:rgba(255,255,255,.08);border-radius:6px;padding:3px 6px;text-align:center;font-size:.62rem;color:rgba(255,255,255,.6);transition:background .15s" onmouseover="this.style.background='rgba(255,255,255,.15)'" onmouseout="this.style.background='rgba(255,255,255,.08)'">
+          <label id="lblTrocar_${safeId}" style="flex:1;margin:0;cursor:pointer;background:rgba(255,255,255,.08);border-radius:6px;padding:3px 6px;text-align:center;font-size:.62rem;color:rgba(255,255,255,.6);transition:background .15s" onmouseover="this.style.background='rgba(255,255,255,.15)'" onmouseout="this.style.background='rgba(255,255,255,.08)'">
             🔄 Trocar
-            <input type="file" accept="image/*" style="display:none" onchange="App.vTrocarFoto('${r.id}',this)">
+            <input type="file" id="fileTrocar_${safeId}" accept="image/*" style="display:none">
           </label>
-          <button onclick="App.vApagarFoto('${r.id}')" style="flex:1;background:rgba(233,69,96,.12);border:none;border-radius:6px;padding:3px 6px;font-size:.62rem;color:#fca5a5;cursor:pointer;transition:background .15s" onmouseover="this.style.background='rgba(233,69,96,.25)'" onmouseout="this.style.background='rgba(233,69,96,.12)'">
+          <button id="btnApagarFoto_${safeId}" style="flex:1;background:rgba(233,69,96,.12);border:none;border-radius:6px;padding:3px 6px;font-size:.62rem;color:#fca5a5;cursor:pointer;transition:background .15s" onmouseover="this.style.background='rgba(233,69,96,.25)'" onmouseout="this.style.background='rgba(233,69,96,.12)'">
             🗑️ Apagar
           </button>
         </div>` : "";
@@ -9726,6 +9727,17 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
         ${btnEditar}
       </div>`;
     }).join("");
+
+    // Adicionar listeners após render (evita problema de onclick em módulo ES)
+    if(podeEditar) {
+      regsLimitadas.forEach(r=>{
+        const safeId = r.id.replace(/[^a-zA-Z0-9]/g,"_");
+        const fileInput = document.getElementById("fileTrocar_"+safeId);
+        const btnApagar = document.getElementById("btnApagarFoto_"+safeId);
+        if(fileInput) fileInput.addEventListener("change", ()=> vTrocarFoto(r.id, fileInput));
+        if(btnApagar) btnApagar.addEventListener("click",  ()=> vApagarFoto(r.id));
+      });
+    }
   }
 
   function vVerFotoAmp(url, unid, svc, data, delta, tipo) {
@@ -9905,67 +9917,79 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
       <div id="vMain" style="display:none;max-width:1400px;margin:0 auto">
 
         <!-- Layout 2 colunas: esquerda KPIs, direita gráficos + galeria -->
-        <div style="display:grid;grid-template-columns:200px 1fr;gap:16px;align-items:start" id="vGrid3col">
+        <!-- 3 colunas: esquerda KPIs, centro lista, direita gráficos+fotos -->
+        <div style="display:grid;grid-template-columns:180px 1fr 1.4fr;gap:14px;align-items:start" id="vGrid3col">
 
-          <!-- ═══ COLUNA ESQUERDA: KPIs + Barra Global + Lista de unidades ═══ -->
+          <!-- ═══ COLUNA ESQUERDA: KPIs + Barra Progresso Geral ═══ -->
           <div style="display:flex;flex-direction:column;gap:10px">
 
+            <!-- Progresso Global -->
             <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:16px;text-align:center">
-              <div style="font-family:'Syne',sans-serif;font-size:2.6rem;font-weight:800;color:#fff;line-height:1" id="vPctGlobal">—</div>
-              <div style="font-size:.72rem;color:rgba(255,255,255,.5);margin-top:4px;text-transform:uppercase;letter-spacing:.5px">Progresso Global</div>
+              <div style="font-family:'Syne',sans-serif;font-size:2.4rem;font-weight:800;color:#fff;line-height:1" id="vPctGlobal">—</div>
+              <div style="font-size:.7rem;color:rgba(255,255,255,.5);margin-top:4px;text-transform:uppercase;letter-spacing:.5px">Progresso Global</div>
             </div>
-            <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:14px;text-align:center">
-              <div style="font-family:'Syne',sans-serif;font-size:1.8rem;font-weight:800;color:#fff" id="vTotalUnids">—</div>
-              <div style="font-size:.7rem;color:rgba(255,255,255,.45);margin-top:2px" id="vLblUnids">Unidades</div>
+
+            <!-- Total Subestações -->
+            <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:13px;text-align:center">
+              <div style="font-family:'Syne',sans-serif;font-size:1.7rem;font-weight:800;color:#fff" id="vTotalUnids">—</div>
+              <div style="font-size:.68rem;color:rgba(255,255,255,.45);margin-top:2px" id="vLblUnids">Unidades</div>
             </div>
-            <div style="background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);border-radius:12px;padding:14px;text-align:center">
-              <div style="font-family:'Syne',sans-serif;font-size:1.8rem;font-weight:800;color:#10b981" id="vConcluidas">—</div>
-              <div style="font-size:.7rem;color:rgba(255,255,255,.45);margin-top:2px">Concluídas</div>
+
+            <!-- Concluídas -->
+            <div style="background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);border-radius:12px;padding:13px;text-align:center">
+              <div style="font-family:'Syne',sans-serif;font-size:1.7rem;font-weight:800;color:#10b981" id="vConcluidas">—</div>
+              <div style="font-size:.68rem;color:rgba(255,255,255,.45);margin-top:2px">Concluídas</div>
             </div>
-            <div style="background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.3);border-radius:12px;padding:14px;text-align:center">
-              <div style="font-family:'Syne',sans-serif;font-size:1.8rem;font-weight:800;color:#f5a623" id="vEmAndamento">—</div>
-              <div style="font-size:.7rem;color:rgba(255,255,255,.45);margin-top:2px">Em andamento</div>
+
+            <!-- Em andamento -->
+            <div style="background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.3);border-radius:12px;padding:13px;text-align:center">
+              <div style="font-family:'Syne',sans-serif;font-size:1.7rem;font-weight:800;color:#f5a623" id="vEmAndamento">—</div>
+              <div style="font-size:.68rem;color:rgba(255,255,255,.45);margin-top:2px">Em andamento</div>
             </div>
-            <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:14px">
+
+            <!-- Barra Progresso Geral -->
+            <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:13px">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-                <span style="color:rgba(255,255,255,.65);font-weight:600;font-size:.78rem">Progresso Geral</span>
-                <span style="font-family:'Syne',sans-serif;font-weight:800;color:#fff;font-size:.95rem" id="vBarPct">0%</span>
+                <span style="color:rgba(255,255,255,.65);font-weight:600;font-size:.75rem">Progresso Geral</span>
+                <span style="font-family:'Syne',sans-serif;font-weight:800;color:#fff;font-size:.9rem" id="vBarPct">0%</span>
               </div>
               <div style="background:rgba(255,255,255,.1);border-radius:999px;height:10px;overflow:hidden">
                 <div id="vBarFill" style="height:100%;border-radius:999px;width:0%;transition:width 1s cubic-bezier(.4,0,.2,1);background:linear-gradient(90deg,#e94560,#f5a623)"></div>
               </div>
-              <div style="font-size:.65rem;color:rgba(255,255,255,.3);margin-top:4px;text-align:right" id="vDataAtualizacao"></div>
-            </div>
-
-            <!-- Lista de unidades (na coluna esquerda) -->
-            <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:14px">
-              <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;margin-bottom:10px">
-                <div style="font-weight:600;color:rgba(255,255,255,.8);font-size:.82rem">🏗️ <span id="vLblTipoUnid">Unidades</span></div>
-                <select id="vFiltroGrupo" onchange="App.vFiltrarGrupo()" style="display:none;margin:0;font-size:.68rem;padding:3px 6px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:6px;width:auto">
-                  <option value="">Todos</option>
-                </select>
-              </div>
-              <div id="vListaUnidades">
-                <div style="color:rgba(255,255,255,.35);text-align:center;padding:12px;font-size:.78rem">Carregando...</div>
-              </div>
+              <div style="font-size:.62rem;color:rgba(255,255,255,.3);margin-top:4px;text-align:right" id="vDataAtualizacao"></div>
             </div>
 
           </div><!-- /col esquerda -->
 
-          <!-- ═══ COLUNA DIREITA: Evolução no Tempo → Progresso por Unidade → Fotos ═══ -->
-          <div style="display:flex;flex-direction:column;gap:14px">
+          <!-- ═══ COLUNA CENTRAL: Lista de Subestações ═══ -->
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:16px">
+              <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+                <div style="font-weight:600;color:rgba(255,255,255,.8);font-size:.88rem">🏗️ <span id="vLblTipoUnid">Subestações eólicas</span></div>
+                <select id="vFiltroGrupo" onchange="App.vFiltrarGrupo()" style="display:none;margin:0;font-size:.72rem;padding:4px 7px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:7px;width:auto">
+                  <option value="">Todos os grupos</option>
+                </select>
+              </div>
+              <div id="vListaUnidades">
+                <div style="color:rgba(255,255,255,.35);text-align:center;padding:16px;font-size:.8rem">Carregando...</div>
+              </div>
+            </div>
+          </div><!-- /col central -->
+
+          <!-- ═══ COLUNA DIREITA: Evolução → Barras → Fotos ═══ -->
+          <div style="display:flex;flex-direction:column;gap:12px">
 
             <!-- 1. Evolução ao Longo do Tempo -->
             <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:16px;display:none" id="vCardHistorico">
-              <div style="font-weight:600;color:rgba(255,255,255,.8);font-size:.88rem;margin-bottom:12px">📈 Evolução ao Longo do Tempo</div>
-              <div style="position:relative;width:100%;height:140px">
+              <div style="font-weight:600;color:rgba(255,255,255,.8);font-size:.86rem;margin-bottom:10px">📈 Evolução ao Longo do Tempo</div>
+              <div style="position:relative;width:100%;height:130px">
                 <canvas id="vChartLinha" style="position:absolute;inset:0"></canvas>
               </div>
             </div>
 
-            <!-- 2. Progresso por Unidade (barras) -->
+            <!-- 2. Progresso por Subestações (barras) -->
             <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:16px">
-              <div style="font-weight:600;color:rgba(255,255,255,.8);font-size:.88rem;margin-bottom:12px">📊 Progresso por <span id="vLblTipoUnid2">Unidade</span></div>
+              <div style="font-weight:600;color:rgba(255,255,255,.8);font-size:.86rem;margin-bottom:10px">📊 Progresso por <span id="vLblTipoUnid2">Subestações</span></div>
               <div id="vBarraWrap" style="position:relative;width:100%;height:220px">
                 <canvas id="vChartBarra" style="position:absolute;inset:0"></canvas>
               </div>
@@ -9974,12 +9998,12 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
             <!-- 3. Registro Fotográfico -->
             <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:16px">
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
-                <div style="font-weight:600;color:rgba(255,255,255,.8);font-size:.88rem">🖼️ Registro Fotográfico</div>
+                <div style="font-weight:600;color:rgba(255,255,255,.8);font-size:.86rem">🖼️ Registro Fotográfico</div>
                 <div style="display:flex;gap:6px;flex-wrap:wrap">
-                  <select id="vGaleriaFiltroUnid" onchange="App.vFiltrarGaleria()" style="margin:0;font-size:.72rem;padding:4px 7px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:7px;width:auto">
-                    <option value="">Todas</option>
+                  <select id="vGaleriaFiltroUnid" onchange="App.vFiltrarGaleria()" style="margin:0;font-size:.7rem;padding:3px 6px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:6px;width:auto">
+                    <option value="">Todas as unidades</option>
                   </select>
-                  <select id="vGaleriaFiltroPeriodo" onchange="App.vFiltrarGaleria()" style="margin:0;font-size:.72rem;padding:4px 7px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:7px;width:auto">
+                  <select id="vGaleriaFiltroPeriodo" onchange="App.vFiltrarGaleria()" style="margin:0;font-size:.7rem;padding:3px 6px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:6px;width:auto">
                     <option value="7">7 dias</option>
                     <option value="30" selected>30 dias</option>
                     <option value="90">90 dias</option>
@@ -9987,21 +10011,25 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
                   </select>
                 </div>
               </div>
-              <div id="vGaleriaGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px">
-                <div style="color:rgba(255,255,255,.4);font-size:.82rem;text-align:center;padding:24px;grid-column:1/-1">📷 Nenhuma foto registrada ainda</div>
+              <div id="vGaleriaGrid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">
+                <div style="color:rgba(255,255,255,.4);font-size:.8rem;text-align:center;padding:20px;grid-column:1/-1">📷 Nenhuma foto registrada ainda</div>
               </div>
-              <div style="font-size:.68rem;color:rgba(255,255,255,.35);text-align:center;margin-top:8px" id="vGaleriaTotais"></div>
+              <div style="font-size:.65rem;color:rgba(255,255,255,.3);text-align:center;margin-top:6px" id="vGaleriaTotais"></div>
             </div>
 
           </div><!-- /col direita -->
 
-        </div><!-- /grid -->
+        </div><!-- /grid 3 colunas -->
 
       </div><!-- /vMain -->
 
       <style>
-        @media(max-width:768px){
+        @media(max-width:900px){
           #vGrid3col { grid-template-columns: 1fr !important; }
+        }
+        @media(min-width:901px) and (max-width:1200px){
+          #vGrid3col { grid-template-columns: 160px 1fr !important; }
+          #vGrid3col > div:last-child { grid-column: 1 / -1; }
         }
       </style>
     </div><!-- /scroll -->
