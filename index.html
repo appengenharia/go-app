@@ -4700,6 +4700,10 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
   function editLanc(id) {
     const l = allLancs.find(x=>x.id===id);
     if(!l) return;
+    if(currentRole!=="ADMIN" && l.colaborador_uid!==currentUser?.uid) {
+      toast("Você só pode editar lançamentos feitos por você.", false);
+      return;
+    }
     editingLancId = id;
     $("formLancTitle").textContent = "Editar Despesa";
     $("btnCancelLanc").classList.remove("hidden");
@@ -4716,6 +4720,12 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
   }
 
   async function deleteLanc(id) {
+    const l = allLancs.find(x=>x.id===id);
+    if(!l) return;
+    if(currentRole!=="ADMIN" && l.colaborador_uid!==currentUser?.uid) {
+      toast("Você só pode excluir lançamentos feitos por você.", false);
+      return;
+    }
     showModal("Excluir despesa","Tem certeza que deseja excluir este lançamento?", async()=>{
       try {
         await deleteDoc(doc(db,"lancamentos",id));
@@ -4737,9 +4747,9 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
       allLancs = snap.docs.map(d=>({id:d.id,...d.data()}));
       const filtObra = $("filterLancObra")?.value || "";
       let list = allLancs;
-      if(currentRole !== "ADMIN") {
-        const prof = await loadProfile(currentUser.uid);
-        if(prof?.obra_id) list = list.filter(l=>l.obra_id===prof.obra_id);
+      const isAdminLanc = currentRole === "ADMIN";
+      if(!isAdminLanc) {
+        list = list.filter(l=>l.colaborador_uid===currentUser?.uid);
       } else if(filtObra) {
         list = list.filter(l=>l.obra_id===filtObra);
       }
@@ -4757,6 +4767,13 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
         const compLink = l.comprovante?.url
           ? `<a href="${l.comprovante.url}" target="_blank" rel="noopener noreferrer" style="font-size:.78rem;color:var(--brand);text-decoration:none">${compLabel}</a>`
           : "";
+        const canEditLanc = isAdminLanc || l.colaborador_uid===currentUser?.uid;
+        const actionsHtml = canEditLanc ? `
+            <button class="btn btn-outline sm" onclick="App.editLanc('${l.id}')">✏️ Editar</button>
+            <button class="btn btn-danger sm" onclick="App.deleteLanc('${l.id}')">🗑️ Excluir</button>
+        ` : `
+            <span style="font-size:.78rem;color:var(--muted)">Somente o autor ou o ADM pode alterar.</span>
+        `;
         div.innerHTML=`
           <div class="lanc-item-top">
             <div class="lanc-item-info">
@@ -4770,10 +4787,7 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
             </div>
             <div class="lanc-item-valor">${brl(l.valor)}</div>
           </div>
-          <div class="lanc-item-actions">
-            <button class="btn btn-outline sm" onclick="App.editLanc('${l.id}')">✏️ Editar</button>
-            <button class="btn btn-danger sm" onclick="App.deleteLanc('${l.id}')">🗑️ Excluir</button>
-          </div>`;
+          <div class="lanc-item-actions">${actionsHtml}</div>`;
         el.appendChild(div);
       });
     } catch(e){ el.innerHTML=`<p style="color:var(--danger);padding:12px">Erro ao carregar lançamentos.</p>`; }
