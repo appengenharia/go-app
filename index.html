@@ -32,9 +32,12 @@
   .ponto-status-txt{flex:1;color:var(--text);font-weight:500;}
 
   /* ── RH ── */
-  .rh-screen { display:none }
+  .rh-screen { display:none;width:100% }
   .rh-screen.active { display:block }
-  .rh-home-shell{max-width:1120px;width:100%;margin:0 auto;padding:0 0 24px;}
+  #tab-rh{width:100%;} 
+  #tab-rh.active{display:flex;justify-content:center;width:100%;} 
+  #tab-rh > .rh-screen{width:100%;} 
+  .rh-home-shell{max-width:1120px;width:min(1120px,100%);margin:0 auto;padding:0 0 24px;}
   .rh-home-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:20px;}
   .rh-home-main-card{max-width:100%;margin:0 auto;}
   .rh-status-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.3px;border:1px solid transparent;white-space:nowrap;}
