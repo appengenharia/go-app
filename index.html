@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════════════╗
@@ -5828,14 +5829,50 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
       const meses   = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
       const periodoLabel = meses[deDate.getMonth()]+"-"+deDate.getFullYear()+(deDate.getMonth()!==ateDate.getMonth()?" a "+meses[ateDate.getMonth()]+"-"+ateDate.getFullYear():"");
       const comprovantes = lancs.filter(l=>l.comprovante?.url);
-      const linksComp = comprovantes.length>0
-        ? comprovantes.map(l=>{
-            const label = (l.comprovante?.tipo === "pdf" || l.comprovante?.mimeType === "application/pdf") ? "PDF" : "Imagem";
-            const nome  = l.comprovante?.nome || l.descricao || "Comprovante";
-            return `<div style="margin-bottom:6px"><strong>[${label}]</strong> ${nome}<br><a href="${l.comprovante.url}" style="color:#0f3460">${l.comprovante.url}</a></div>`;
-          }).join("")
-        : "Nenhum comprovante anexado.";
-      const htmlBody = `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto"><div style="background:#0f3460;color:white;padding:20px 24px;border-radius:8px 8px 0 0"><h2 style="margin:0;font-size:18px">GO — Gestão de Obras</h2><p style="margin:6px 0 0;font-size:13px;opacity:.85">Relatório de Despesas — ${obraNome}</p></div><div style="padding:20px 24px;border:1px solid #e0e0e0;border-top:none"><p style="margin:0 0 4px"><strong>Período:</strong> ${deFmt} a ${ateFmt}</p><p style="margin:0 0 16px"><strong>Emitido em:</strong> ${dataEnvio}</p><hr style="border:none;border-top:1px solid #eee;margin:12px 0"><p style="margin:4px 0"><strong>Empresa:</strong> ${brl(totalEmp)}</p><p style="margin:4px 0"><strong>Reembolsável:</strong> ${brl(totalReemb)}</p><p style="margin:8px 0 4px;font-size:16px;font-weight:bold;color:#e94560">TOTAL GERAL: ${brl(totalGeral)}</p><p style="margin:4px 0"><strong>Lançamentos:</strong> ${lancs.length}</p><hr style="border:none;border-top:1px solid #eee;margin:12px 0"><p style="margin:0 0 6px"><strong>Comprovantes:</strong></p><p style="font-size:12px;line-height:1.8">${linksComp}</p><hr style="border:none;border-top:1px solid #eee;margin:12px 0"><p style="font-size:11px;color:#888">O relatório completo está anexado em PDF.<br>GO — Gestão de Obras · Gerado automaticamente em ${dataEnvio}</p></div></div>`;
+      const qtdPdf = comprovantes.filter(l => l.comprovante?.tipo === "pdf" || l.comprovante?.mimeType === "application/pdf").length;
+      const qtdImg = Math.max(0, comprovantes.length - qtdPdf);
+      const htmlBody = `<div style="font-family:Arial,'Helvetica Neue',sans-serif;max-width:680px;margin:0 auto;background:#f4f6fb;padding:24px;color:#1a1a2e">
+        <div style="background:linear-gradient(135deg,#0f3460 0%,#16213e 100%);color:#fff;padding:24px 28px;border-radius:16px 16px 0 0">
+          <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;opacity:.82;margin-bottom:8px">GO — Gestão de Obras</div>
+          <h2 style="margin:0;font-size:26px;line-height:1.2">Relatório de Despesas</h2>
+          <p style="margin:8px 0 0;font-size:15px;opacity:.9">Obra: <strong>${obraNome}</strong></p>
+        </div>
+        <div style="background:#ffffff;border:1px solid #e6eaf2;border-top:none;border-radius:0 0 16px 16px;padding:28px">
+          <p style="margin:0 0 18px;font-size:14px;line-height:1.7;color:#475569">Olá,<br>Segue em anexo o relatório de despesas gerado pelo GO — Gestão de Obras, com resumo financeiro do período e comprovantes incorporados ao PDF.</p>
+          <table role="presentation" style="width:100%;border-collapse:separate;border-spacing:0 12px;margin:0 0 18px">
+            <tr>
+              <td style="width:50%;background:#f8fafc;border:1px solid #e6eaf2;border-radius:12px;padding:14px 16px;vertical-align:top">
+                <div style="font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Período</div>
+                <div style="font-size:16px;font-weight:700;color:#0f172a">${deFmt} a ${ateFmt}</div>
+              </td>
+              <td style="width:50%;background:#f8fafc;border:1px solid #e6eaf2;border-radius:12px;padding:14px 16px;vertical-align:top">
+                <div style="font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Emitido em</div>
+                <div style="font-size:16px;font-weight:700;color:#0f172a">${dataEnvio}</div>
+              </td>
+            </tr>
+          </table>
+          <table role="presentation" style="width:100%;border-collapse:collapse;margin:0 0 18px">
+            <tr>
+              <td style="padding:0 8px 8px 0;width:33.33%"><div style="background:#f8fafc;border:1px solid #e6eaf2;border-radius:12px;padding:16px"><div style="font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:.04em">Empresa</div><div style="margin-top:6px;font-size:20px;font-weight:700;color:#0f172a">${brl(totalEmp)}</div></div></td>
+              <td style="padding:0 8px 8px 8px;width:33.33%"><div style="background:#fff8ed;border:1px solid #fde7bf;border-radius:12px;padding:16px"><div style="font-size:12px;color:#9a6700;text-transform:uppercase;letter-spacing:.04em">Reembolsável</div><div style="margin-top:6px;font-size:20px;font-weight:700;color:#9a6700">${brl(totalReemb)}</div></div></td>
+              <td style="padding:0 0 8px 8px;width:33.33%"><div style="background:#fff1f4;border:1px solid #ffc9d3;border-radius:12px;padding:16px"><div style="font-size:12px;color:#be123c;text-transform:uppercase;letter-spacing:.04em">Total geral</div><div style="margin-top:6px;font-size:22px;font-weight:800;color:#e11d48">${brl(totalGeral)}</div></div></td>
+            </tr>
+          </table>
+          <div style="border:1px solid #e6eaf2;border-radius:14px;padding:18px 18px 8px;margin:0 0 18px;background:#fcfdff">
+            <div style="font-size:14px;font-weight:700;color:#0f172a;margin-bottom:10px">Resumo do envio</div>
+            <table role="presentation" style="width:100%;border-collapse:collapse;font-size:14px;color:#334155">
+              <tr><td style="padding:0 0 10px">Lançamentos no período</td><td style="padding:0 0 10px;text-align:right;font-weight:700;color:#0f172a">${lancs.length}</td></tr>
+              <tr><td style="padding:0 0 10px">Comprovantes anexados ao PDF</td><td style="padding:0 0 10px;text-align:right;font-weight:700;color:#0f172a">${comprovantes.length}</td></tr>
+              <tr><td style="padding:0 0 10px">Imagens incorporadas</td><td style="padding:0 0 10px;text-align:right;font-weight:700;color:#0f172a">${qtdImg}</td></tr>
+              <tr><td style="padding:0 0 10px">Arquivos PDF incorporados</td><td style="padding:0 0 10px;text-align:right;font-weight:700;color:#0f172a">${qtdPdf}</td></tr>
+            </table>
+          </div>
+          <div style="background:#f8fafc;border-left:4px solid #0f3460;border-radius:10px;padding:14px 16px;margin:0 0 18px;font-size:13px;line-height:1.7;color:#475569">
+            O arquivo em anexo contém o relatório consolidado e, na sequência, todas as notas e comprovantes vinculados aos lançamentos do período.
+          </div>
+          <p style="margin:0;font-size:12px;line-height:1.7;color:#64748b">Este e-mail foi gerado automaticamente pelo sistema GO — Gestão de Obras em ${dataEnvio}.</p>
+        </div>
+      </div>`;
       setMsg("relMsg","⏳ Enviando e-mail com PDF anexado...");
       const payload = {emails,assunto:"Relatório GO — "+obraNome+" — "+periodoLabel,corpo:htmlBody,pdf:pdfBase64,nomeArquivo,comprovantes: comprovantes.map(l=>({nome:l.comprovante?.nome||l.descricao||"Comprovante",url:l.comprovante?.url||"",tipo:l.comprovante?.tipo||"arquivo",mimeType:l.comprovante?.mimeType||""}))};
       const iframeName = "emailFrame_"+Date.now();
