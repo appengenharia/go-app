@@ -437,7 +437,7 @@
         </div>
         <div class="ponto-status-item" id="statusFacial">
           <span class="ponto-status-icon">⏳</span>
-          <span class="ponto-status-txt">Reconhecimento facial</span>
+          <span class="ponto-status-txt">Captura da foto do ponto</span>
         </div>
       </div>
 
@@ -976,6 +976,18 @@
               <span style="font-weight:600;font-size:.85rem">📈 Responsável pela evolução desta obra</span>
             </label>
             <div style="font-size:.74rem;color:var(--muted);margin-top:4px;margin-left:26px">O colaborador poderá registrar o progresso das unidades e serviços da obra.</div>
+          </div>
+          <div style="margin-top:10px;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:10px 14px">
+            <div style="font-size:.8rem;font-weight:700;color:#0f172a;margin-bottom:8px">🔐 Permissões do colaborador</div>
+            <label style="margin:0 0 8px;display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--text)">
+              <input type="checkbox" id="userPodeLanc" checked style="width:18px;height:18px;accent-color:var(--brand);flex-shrink:0">
+              <span style="font-weight:600;font-size:.84rem">➕ Pode fazer lançamentos de despesas/notas</span>
+            </label>
+            <label style="margin:0;display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--text)">
+              <input type="checkbox" id="userPodeRel" checked style="width:18px;height:18px;accent-color:var(--brand);flex-shrink:0">
+              <span style="font-weight:600;font-size:.84rem">📋 Pode acessar relatórios</span>
+            </label>
+            <div style="font-size:.73rem;color:var(--muted);margin-top:6px">Se ambas as opções ficarem desmarcadas e o colaborador não for responsável pela obra, ele entrará apenas no fluxo de bater ponto.</div>
           </div>
           <p style="font-size:.78rem;color:var(--muted);margin-top:6px">💡 Você pode alocar em mais obras depois pela lista de colaboradores.</p>
           <label>Foto do rosto <span style="color:var(--accent);font-size:.75rem">★ Obrigatória para bater ponto</span></label>
@@ -1750,6 +1762,18 @@
       </label>
       <div style="font-size:.74rem;color:var(--muted);margin-top:4px;margin-left:26px">Permite registrar progresso de unidades e serviços.</div>
     </div>
+    <div style="margin-top:12px;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:10px 14px">
+      <div style="font-size:.8rem;font-weight:700;color:#0f172a;margin-bottom:8px">🔐 Permissões do colaborador</div>
+      <label style="margin:0 0 8px;display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--text)">
+        <input type="checkbox" id="editPodeLanc" style="width:18px;height:18px;accent-color:var(--brand);flex-shrink:0">
+        <span style="font-weight:600;font-size:.84rem">➕ Pode fazer lançamentos de despesas/notas</span>
+      </label>
+      <label style="margin:0;display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--text)">
+        <input type="checkbox" id="editPodeRel" style="width:18px;height:18px;accent-color:var(--brand);flex-shrink:0">
+        <span style="font-weight:600;font-size:.84rem">📋 Pode acessar relatórios</span>
+      </label>
+      <div style="font-size:.73rem;color:var(--muted);margin-top:6px">Se ambas as opções ficarem desmarcadas e o colaborador não for responsável pela obra, ele entrará apenas no fluxo de bater ponto.</div>
+    </div>
     <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:10px 12px;margin-top:12px;font-size:.79rem;color:#92400e">
       ⚠️ O e-mail exibido aqui é apenas para identificação no sistema. O e-mail de login (Firebase Auth) não muda — o colaborador continua usando o e-mail original para entrar. Use o botão <strong>🔑 Senha</strong> para redefinir o acesso se necessário.
     </div>
@@ -1927,6 +1951,41 @@
     if(page==="appLayout"){ $("sideNav").classList.remove("hidden"); }
   }
 
+  function canUserLancamentos(profile=currentProfile){
+    return currentRole==="ADMIN" ? true : (profile?.podeLancamentos !== false);
+  }
+
+  function canUserRelatorios(profile=currentProfile){
+    return currentRole==="ADMIN" ? true : (profile?.podeRelatorios !== false);
+  }
+
+  function isOnlyPontoUser(profile=currentProfile){
+    return currentRole==="USER" && !canUserLancamentos(profile) && !canUserRelatorios(profile) && profile?.evolResponsavel !== true;
+  }
+
+  function setFeatureTabVisibility(tab, visible){
+    document.querySelectorAll(`[data-tab="${tab}"]`).forEach(el=>{
+      if(visible) el.classList.remove("hidden");
+      else el.classList.add("hidden");
+    });
+  }
+
+  async function iniciarFluxoPontoDireto(profile){
+    try {
+      irParaPonto();
+      pontoUser = currentUser ? { uid: currentUser.uid, email: currentUser.email } : null;
+      pontoProfile = profile || currentProfile;
+      if($("pontoEmail")) $("pontoEmail").value = pontoProfile?.email || currentUser?.email || "";
+      if($("pontoSenha")) $("pontoSenha").value = "";
+      await _continuarApoLogin();
+    } catch(e){
+      console.warn("Fluxo direto do ponto:", e);
+      if($("pontoStepLogin")) $("pontoStepLogin").classList.remove("hidden");
+      if($("pontoStepCamera")) $("pontoStepCamera").classList.add("hidden");
+      setMsg("pontoLoginMsg","⚠️ Não foi possível abrir o ponto direto. Faça o login do ponto normalmente.");
+    }
+  }
+
   // ─────────────────────────────────────────
   // NAVEGAÇÃO POR ABAS
   // ─────────────────────────────────────────
@@ -1934,6 +1993,8 @@
     if(tab==="admin"    && currentRole!=="ADMIN") return;
     if(tab==="ponto"    && currentRole!=="ADMIN") return;
     if(tab==="rh"       && currentRole!=="ADMIN") return;
+    if(tab==="lancamentos" && currentRole==="USER" && !canUserLancamentos()) return;
+    if(tab==="relatorios"  && currentRole==="USER" && !canUserRelatorios()) return;
     // Evolução: ADMIN sempre, colaborador só se for responsável pela evolução
     if(tab==="evolucao" && currentRole!=="ADMIN") {
       if(!currentProfile?.evolResponsavel) return;
@@ -2235,11 +2296,18 @@
       $("bottomRH")?.classList.remove("hidden");
       $("sideEvolucao")?.classList.remove("hidden");
       $("bottomEvolucao")?.classList.remove("hidden");
-    }
-    // Colaborador responsável pela evolução também vê a aba
-    if(currentRole==="USER" && profile?.evolResponsavel===true){
-      $("sideEvolucao")?.classList.remove("hidden");
-      $("bottomEvolucao")?.classList.remove("hidden");
+      setFeatureTabVisibility("lancamentos", true);
+      setFeatureTabVisibility("relatorios", true);
+    } else {
+      setFeatureTabVisibility("lancamentos", canUserLancamentos(profile));
+      setFeatureTabVisibility("relatorios", canUserRelatorios(profile));
+      if(currentRole==="USER" && profile?.evolResponsavel===true){
+        $("sideEvolucao")?.classList.remove("hidden");
+        $("bottomEvolucao")?.classList.remove("hidden");
+      } else {
+        $("sideEvolucao")?.classList.add("hidden");
+        $("bottomEvolucao")?.classList.add("hidden");
+      }
     }
 
 
@@ -2261,6 +2329,12 @@
     }
 
     startSessionTimeout();
+
+    if(isOnlyPontoUser(profile)){
+      await iniciarFluxoPontoDireto(profile);
+      return;
+    }
+
     showPage("appLayout");
     await fillDashFilters();
     loadDashboard();
@@ -2611,6 +2685,8 @@
     setMsg("userMsg","");
     const nome=$("userNome").value.trim(), email=$("userEmail").value.trim();
     const role=$("userRole").value, obra=$("userObra").value;
+    const podeLanc = $("userPodeLanc")?.checked !== false;
+    const podeRel  = $("userPodeRel")?.checked !== false;
     const btn=$("btnSaveUser");
     if(!nome){setMsg("userMsg","Informe o nome.");return;}
     if(!email){setMsg("userMsg","Informe o e-mail.");return;}
@@ -2637,12 +2713,18 @@
         obra_id: obra||"",
         obras:   obra ? [obra] : [],
         fotoUrl: fotoUrl,
+        podeLancamentos: role==="ADMIN" ? true : podeLanc,
+        podeRelatorios:  role==="ADMIN" ? true : podeRel,
+        evolResponsavel: obra ? ($("userEvolResp")?.checked || false) : false,
         ativo:true, primeiro_acesso:true,
         criadoPor:currentUser.uid, criadoEm:serverTimestamp()
       });
 
       // Limpa formulário
       $("userNome").value=""; $("userEmail").value=""; $("userObra").value="";
+      if($("userEvolResp")) $("userEvolResp").checked = false;
+      if($("userPodeLanc")) $("userPodeLanc").checked = true;
+      if($("userPodeRel"))  $("userPodeRel").checked  = true;
       userFotoFile = null;
       const img = $("userFotoPreviewImg");
       if(img){ img.src=""; img.style.display="none"; }
@@ -2715,6 +2797,9 @@
         <div class="badges">
           <span class="badge-status ${u.role==="ADMIN"?"admin":"user"}">${u.role==="ADMIN"?"👑 Admin":"👤 Colab."}</span>
           ${u.evolResponsavel?'<span class="badge-status" style="background:#f0f7ff;color:var(--brand);border:1px solid #bfdbfe">📈 Resp. Evolução</span>':''}
+          ${u.role!=="ADMIN" && u.podeLancamentos===false && u.podeRelatorios===false && !u.evolResponsavel ? '<span class="badge-status" style="background:#ecfeff;color:#155e75;border:1px solid #a5f3fc">🕐 Somente ponto</span>' : ''}
+          ${u.role!=="ADMIN" && u.podeLancamentos!==false ? '<span class="badge-status" style="background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe">➕ Lançamentos</span>' : ''}
+          ${u.role!=="ADMIN" && u.podeRelatorios!==false ? '<span class="badge-status" style="background:#f5f3ff;color:#6d28d9;border:1px solid #ddd6fe">📋 Relatórios</span>' : ''}
           ${u.ativo===false?'<span class="badge-status inactive">⛔ Inativo</span>':''}
           ${u.primeiro_acesso===true&&u.ativo!==false?'<span class="badge-status warning">⏳ Aguard. 1º acesso</span>':''}
         </div>`;
@@ -2743,7 +2828,7 @@
             onclick="App.abrirModalFoto(this.dataset.uid, this.dataset.nome, this.dataset.foto)"
             style="gap:4px">📷 ${temFoto?"Trocar foto":"Adicionar foto"}</button>
           <div style="display:flex;gap:5px">
-            <button class="btn btn-outline sm" data-uid="${u.id}" data-nome="${u.nome||u.email}" data-email="${u.email}" onclick="App.abrirEditColab(this.dataset.uid, this.dataset.nome, this.dataset.email)">✏️ Editar</button>
+            <button class="btn btn-outline sm" data-uid="${u.id}" data-nome="${u.nome||u.email}" data-email="${u.email}" data-podelanc="${u.podeLancamentos===false?'0':'1'}" data-poderel="${u.podeRelatorios===false?'0':'1'}" onclick="App.abrirEditColab(this.dataset.uid, this.dataset.nome, this.dataset.email, this.dataset.podelanc, this.dataset.poderel)">✏️ Editar</button>
             <button class="btn btn-outline sm" data-uid="${u.id}" data-nome="${u.nome||u.email}" data-email="${u.email}" onclick="App.abrirResetSenha(this.dataset.uid, this.dataset.nome, this.dataset.email)" style="color:#7c3aed;border-color:#c4b5fd" title="Redefinir senha">🔑 Senha</button>
             <button class="btn btn-outline sm" data-uid="${u.id}" data-nome="${u.nome||u.email}" onclick="App.openAlocModal(this.dataset.uid, this.dataset.nome)">🏗️ Alocar</button>
             ${acaoBtn}
@@ -4225,7 +4310,7 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
   }
 
   // ── Edição de dados básicos do colaborador ──
-  function abrirEditColab(uid, nome, email) {
+  function abrirEditColab(uid, nome, email, podeLanc, podeRel) {
     $("editColabUid").value   = uid;
     $("editColabNome").value  = nome;
     $("editColabEmail").value = email;
@@ -4233,6 +4318,10 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
     const u = allUsers.find(x=>x.id===uid);
     const cb = $("editEvolResp");
     if(cb) cb.checked = u?.evolResponsavel===true;
+    const cbLanc = $("editPodeLanc");
+    const cbRel  = $("editPodeRel");
+    if(cbLanc) cbLanc.checked = u?.podeLancamentos !== false;
+    if(cbRel)  cbRel.checked  = u?.podeRelatorios !== false;
     // Ocultar para ADMIN (não faz sentido)
     const wrap = $("editEvolRespWrap");
     if(wrap) wrap.style.display = u?.role==="ADMIN" ? "none" : "";
@@ -4252,7 +4341,16 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
     btn.disabled = true; btn.textContent = "Salvando...";
     try {
       const evolResp = $("editEvolResp")?.checked || false;
-      await updateDoc(doc(db,"usuarios",uid), { nome, email, evolResponsavel: evolResp });
+      const podeLanc = $("editPodeLanc")?.checked !== false;
+      const podeRel  = $("editPodeRel")?.checked !== false;
+      await updateDoc(doc(db,"usuarios",uid), {
+        nome,
+        email,
+        evolResponsavel: evolResp,
+        podeLancamentos: podeLanc,
+        podeRelatorios: podeRel,
+        atualizadoEm: serverTimestamp()
+      });
       toast("✅ Dados atualizados!");
       closeModal("modalEditColab");
       await loadUsers();
@@ -4700,10 +4798,6 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
   function editLanc(id) {
     const l = allLancs.find(x=>x.id===id);
     if(!l) return;
-    if(currentRole!=="ADMIN" && l.colaborador_uid!==currentUser?.uid) {
-      toast("Você só pode editar lançamentos feitos por você.", false);
-      return;
-    }
     editingLancId = id;
     $("formLancTitle").textContent = "Editar Despesa";
     $("btnCancelLanc").classList.remove("hidden");
@@ -4720,12 +4814,6 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
   }
 
   async function deleteLanc(id) {
-    const l = allLancs.find(x=>x.id===id);
-    if(!l) return;
-    if(currentRole!=="ADMIN" && l.colaborador_uid!==currentUser?.uid) {
-      toast("Você só pode excluir lançamentos feitos por você.", false);
-      return;
-    }
     showModal("Excluir despesa","Tem certeza que deseja excluir este lançamento?", async()=>{
       try {
         await deleteDoc(doc(db,"lancamentos",id));
@@ -4747,9 +4835,9 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
       allLancs = snap.docs.map(d=>({id:d.id,...d.data()}));
       const filtObra = $("filterLancObra")?.value || "";
       let list = allLancs;
-      const isAdminLanc = currentRole === "ADMIN";
-      if(!isAdminLanc) {
-        list = list.filter(l=>l.colaborador_uid===currentUser?.uid);
+      if(currentRole !== "ADMIN") {
+        const prof = await loadProfile(currentUser.uid);
+        if(prof?.obra_id) list = list.filter(l=>l.obra_id===prof.obra_id);
       } else if(filtObra) {
         list = list.filter(l=>l.obra_id===filtObra);
       }
@@ -4767,13 +4855,6 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
         const compLink = l.comprovante?.url
           ? `<a href="${l.comprovante.url}" target="_blank" rel="noopener noreferrer" style="font-size:.78rem;color:var(--brand);text-decoration:none">${compLabel}</a>`
           : "";
-        const canEditLanc = isAdminLanc || l.colaborador_uid===currentUser?.uid;
-        const actionsHtml = canEditLanc ? `
-            <button class="btn btn-outline sm" onclick="App.editLanc('${l.id}')">✏️ Editar</button>
-            <button class="btn btn-danger sm" onclick="App.deleteLanc('${l.id}')">🗑️ Excluir</button>
-        ` : `
-            <span style="font-size:.78rem;color:var(--muted)">Somente o autor ou o ADM pode alterar.</span>
-        `;
         div.innerHTML=`
           <div class="lanc-item-top">
             <div class="lanc-item-info">
@@ -4787,7 +4868,10 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
             </div>
             <div class="lanc-item-valor">${brl(l.valor)}</div>
           </div>
-          <div class="lanc-item-actions">${actionsHtml}</div>`;
+          <div class="lanc-item-actions">
+            <button class="btn btn-outline sm" onclick="App.editLanc('${l.id}')">✏️ Editar</button>
+            <button class="btn btn-danger sm" onclick="App.deleteLanc('${l.id}')">🗑️ Excluir</button>
+          </div>`;
         el.appendChild(div);
       });
     } catch(e){ el.innerHTML=`<p style="color:var(--danger);padding:12px">Erro ao carregar lançamentos.</p>`; }
@@ -6155,12 +6239,9 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
 
     setStatusItem("statusGps","loading","📍 Obtendo localização...");
     setStatusItem("statusLiveness","loading","👁️ Pisque os olhos "+BLINKS_NEEDED+"x para verificar presença");
-    setStatusItem("statusFacial","loading", pontoProfile.fotoUrl ? "🔍 Aguardando foto..." : "⚪ Sem foto cadastrada (verificação dispensada)");
+    setStatusItem("statusFacial","loading","📸 Aguardando enquadramento e captura da foto");
 
-    if(!pontoProfile.fotoUrl) {
-      facialOk = true;
-      setStatusItem("statusFacial","warn","⚪ Sem foto cadastrada — verificação dispensada");
-    }
+    facialOk = false;
 
     await iniciarCamera();
     obterGPS();
@@ -6189,6 +6270,30 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
       if(!merged.saida)   return "saida";
       return "extra";
     } catch(_){ return "entrada"; }
+  }
+
+  async function validarEnquadramentoFace() {
+    const video = $("pontoVideo");
+    if(!video || video.readyState < 2) return { ok:true, msg:"Face pronta para captura" };
+    if(!("FaceDetector" in window)) return { ok:true, msg:"Captura pronta" };
+    try {
+      const detector = new FaceDetector({ fastMode:true, maxDetectedFaces:1 });
+      const faces = await detector.detect(video);
+      if(!faces || !faces.length) return { ok:false, msg:"Posicione o rosto dentro do quadro" };
+      if(faces.length > 1) return { ok:false, msg:"Deixe apenas uma pessoa na câmera" };
+      const bb = faces[0].boundingBox || {};
+      const w = video.videoWidth || 640;
+      const h = video.videoHeight || 480;
+      const ratioW = (bb.width || 0) / w;
+      const centerX = ((bb.x || 0) + (bb.width || 0) / 2) / w;
+      const centerY = ((bb.y || 0) + (bb.height || 0) / 2) / h;
+      if(ratioW < 0.22) return { ok:false, msg:"Aproxime o rosto da câmera" };
+      if(ratioW > 0.58) return { ok:false, msg:"Afaste um pouco o rosto da câmera" };
+      if(centerX < 0.32 || centerX > 0.68 || centerY < 0.30 || centerY > 0.72) return { ok:false, msg:"Centralize o rosto no quadro" };
+      return { ok:true, msg:"Face enquadrada corretamente" };
+    } catch(_) {
+      return { ok:true, msg:"Captura pronta" };
+    }
   }
 
   // ── LIVENESS: detecta piscar via análise da região dos olhos ──
@@ -6246,9 +6351,20 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
           livenessOk = true;
           clearInterval(livenessDetector);
           setStatusItem("statusLiveness","ok","✅ Presença confirmada (liveness ok)");
-          if(livenessMsg) livenessMsg.textContent = "✅ Presença confirmada!";
-          // Tira foto automaticamente após liveness
-          setTimeout(() => tirarFoto(), 500);
+          if(livenessMsg) livenessMsg.textContent = "✅ Presença confirmada! Validando enquadramento...";
+          setTimeout(async () => {
+            const faceCheck = await validarEnquadramentoFace();
+            if(faceCheck.ok){
+              setStatusItem("statusFacial","ok","📸 " + faceCheck.msg);
+              tirarFoto();
+            } else {
+              livenessOk = false;
+              setStatusItem("statusLiveness","warn","⚠️ " + faceCheck.msg);
+              if(livenessMsg) livenessMsg.textContent = "⚠️ " + faceCheck.msg + " e pisque novamente";
+              blinkCount = 0; eyeWasClosed = false; atualizarBlinkDots();
+              iniciarLiveness();
+            }
+          }, 500);
         }
       }
     }, 100); // 10fps suficiente
@@ -6383,13 +6499,10 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
     $("pontoLivenessOverlay").style.display = "none";
     $("pontoFotoPreview").classList.remove("hidden");
 
-    // Se tem foto cadastrada, faz reconhecimento facial
-    if(pontoProfile?.fotoUrl) {
-      verificarFacial();
-    } else {
-      facialOk = true;
-      verificarTudoPronto();
-    }
+    facialOk = true;
+    setStatusItem("statusFacial","ok","📸 Foto do ponto capturada com sucesso");
+    setMsg("pontoCameraMsg","✅ Foto capturada. Confira a imagem e clique em Confirmar Ponto.");
+    verificarTudoPronto();
   }
 
   function retirarFoto() {
@@ -6398,72 +6511,13 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
     $("pontoFotoPreview").classList.add("hidden");
     $("pontoLivenessOverlay").style.display = "";
     if($("pontoVideo")) $("pontoVideo").style.display = "block";
-    facialOk = pontoProfile?.fotoUrl ? false : true;
+    facialOk = false;
+    livenessOk = false;
     $("btnRegistrarPonto").disabled = true;
-    // Reinicia liveness
-    if(!livenessOk) iniciarLiveness();
-    if(pontoProfile?.fotoUrl) {
-      setStatusItem("statusFacial","loading","🔍 Aguardando nova foto...");
-    }
-  }
-
-  // ── RECONHECIMENTO FACIAL VIA API CLAUDE ──
-  async function verificarFacial() {
-    setStatusItem("statusFacial","loading","🔍 Verificando identidade...");
-    try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 200,
-          messages: [{
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: "Você é um sistema de verificação de identidade. Compare as duas imagens abaixo:\n- Imagem 1: foto cadastrada do colaborador\n- Imagem 2: foto capturada agora para bater ponto\n\nResponda APENAS com JSON no formato: {\"match\": true/false, \"confianca\": \"alta/media/baixa\", \"motivo\": \"breve explicação\"}\n\nSeja criterioso: só confirme match se for claramente a mesma pessoa. Se a qualidade da imagem for baixa, indique na confiança."
-              },
-              {
-                type: "image",
-                source: { type: "url", url: pontoProfile.fotoUrl }
-              },
-              {
-                type: "image",
-                source: { type: "base64", media_type: "image/jpeg", data: pontoFotoB64 }
-              }
-            ]
-          }]
-        })
-      });
-
-      const data = await response.json();
-      const txt = data.content?.[0]?.text || "{}";
-      let resultado;
-      try {
-        // Remove possíveis backticks
-        resultado = JSON.parse(txt.replace(/```json|```/g,"").trim());
-      } catch(_) {
-        resultado = { match: false, confianca:"baixa", motivo:"Erro ao processar resposta" };
-      }
-
-      if(resultado.match) {
-        facialOk = true;
-        setStatusItem("statusFacial","ok",`✅ Identidade confirmada (confiança: ${resultado.confianca})`);
-      } else {
-        facialOk = false;
-        setStatusItem("statusFacial","fail",`❌ Não reconhecido: ${resultado.motivo}`);
-        setMsg("pontoCameraMsg","❌ Reconhecimento facial falhou. Tente novamente com melhor iluminação.");
-      }
-    } catch(e) {
-      console.warn("Erro no reconhecimento facial:", e);
-      // Em caso de erro de rede/API: registra aviso mas NÃO aprova automaticamente
-      // O ponto será salvo com anomalia "facial_indisponivel" para auditoria
-      facialOk = true;  // permite continuar para não bloquear trabalho
-      window._facialAnomaliaRegistrar = true;  // sinaliza para adicionar anomalia
-      setStatusItem("statusFacial","warn","⚠️ Verificação facial indisponível — ponto registrado com aviso de auditoria");
-    }
-    verificarTudoPronto();
+    blinkCount = 0; eyeWasClosed = false; atualizarBlinkDots();
+    setStatusItem("statusLiveness","loading","👁️ Pisque os olhos "+BLINKS_NEEDED+"x para verificar presença");
+    setStatusItem("statusFacial","loading","📸 Aguardando nova captura da foto");
+    iniciarLiveness();
   }
 
   // ── Verifica se todos os checkes passaram e habilita o botão ──
@@ -6483,7 +6537,7 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
   // ── CONFIRMAR E SALVAR PONTO ──
   async function confirmarPonto() {
     if(!livenessOk) { setMsg("pontoCameraMsg","⚠️ Pisque os olhos para confirmar presença."); return; }
-    if(!facialOk)   { setMsg("pontoCameraMsg","⚠️ Reconhecimento facial não confirmado."); return; }
+    if(!facialOk)   { setMsg("pontoCameraMsg","⚠️ Capture a foto do ponto antes de confirmar."); return; }
 
     const btn = $("btnRegistrarPonto");
     btn.disabled = true;
