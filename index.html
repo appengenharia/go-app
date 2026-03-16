@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════════════╗
@@ -1755,6 +1754,13 @@
     <input id="editColabNome" type="text" placeholder="Nome do colaborador">
     <label style="margin-top:12px">E-mail</label>
     <input id="editColabEmail" type="email" placeholder="email@exemplo.com">
+    <label style="margin-top:12px">Perfil do colaborador</label>
+    <select id="editColabPerfil" onchange="App._editColabPerfilChange?.()">
+      <option value="USER">👤 Colaborador normal</option>
+      <option value="RESPONSAVEL">📈 Responsável pela obra</option>
+      <option value="VISITANTE">👁️ Visitante</option>
+    </select>
+    <div style="font-size:.74rem;color:var(--muted);margin-top:6px">Escolha como o colaborador deve acessar o sistema. O perfil visitante terá acesso somente ao dashboard da evolução.</div>
     <div style="margin-top:12px;background:#f0f7ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:10px 14px" id="editEvolRespWrap">
       <label style="margin:0;display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--brand)">
         <input type="checkbox" id="editEvolResp" style="width:18px;height:18px;accent-color:var(--brand);flex-shrink:0">
@@ -1762,13 +1768,13 @@
       </label>
       <div style="font-size:.74rem;color:var(--muted);margin-top:4px;margin-left:26px">Permite registrar progresso de unidades e serviços.</div>
     </div>
-    <div style="margin-top:12px;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:10px 14px">
+    <div id="editPermissoesWrap" style="margin-top:12px;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:10px 14px">
       <div style="font-size:.8rem;font-weight:700;color:#0f172a;margin-bottom:8px">🔐 Permissões do colaborador</div>
-      <label style="margin:0 0 8px;display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--text)">
+      <label id="editPodeLancWrap" style="margin:0 0 8px;display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--text)">
         <input type="checkbox" id="editPodeLanc" style="width:18px;height:18px;accent-color:var(--brand);flex-shrink:0">
         <span style="font-weight:600;font-size:.84rem">➕ Pode fazer lançamentos de despesas/notas</span>
       </label>
-      <label style="margin:0;display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--text)">
+      <label id="editPodeRelWrap" style="margin:0;display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--text)">
         <input type="checkbox" id="editPodeRel" style="width:18px;height:18px;accent-color:var(--brand);flex-shrink:0">
         <span style="font-weight:600;font-size:.84rem">📋 Pode acessar relatórios</span>
       </label>
@@ -4329,25 +4335,49 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
   }
 
   // ── Edição de dados básicos do colaborador ──
+  function _editColabPerfilChange() {
+    const perfil = ($("editColabPerfil")?.value || "USER");
+    const isVisitante = perfil === "VISITANTE";
+    const isResponsavel = perfil === "RESPONSAVEL";
+    const wrapEvol = $("editEvolRespWrap");
+    const wrapPerm = $("editPermissoesWrap");
+    const cbEvol = $("editEvolResp");
+    const cbLanc = $("editPodeLanc");
+    const cbRel = $("editPodeRel");
+    if(wrapEvol) wrapEvol.style.display = isVisitante ? "none" : "";
+    if(wrapPerm) wrapPerm.style.display = isVisitante ? "none" : "";
+    if(cbEvol) cbEvol.checked = isResponsavel;
+    if(cbEvol) cbEvol.disabled = isResponsavel;
+    if(isVisitante){
+      if(cbLanc) cbLanc.checked = false;
+      if(cbRel) cbRel.checked = false;
+      if(cbLanc) cbLanc.disabled = true;
+      if(cbRel) cbRel.disabled = true;
+    } else if(isResponsavel){
+      if(cbLanc) cbLanc.checked = true;
+      if(cbLanc) cbLanc.disabled = true;
+      if(cbRel) cbRel.disabled = false;
+    } else {
+      if(cbLanc) cbLanc.disabled = false;
+      if(cbRel) cbRel.disabled = false;
+    }
+  }
+
   function abrirEditColab(uid, nome, email, podeLanc, podeRel) {
     $("editColabUid").value   = uid;
     $("editColabNome").value  = nome;
     $("editColabEmail").value = email;
-    // Preencher checkbox evolResponsavel
-    const u = allUsers.find(x=>x.id===uid);
+    const u = allUsers.find(x=>x.id===uid) || {};
+    const perfil = u?.role==="VISITANTE" ? "VISITANTE" : (u?.evolResponsavel===true ? "RESPONSAVEL" : "USER");
+    const perfilSel = $("editColabPerfil");
+    if(perfilSel) perfilSel.value = perfil;
     const cb = $("editEvolResp");
     if(cb) cb.checked = u?.evolResponsavel===true;
     const cbLanc = $("editPodeLanc");
     const cbRel  = $("editPodeRel");
     if(cbLanc) cbLanc.checked = u?.podeLancamentos !== false;
     if(cbRel)  cbRel.checked  = u?.podeRelatorios !== false;
-    // Ocultar para ADMIN (não faz sentido)
-    const wrap = $("editEvolRespWrap");
-    if(wrap) wrap.style.display = (u?.role==="ADMIN" || u?.role==="VISITANTE") ? "none" : "";
-    const wrapLanc = $("editPodeLancWrap");
-    const wrapRel  = $("editPodeRelWrap");
-    if(wrapLanc) wrapLanc.style.display = u?.role==="VISITANTE" ? "none" : "";
-    if(wrapRel)  wrapRel.style.display  = u?.role==="VISITANTE" ? "none" : "";
+    _editColabPerfilChange();
     setMsg("editColabMsg","");
     $("btnSalvarEditColab").disabled = false;
     $("btnSalvarEditColab").textContent = "💾 Salvar";
@@ -4363,14 +4393,16 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
     const btn = $("btnSalvarEditColab");
     btn.disabled = true; btn.textContent = "Salvando...";
     try {
-      const userAtual = allUsers.find(x=>x.id===uid) || {};
-      const isVisitante = userAtual.role==="VISITANTE";
-      const evolResp = isVisitante ? false : ($("editEvolResp")?.checked || false);
+      const perfil = $("editColabPerfil")?.value || "USER";
+      const role = perfil==="VISITANTE" ? "VISITANTE" : "USER";
+      const isVisitante = perfil==="VISITANTE";
+      const evolResp = perfil==="RESPONSAVEL" ? true : (isVisitante ? false : ($("editEvolResp")?.checked || false));
       const podeLanc = isVisitante ? false : (evolResp ? true : ($("editPodeLanc")?.checked !== false));
       const podeRel  = isVisitante ? false : ($("editPodeRel")?.checked !== false);
       await updateDoc(doc(db,"usuarios",uid), {
         nome,
         email,
+        role,
         evolResponsavel: evolResp,
         podeLancamentos: podeLanc,
         podeRelatorios: podeRel,
