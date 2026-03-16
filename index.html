@@ -1952,11 +1952,20 @@
   }
 
   function canUserLancamentos(profile=currentProfile){
-    return currentRole==="ADMIN" ? true : (profile?.podeLancamentos !== false);
+    if(currentRole==="ADMIN") return true;
+    if(currentRole==="VISITANTE") return false;
+    if(profile?.evolResponsavel===true) return true;
+    return profile?.podeLancamentos !== false;
   }
 
   function canUserRelatorios(profile=currentProfile){
-    return currentRole==="ADMIN" ? true : (profile?.podeRelatorios !== false);
+    if(currentRole==="ADMIN") return true;
+    if(currentRole==="VISITANTE") return false;
+    return profile?.podeRelatorios !== false;
+  }
+
+  function canGerirPonto(profile=currentProfile){
+    return currentRole==="ADMIN" || (currentRole==="USER" && profile?.evolResponsavel===true);
   }
 
   function isOnlyPontoUser(profile=currentProfile){
@@ -2301,6 +2310,13 @@
     } else {
       setFeatureTabVisibility("lancamentos", canUserLancamentos(profile));
       setFeatureTabVisibility("relatorios", canUserRelatorios(profile));
+      if(canGerirPonto(profile)){
+        $("sidePonto")?.classList.remove("hidden");
+        $("bottomPonto")?.classList.remove("hidden");
+      } else {
+        $("sidePonto")?.classList.add("hidden");
+        $("bottomPonto")?.classList.add("hidden");
+      }
       if(currentRole==="USER" && profile?.evolResponsavel===true){
         $("sideEvolucao")?.classList.remove("hidden");
         $("bottomEvolucao")?.classList.remove("hidden");
@@ -2685,8 +2701,11 @@
     setMsg("userMsg","");
     const nome=$("userNome").value.trim(), email=$("userEmail").value.trim();
     const role=$("userRole").value, obra=$("userObra").value;
-    const podeLanc = $("userPodeLanc")?.checked !== false;
-    const podeRel  = $("userPodeRel")?.checked !== false;
+    const isVisitante = role==="VISITANTE";
+    const isAdminRole = role==="ADMIN";
+    const evolRespCad = isVisitante ? false : (obra ? ($("userEvolResp")?.checked || false) : false);
+    const podeLanc = isAdminRole ? true : (isVisitante ? false : (evolRespCad ? true : ($("userPodeLanc")?.checked !== false)));
+    const podeRel  = isAdminRole ? true : (isVisitante ? false : ($("userPodeRel")?.checked !== false));
     const btn=$("btnSaveUser");
     if(!nome){setMsg("userMsg","Informe o nome.");return;}
     if(!email){setMsg("userMsg","Informe o e-mail.");return;}
@@ -2713,9 +2732,9 @@
         obra_id: obra||"",
         obras:   obra ? [obra] : [],
         fotoUrl: fotoUrl,
-        podeLancamentos: role==="ADMIN" ? true : podeLanc,
-        podeRelatorios:  role==="ADMIN" ? true : podeRel,
-        evolResponsavel: obra ? ($("userEvolResp")?.checked || false) : false,
+        podeLancamentos: podeLanc,
+        podeRelatorios:  podeRel,
+        evolResponsavel: evolRespCad,
         ativo:true, primeiro_acesso:true,
         criadoPor:currentUser.uid, criadoEm:serverTimestamp()
       });
@@ -4324,7 +4343,11 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
     if(cbRel)  cbRel.checked  = u?.podeRelatorios !== false;
     // Ocultar para ADMIN (não faz sentido)
     const wrap = $("editEvolRespWrap");
-    if(wrap) wrap.style.display = u?.role==="ADMIN" ? "none" : "";
+    if(wrap) wrap.style.display = (u?.role==="ADMIN" || u?.role==="VISITANTE") ? "none" : "";
+    const wrapLanc = $("editPodeLancWrap");
+    const wrapRel  = $("editPodeRelWrap");
+    if(wrapLanc) wrapLanc.style.display = u?.role==="VISITANTE" ? "none" : "";
+    if(wrapRel)  wrapRel.style.display  = u?.role==="VISITANTE" ? "none" : "";
     setMsg("editColabMsg","");
     $("btnSalvarEditColab").disabled = false;
     $("btnSalvarEditColab").textContent = "💾 Salvar";
@@ -4340,9 +4363,11 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
     const btn = $("btnSalvarEditColab");
     btn.disabled = true; btn.textContent = "Salvando...";
     try {
-      const evolResp = $("editEvolResp")?.checked || false;
-      const podeLanc = $("editPodeLanc")?.checked !== false;
-      const podeRel  = $("editPodeRel")?.checked !== false;
+      const userAtual = allUsers.find(x=>x.id===uid) || {};
+      const isVisitante = userAtual.role==="VISITANTE";
+      const evolResp = isVisitante ? false : ($("editEvolResp")?.checked || false);
+      const podeLanc = isVisitante ? false : (evolResp ? true : ($("editPodeLanc")?.checked !== false));
+      const podeRel  = isVisitante ? false : ($("editPodeRel")?.checked !== false);
       await updateDoc(doc(db,"usuarios",uid), {
         nome,
         email,
@@ -6810,7 +6835,6 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
     const colabSel = $("pontoFiltroColab");
     if(!obraSel || !colabSel) return;
 
-    // Todas as obras (incluindo inativas para consulta histórica)
     const obrasSnap = await getDocs(collection(db,"obras"));
     obraSel.innerHTML = '<option value="">Todas as obras</option>';
     obrasSnap.forEach(d => {
@@ -6818,21 +6842,30 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
       obraSel.innerHTML += `<option value="${d.id}">${nome}</option>`;
     });
 
-    // TODOS os colaboradores — incluindo inativos para consulta histórica
     const usersSnap = await getDocs(collection(db,"usuarios"));
     colabSel.innerHTML = '<option value="">Selecione colaborador</option>';
     const ativos=[], inativos=[];
+    const obraRestrita = (currentRole==="USER" && currentProfile?.evolResponsavel===true) ? (currentProfile?.obra_id||"") : "";
+
     usersSnap.forEach(d => {
-      if(d.data().role === "ADMIN") return;
-      const nome = d.data().nome || d.data().email;
-      const opt  = `<option value="${d.id}">${nome}${d.data().ativo===false?" (inativo)":""}</option>`;
-      if(d.data().ativo===false) inativos.push(opt);
+      const ud = d.data();
+      if(ud.role === "ADMIN" || ud.role === "VISITANTE") return;
+      if(obraRestrita && ud.obra_id !== obraRestrita) return;
+      const nome = ud.nome || ud.email;
+      const opt  = `<option value="${d.id}">${nome}${ud.ativo===false?" (inativo)":""}</option>`;
+      if(ud.ativo===false) inativos.push(opt);
       else ativos.push(opt);
     });
     if(ativos.length)   colabSel.innerHTML += `<optgroup label="── Ativos">${ativos.join("")}</optgroup>`;
     if(inativos.length) colabSel.innerHTML += `<optgroup label="── Inativos (histórico)">${inativos.join("")}</optgroup>`;
 
-    // Mês atual
+    if(obraRestrita){
+      obraSel.value = obraRestrita;
+      obraSel.disabled = true;
+    } else {
+      obraSel.disabled = false;
+    }
+
     const hoje = new Date();
     $("pontoFiltroMes").value = `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,"0")}`;
   }
@@ -6944,10 +6977,14 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
         ? `<button onclick="App.verFotosPonto('${p.fotoEntrada||""}','${p.fotoAlmoco||""}','${p.fotoRetorno||""}','${p.fotoSaida||""}')" style="background:none;border:none;cursor:pointer;font-size:14px;padding:4px" title="Ver fotos do dia">📷</button>`
         : "";
 
-      const acoes = currentRole==="ADMIN"
-        ? `${fotoBtn}<button onclick="App.abrirCorrecao('${dataStr}')" style="background:none;border:none;cursor:pointer;font-size:14px;padding:4px" title="Corrigir ponto">✏️</button>`
-        : "—";
+      const podeCorrigirPonto = canGerirPonto();
+      const acoes = podeCorrigirPonto
+        ? `${fotoBtn}<button onclick="App.abrirCorrecao('${dataStr}')" style="background:none;border:none;cursor:pointer;font-size:14px;padding:4px" title="Corrigir ponto / justificativa">✏️</button>`
+        : (fotoBtn || "—");
 
+      const editorInfo = p?.corrigidoPorNome
+        ? `<div style="font-size:10px;color:#475569;margin-top:4px">por ${p.corrigidoPorNome}</div>`
+        : "";
       const entradaStyle = isAtrasoEntrada(p?.anomalias) ? "color:#dc2626;font-weight:700" : "";
       rows += `<tr style="${bgRow}">
         <td style="padding:8px 12px">
@@ -6959,7 +6996,7 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
         <td style="text-align:center;padding:8px">${p?.retorno||"—"}</td>
         <td style="text-align:center;padding:8px">${p?.saida||"—"}</td>
         <td style="text-align:center;padding:8px">${horaExtraCell}</td>
-        <td style="text-align:center;padding:8px">${statusBadge}</td>
+        <td style="text-align:center;padding:8px">${statusBadge}${editorInfo}</td>
         <td style="text-align:center;padding:8px">${acoes}</td>
       </tr>`;
     }
@@ -7015,6 +7052,7 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
         retorno:      $("corRetorno").value  || null,
         saida:        $("corSaida").value    || null,
         corrigidoPor: currentUser.uid,
+        corrigidoPorNome: currentProfile?.nome || currentUser?.email || "Usuário",
         corrigidoEm:  serverTimestamp(),
         obsCorrecao:  $("corObs").value,
         status:       "corrigido"
