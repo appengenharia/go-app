@@ -1371,8 +1371,8 @@
             <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px">
               <div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;font-weight:700;margin-bottom:8px">Último monitoramento</div>
               <div id="evolClimaThumbWrap" style="display:none">
-                <div style="position:relative;cursor:zoom-in" onclick="App.evolVerClimaFoto()">
-                  <img id="evolClimaThumb" src="" alt="Print do monitoramento" onclick="App.evolVerClimaFoto();event.stopPropagation()" style="width:100%;max-height:180px;object-fit:cover;border-radius:10px;border:1px solid var(--border)">
+                <div id="evolClimaThumbTrigger" style="position:relative;cursor:zoom-in" role="button" tabindex="0" aria-label="Ampliar print do monitoramento">
+                  <img id="evolClimaThumb" src="" alt="Print do monitoramento" style="width:100%;max-height:180px;object-fit:cover;border-radius:10px;border:1px solid var(--border);pointer-events:none">
                   <div style="position:absolute;right:8px;top:8px;background:rgba(15,52,96,.82);color:#fff;border-radius:999px;padding:4px 7px;font-size:.68rem;font-weight:700;pointer-events:none">🔎 Ampliar</div>
                 </div>
                 <div id="evolClimaThumbInfo" style="font-size:.75rem;color:var(--muted);margin-top:8px"></div>
@@ -3196,6 +3196,39 @@
     return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`;
   }
 
+  function _bindAmpElement(el, openFn){
+    if(!el || typeof openFn !== "function") return;
+    try{
+      if(el.__ampClickHandler) el.removeEventListener("click", el.__ampClickHandler, true);
+      if(el.__ampKeyHandler) el.removeEventListener("keydown", el.__ampKeyHandler, true);
+    }catch(_){ }
+
+    const clickHandler = (ev)=>{
+      try{
+        ev.preventDefault();
+        ev.stopPropagation();
+      }catch(_){ }
+      try{ openFn(); }catch(_){ }
+    };
+    const keyHandler = (ev)=>{
+      if(ev.key === "Enter" || ev.key === " "){
+        try{
+          ev.preventDefault();
+          ev.stopPropagation();
+        }catch(_){ }
+        try{ openFn(); }catch(_){ }
+      }
+    };
+
+    el.__ampClickHandler = clickHandler;
+    el.__ampKeyHandler = keyHandler;
+    el.style.cursor = "zoom-in";
+    el.setAttribute("role", el.getAttribute("role") || "button");
+    if(!el.hasAttribute("tabindex")) el.setAttribute("tabindex","0");
+    el.addEventListener("click", clickHandler, true);
+    el.addEventListener("keydown", keyHandler, true);
+  }
+
   function _ePerdaDia(row){
     if(!row || row.impactoPrazo===false) return 0;
     if(row.houveProducao === "nao") return 1;
@@ -3239,6 +3272,8 @@
         if($("evolClimaThumbWrap")) $("evolClimaThumbWrap").style.display = "";
         if($("evolClimaThumbEmpty")) $("evolClimaThumbEmpty").style.display = "none";
         if($("evolClimaThumbInfo")) $("evolClimaThumbInfo").textContent = `Registro de ${latest.data || ''} · Fonte: ${latest.fonteClima || 'WeatherBug'}${latest.preenchidoPorNome ? ` · por ${latest.preenchidoPorNome}` : ''}`;
+        _bindAmpElement($("evolClimaThumbTrigger") || $("evolClimaThumbWrap"), ()=>evolVerClimaFoto());
+        _bindAmpElement($("evolClimaThumb"), ()=>evolVerClimaFoto());
       } else {
         _eClimaPrintUrl = "";
         if($("evolClimaThumbWrap")) $("evolClimaThumbWrap").style.display = "none";
@@ -3662,12 +3697,12 @@
 
     // Agrupar por data
     const porData={};
+    const podeEditarAdm = currentRole==="ADMIN" || currentProfile?.evolResponsavel===true;
     regs.forEach(r=>{ const d=r.data||"?"; if(!porData[d]) porData[d]=[]; porData[d].push(r); });
 
     el.style.columns="1";
     el.innerHTML=Object.entries(porData).map(([data,fotos])=>{
       const dtFmt=new Date(data+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"short",year:"numeric"});
-       const podeEditarAdm = currentRole==="ADMIN" || currentProfile?.evolResponsavel===true;
        const cards=fotos.map(r=>{
         const unid=(_eCfg?.unidades||[]).find(u=>u.id===r.unidId);
         const delta=r.pctDepois-r.pctAntes;
@@ -3677,10 +3712,9 @@
         const safeId = r.id.replace(/[^a-zA-Z0-9]/g,"_");
         return `
         <div style="background:#f8f9fc;border:1.5px solid ${tipo==="depois"?"#bbf7d0":"#fde68a"};border-radius:10px;overflow:hidden;margin-bottom:8px">
-          <div style="display:flex;gap:12px;cursor:pointer"
-               onclick="App.evolVerFotoAmp('${r.fotoUrl}','${(r.unidNome||"").replace(/'/g,"&#39;")}','${(r.svcDesc||"").replace(/'/g,"&#39;")}','${data}','${delta.toFixed(1)}')">
+          <div class="evolFotoAmpTrigger" data-reg-id="${r.id}" style="display:flex;gap:12px;cursor:pointer">
             <div style="position:relative;flex-shrink:0">
-              <img src="${r.fotoUrl}" style="width:90px;height:80px;object-fit:cover;display:block" alt="" loading="lazy">
+              <img src="${r.fotoUrl}" style="width:90px;height:80px;object-fit:cover;display:block;pointer-events:none" alt="" loading="lazy">
               <span style="position:absolute;top:4px;left:4px;background:${tipoCor};color:#fff;font-size:.58rem;font-weight:700;padding:1px 5px;border-radius:10px">${tipoLabel}</span>
             </div>
             <div style="padding:9px 10px;min-width:0;flex:1">
@@ -3710,6 +3744,14 @@
         ${cards}
       </div>`;
     }).join("");
+
+    const mapaRegsGaleria = new Map(regs.map(r=>[r.id, r]));
+    el.querySelectorAll(".evolFotoAmpTrigger").forEach(node=>{
+      const reg = mapaRegsGaleria.get(node.getAttribute("data-reg-id"));
+      if(!reg) return;
+      const delta = (Number(reg.pctDepois)||0) - (Number(reg.pctAntes)||0);
+      _bindAmpElement(node, ()=> evolVerFotoAmp(reg.fotoUrl, reg.unidNome || "", reg.svcDesc || "", reg.data || "", delta.toFixed(1)));
+    });
 
     // Listeners dos botões de edição na galeria ADM
     if(podeEditarAdm) {
@@ -10184,6 +10226,8 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
         if($("vClimaThumbWrap")) $("vClimaThumbWrap").style.display = "";
         if($("vClimaThumbEmpty")) $("vClimaThumbEmpty").style.display = "none";
         if($("vClimaThumbInfo")) $("vClimaThumbInfo").textContent = `Registro de ${latest.data || ''} · Fonte: ${latest.fonteClima || 'WeatherBug'}${latest.preenchidoPorNome ? ` · por ${latest.preenchidoPorNome}` : ''}`;
+        _bindAmpElement($("vClimaThumbTrigger") || $("vClimaThumbWrap"), ()=>vVerClimaAmp());
+        _bindAmpElement($("vClimaThumb"), ()=>vVerClimaAmp());
       } else {
         _vClimaPrintUrl = "";
         if($("vClimaThumbWrap")) $("vClimaThumbWrap").style.display = "none";
@@ -10311,8 +10355,8 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
         </div>` : "";
       return `
       <div style="border-radius:10px;overflow:hidden;background:rgba(255,255,255,.06);border:1.5px solid ${tipo==="depois"?"rgba(16,185,129,.3)":"rgba(245,166,35,.3)"}">
-        <div style="position:relative;cursor:zoom-in" onclick="App.vVerFotoAmp('${r.fotoUrl}','${(r.unidNome||"").replace(/'/g,"&#39;")}','${(r.svcDesc||"").replace(/'/g,"&#39;")}','${r.data||""}','${delta.toFixed(1)}','${tipo}')">
-          <img src="${r.fotoUrl}" style="width:100%;height:120px;object-fit:cover;display:block" loading="lazy" alt="">
+        <div class="vFotoAmpTrigger" data-reg-id="${r.id}" style="position:relative;cursor:zoom-in">
+          <img src="${r.fotoUrl}" style="width:100%;height:120px;object-fit:cover;display:block;pointer-events:none" loading="lazy" alt="">
           <span style="position:absolute;top:5px;left:5px;background:${tipoCor};color:#fff;font-size:.6rem;font-weight:700;padding:2px 6px;border-radius:16px">${tipoLabel}</span>
         </div>
         <div style="padding:6px 8px">
@@ -10322,6 +10366,15 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
         ${btnEditar}
       </div>`;
     }).join("");
+
+    const porId = new Map(regsLimitadas.map(r=>[r.id, r]));
+    grid.querySelectorAll(".vFotoAmpTrigger").forEach(el=>{
+      const reg = porId.get(el.getAttribute("data-reg-id"));
+      if(!reg) return;
+      const delta = (Number(reg.pctDepois)||0) - (Number(reg.pctAntes)||0);
+      const tipo = reg.tipoFoto || "antes";
+      _bindAmpElement(el, ()=> vVerFotoAmp(reg.fotoUrl, reg.unidNome || "", reg.svcDesc || "", reg.data || "", delta.toFixed(1), tipo));
+    });
 
     // Adicionar listeners após render (evita problema de onclick em módulo ES)
     if(podeEditar) {
@@ -10595,8 +10648,8 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
               <div>
                 <div style="font-size:.68rem;color:rgba(255,255,255,.45);text-transform:uppercase;font-weight:700;margin-bottom:8px">Último monitoramento</div>
                 <div id="vClimaThumbWrap" style="display:none">
-                  <div style="position:relative;cursor:zoom-in" onclick="App.vVerClimaAmp()">
-                    <img id="vClimaThumb" src="" alt="Print do monitoramento" onclick="App.vVerClimaAmp()" style="width:100%;max-height:180px;object-fit:cover;border-radius:10px;border:1px solid rgba(255,255,255,.12)">
+                  <div id="vClimaThumbTrigger" style="position:relative;cursor:zoom-in" role="button" tabindex="0" aria-label="Ampliar print do monitoramento">
+                    <img id="vClimaThumb" src="" alt="Print do monitoramento" style="width:100%;max-height:180px;object-fit:cover;border-radius:10px;border:1px solid rgba(255,255,255,.12);pointer-events:none">
                     <span style="position:absolute;top:8px;right:8px;background:rgba(15,52,96,.88);color:#fff;font-size:.68rem;font-weight:700;padding:4px 8px;border-radius:999px;pointer-events:none">🔍 Ampliar</span>
                   </div>
                   <div id="vClimaThumbInfo" style="font-size:.7rem;color:rgba(255,255,255,.45);margin-top:8px"></div>
