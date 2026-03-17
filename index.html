@@ -3439,23 +3439,28 @@
     }
   }
 
-  function _abrirFotoClimaAmpliada(url, infoHtml){
+  function _abrirImagemAmp(url, infoHtml, emptyMsg){
     const img = $("evolFotoAmpImg");
     const info = $("evolFotoAmpInfo");
     const modal = $("modalEvolFotoAmp");
-    if(!url){ toast("Nenhum print disponível.","err"); return; }
-    if(img){
-      img.src = url;
-      img.onerror = ()=> window.open(url,"_blank","noopener,noreferrer");
-    }
-    if(info) info.innerHTML = infoHtml || "<strong>Monitoramento do clima</strong>";
-    if(modal){
-      modal.style.zIndex = "99999";
-      modal.style.display = "flex";
-      modal.classList.remove("hidden");
-    } else {
+    if(!url){ toast(emptyMsg || "Nenhuma imagem disponível.","err"); return; }
+    if(!modal || !img || !info){
       window.open(url,"_blank","noopener,noreferrer");
+      return;
     }
+    img.removeAttribute("src");
+    img.onerror = ()=> window.open(url,"_blank","noopener,noreferrer");
+    info.innerHTML = infoHtml || "<strong>Imagem ampliada</strong>";
+    modal.style.zIndex = "99999";
+    modal.style.display = "flex";
+    modal.style.visibility = "visible";
+    modal.style.opacity = "1";
+    modal.classList.remove("hidden");
+    requestAnimationFrame(()=>{ img.src = url; });
+  }
+
+  function _abrirFotoClimaAmpliada(url, infoHtml){
+    _abrirImagemAmp(url, infoHtml || "<strong>Monitoramento do clima</strong>", "Nenhum print disponível.");
   }
 
   function evolConsultarDiarioData(){
@@ -3750,10 +3755,9 @@
   }
 
   function evolVerFotoAmp(url,unid,svc,data,delta){
-    $("evolFotoAmpImg").src=url;
-    const dtFmt=new Date(data+"T12:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"});
-    $("evolFotoAmpInfo").innerHTML=`<strong>${unid}</strong> · ${svc} · ${dtFmt} · <span style="color:#86efac">+${delta}%</span>`;
-    $("modalEvolFotoAmp").classList.remove("hidden");
+    const dtFmt = data ? new Date(data+"T12:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"}) : "";
+    const info = `<strong>${unid||"Registro fotográfico"}</strong>${svc ? ` · ${svc}` : ""}${dtFmt ? ` · ${dtFmt}` : ""}${delta!==undefined && delta!==null && delta!=="" ? ` · <span style="color:#86efac">+${delta}%</span>` : ""}`;
+    _abrirImagemAmp(url, info, "Nenhuma foto disponível.");
   }
 
   // ──────────────────────────── RELATÓRIO PDF ──────────────
@@ -10332,13 +10336,12 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
   }
 
   function vVerFotoAmp(url, unid, svc, data, delta, tipo) {
-    $("vFotoAmpImg").src = url;
     const dtFmt = data ? new Date(data+"T12:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"}) : "";
     const tipoLabel = tipo==="depois"
       ? `<span style="background:#10b981;color:#fff;padding:1px 8px;border-radius:12px;font-size:.75rem">✅ Depois</span>`
       : `<span style="background:#f5a623;color:#fff;padding:1px 8px;border-radius:12px;font-size:.75rem">📸 Antes</span>`;
-    $("vFotoAmpInfo").innerHTML = `${tipoLabel} <strong>${unid}</strong> · ${svc} · ${dtFmt} · <span style="color:#86efac">+${delta}%</span>`;
-    $("vModalFotoAmp").classList.remove("hidden");
+    const info = `${tipoLabel} <strong>${unid||"Registro fotográfico"}</strong>${svc ? ` · ${svc}` : ""}${dtFmt ? ` · ${dtFmt}` : ""}${delta!==undefined && delta!==null && delta!=="" ? ` · <span style="color:#86efac">+${delta}%</span>` : ""}`;
+    _abrirImagemAmp(url, info, "Nenhuma foto disponível.");
   }
 
 
@@ -10593,7 +10596,7 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
                 <div style="font-size:.68rem;color:rgba(255,255,255,.45);text-transform:uppercase;font-weight:700;margin-bottom:8px">Último monitoramento</div>
                 <div id="vClimaThumbWrap" style="display:none">
                   <div style="position:relative;cursor:zoom-in" onclick="App.vVerClimaAmp()">
-                    <img id="vClimaThumb" src="" alt="Print do monitoramento" onclick="App.vVerClimaAmp();event.stopPropagation()" style="width:100%;max-height:180px;object-fit:cover;border-radius:10px;border:1px solid rgba(255,255,255,.12)">
+                    <img id="vClimaThumb" src="" alt="Print do monitoramento" onclick="App.vVerClimaAmp()" style="width:100%;max-height:180px;object-fit:cover;border-radius:10px;border:1px solid rgba(255,255,255,.12)">
                     <span style="position:absolute;top:8px;right:8px;background:rgba(15,52,96,.88);color:#fff;font-size:.68rem;font-weight:700;padding:4px 8px;border-radius:999px;pointer-events:none">🔍 Ampliar</span>
                   </div>
                   <div id="vClimaThumbInfo" style="font-size:.7rem;color:rgba(255,255,255,.45);margin-top:8px"></div>
