@@ -13,7 +13,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>[DEV] GO – Gestão de Obras</title>
+  <title>GO – Gestão de Obras</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -282,7 +282,7 @@
 </div>
 
 <div class="topbar hidden" id="topbar">
-  <div class="topbar-brand"><span class="dot"></span>[DEV] GO — Gestão de Obras</div>
+  <div class="topbar-brand"><span class="dot"></span>GO — Gestão de Obras</div>
   <div class="topbar-right">
     <div id="pillUser" class="pill hidden"></div>
     <button class="btn btn-ghost sm hidden" id="btnLogout" onclick="App.logout()">Sair</button>
@@ -1262,6 +1262,7 @@
           <button class="btn sm" id="btnEvolContrato" onclick="App.evolAbrirModalContrato()" style="display:none;background:#f0f7ff;color:var(--brand);border:1.5px solid #bfdbfe;font-size:.8rem">📄 Contrato</button>
           <button class="btn sm" id="btnEvolGaleria" onclick="App.evolAbrirGaleria()" style="display:none;background:#fff7ed;color:#c2410c;border:1.5px solid #fed7aa;font-size:.8rem">🖼️ Galeria</button>
           <button class="btn sm" id="btnEvolRelatorio" onclick="App.evolGerarRelatorio()" style="display:none;background:#f0fdf4;color:var(--success);border:1.5px solid #a7f3d0;font-size:.8rem">📄 Relatório PDF</button>
+          <button class="btn sm" id="btnEvolDiario" onclick="App.evolAbrirDiario()" style="display:none;background:#ecfeff;color:#0f766e;border:1.5px solid #99f6e4;font-size:.8rem">⛅ Preencher Diário</button>
           <button class="btn btn-primary sm" id="btnEvolConfig" onclick="App.evolAbrirConfig()" style="display:none;font-size:.8rem">⚙️ Configurar</button>
         </div>
       </div>
@@ -1317,6 +1318,69 @@
 
         <!-- Próximo marco -->
         <div id="evolProximoMarco" style="display:none;margin-bottom:12px;padding:9px 14px;background:#eff6ff;border-radius:10px;border-left:4px solid var(--brand);font-size:.79rem;color:var(--brand);font-weight:500"></div>
+
+        <!-- Clima do dia e impacto no prazo -->
+        <div class="card" id="evolClimaCard" style="margin-bottom:14px;border:1px solid #dbeafe">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+            <div>
+              <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;color:var(--brand)">⛅ Clima do Dia e Impacto no Prazo</div>
+              <div style="font-size:.78rem;color:var(--muted);margin-top:2px">Registre chuva, raios, paralisações e o print do monitoramento.</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <div id="evolClimaConsultaWrap" style="display:none;align-items:center;gap:8px;flex-wrap:wrap">
+              <input type="date" id="evolClimaConsultaData" style="width:auto;min-width:160px;padding:8px 10px;background:#fff">
+              <button class="btn sm btn-outline" type="button" onclick="App.evolConsultarDiarioData()">📅 Consultar dia</button>
+            </div>
+            <button class="btn sm" id="btnEvolDiarioCard" onclick="App.evolAbrirDiario()" style="display:none;background:#ecfeff;color:#0f766e;border:1.5px solid #99f6e4">⛅ Preencher Diário</button>
+          </div>
+          </div>
+          <div id="evolClimaResumoBox" style="display:none;background:#f8fafc;border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:12px">
+            <div style="font-weight:700;color:var(--text);font-size:.86rem" id="evolClimaResumo">Nenhum diário preenchido.</div>
+            <div style="font-size:.76rem;color:var(--muted);margin-top:4px" id="evolClimaUltimoMeta"></div>
+          </div>
+          <div id="evolClimaObsBox" style="display:none;background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:12px 14px;margin-bottom:12px">
+            <div style="font-size:.72rem;color:#9a3412;text-transform:uppercase;font-weight:800;letter-spacing:.4px;margin-bottom:6px">Observações do dia</div>
+            <div id="evolClimaObs" style="font-size:.82rem;color:#7c2d12;white-space:pre-wrap">Sem observações registradas.</div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px">
+            <div style="background:#f8fafc;border:1px solid var(--border);border-radius:12px;padding:12px">
+              <div style="font-size:.68rem;color:var(--muted);text-transform:uppercase;font-weight:700">Dias produtivos</div>
+              <div style="font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;color:var(--success)" id="evolClimaKpiProd">0</div>
+            </div>
+            <div style="background:#f8fafc;border:1px solid var(--border);border-radius:12px;padding:12px">
+              <div style="font-size:.68rem;color:var(--muted);text-transform:uppercase;font-weight:700">Dias parciais</div>
+              <div style="font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;color:var(--accent2)" id="evolClimaKpiParcial">0</div>
+            </div>
+            <div style="background:#f8fafc;border:1px solid var(--border);border-radius:12px;padding:12px">
+              <div style="font-size:.68rem;color:var(--muted);text-transform:uppercase;font-weight:700">Paradas por clima</div>
+              <div style="font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;color:var(--danger)" id="evolClimaKpiClima">0</div>
+            </div>
+            <div style="background:#f8fafc;border:1px solid var(--border);border-radius:12px;padding:12px">
+              <div style="font-size:.68rem;color:var(--muted);text-transform:uppercase;font-weight:700">Dias perdidos</div>
+              <div style="font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;color:var(--brand)" id="evolClimaKpiPerdidos">0,0</div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:minmax(0,1.4fr) minmax(220px,.8fr);gap:14px;align-items:start">
+            <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px">
+              <div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;font-weight:700;margin-bottom:8px">Produção x clima</div>
+              <div style="position:relative;width:100%;height:180px">
+                <canvas id="chartEvolClima" style="position:absolute;inset:0"></canvas>
+              </div>
+              <div id="evolClimaGrafEmpty" style="display:none;text-align:center;color:var(--muted);font-size:.77rem;padding-top:56px">Preencha o diário para gerar o gráfico.</div>
+            </div>
+            <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px">
+              <div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;font-weight:700;margin-bottom:8px">Último monitoramento</div>
+              <div id="evolClimaThumbWrap" style="display:none">
+                <div id="evolClimaThumbTrigger" style="position:relative;cursor:zoom-in" role="button" tabindex="0" aria-label="Ampliar print do monitoramento">
+                  <img id="evolClimaThumb" src="" alt="Print do monitoramento" style="width:100%;max-height:180px;object-fit:cover;border-radius:10px;border:1px solid var(--border);pointer-events:none">
+                  <div style="position:absolute;right:8px;top:8px;background:rgba(15,52,96,.82);color:#fff;border-radius:999px;padding:4px 7px;font-size:.68rem;font-weight:700;pointer-events:none">🔎 Ampliar</div>
+                </div>
+                <div id="evolClimaThumbInfo" style="font-size:.75rem;color:var(--muted);margin-top:8px"></div>
+              </div>
+              <div id="evolClimaThumbEmpty" style="font-size:.78rem;color:var(--muted);padding-top:30px">Nenhum print anexado até o momento.</div>
+            </div>
+          </div>
+        </div>
 
         <!-- Painel gráficos estilo dashboard escuro -->
         <div style="background:var(--brand2);border-radius:16px;padding:20px;margin-bottom:14px;border:1px solid rgba(255,255,255,.07)">
@@ -1631,6 +1695,50 @@
     </div>
   </div>
 
+  <!-- ═══ MODAL: Diário de clima ═══ -->
+  <div class="modal-overlay hidden" id="modalEvolDiario">
+    <div class="modal" style="max-width:760px;max-height:92vh;overflow-y:auto">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px">
+        <div>
+          <h3 style="font-family:'Syne',sans-serif;color:var(--brand);font-size:1.1rem">⛅ Diário de Clima e Produção</h3>
+          <p style="font-size:.78rem;color:var(--muted);margin-top:2px">Use para registrar chuva, raios, paralisações e print do monitoramento.</p>
+        </div>
+        <button class="btn btn-outline sm" onclick="App.closeModal('modalEvolDiario')">Fechar</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">
+        <div><label>Data</label><input type="date" id="evolDiaData" onchange="App.evolCarregarDiarioData()"></div>
+        <div><label>Clima predominante</label><select id="evolDiaClima"><option value="ensolarado">Ensolarado</option><option value="parcialmente nublado">Parcialmente nublado</option><option value="nublado">Nublado</option><option value="chuvoso">Chuvoso</option><option value="chuva intensa">Chuva intensa</option><option value="relampejando">Relampejando</option><option value="ventania">Ventania</option></select></div>
+        <div><label>Chuva</label><select id="evolDiaChuva"><option value="sem chuva">Sem chuva</option><option value="leve">Leve</option><option value="moderada">Moderada</option><option value="forte">Forte</option></select></div>
+        <div><label>Ocorrência de raios</label><select id="evolDiaRaios"><option value="nao">Não</option><option value="sim">Sim</option></select></div>
+        <div><label>Distância do raio (km)</label><input type="number" step="0.1" min="0" id="evolDiaRaioDist" placeholder="Ex.: 10.0"></div>
+        <div><label>Fonte do monitoramento</label><select id="evolDiaFonte"><option value="WeatherBug">WeatherBug</option><option value="manual">Manual</option><option value="outro">Outro</option></select></div>
+        <div><label>Houve produção?</label><select id="evolDiaProd" onchange="App.evolAtualizarCamposDiario()"><option value="sim">Sim</option><option value="parcial">Parcial</option><option value="nao">Não</option></select></div>
+        <div><label>% produtivo do dia</label><input type="number" min="0" max="100" id="evolDiaPct" value="100"></div>
+        <div><label>Horas paradas</label><input type="number" min="0" max="24" step="0.5" id="evolDiaHoras" value="0"></div>
+        <div><label>Causa do dia</label><select id="evolDiaCausa"><option value="producao">Produção normal</option><option value="clima">Clima</option><option value="operacional">Operacional</option><option value="seguranca">Segurança</option><option value="outro">Outro</option></select></div>
+        <div style="grid-column:1/-1"><label>Motivo principal / ocorrência</label><input type="text" id="evolDiaMotivo" placeholder="Ex.: paralisação por raios dentro da área monitorada"></div>
+        <div><label>Impacto no prazo</label><select id="evolDiaImpacto"><option value="sim">Sim</option><option value="nao">Não</option></select></div>
+        <div style="grid-column:1/-1"><label>Observação</label><textarea id="evolDiaObs" rows="3" placeholder="Descreva o que ocorreu no dia."></textarea></div>
+      </div>
+      <div style="margin-top:14px">
+        <label>Print do monitoramento</label>
+        <input type="file" id="evolDiaPrint" accept="image/*" onchange="App.evolClimaFotoSel(this)">
+        <input type="hidden" id="evolDiaPrintUrlAtual">
+        <div id="evolDiaPrintPreviewWrap" style="display:none;margin-top:10px">
+          <img id="evolDiaPrintPreview" src="" alt="Prévia do monitoramento" style="max-width:100%;max-height:220px;border-radius:12px;border:1px solid var(--border)">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:6px">
+            <div id="evolDiaPrintPreviewInfo" style="font-size:.75rem;color:var(--muted)"></div>
+            <button type="button" class="btn btn-outline sm" id="btnEvolDiaRemoverPrint" onclick="App.evolRemoverClimaFoto()" style="display:none;border-color:#fecaca;color:#b91c1c">🗑️ Remover imagem</button>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
+        <button class="btn btn-outline" onclick="App.closeModal('modalEvolDiario')">Cancelar</button>
+        <button class="btn btn-primary" onclick="App.evolSalvarDiario()">Salvar diário</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ═══ MODAL: Visualizar foto ampliada ═══ -->
   <div class="modal-overlay hidden" id="modalEvolFotoAmp" onclick="App.closeModal('modalEvolFotoAmp')" style="align-items:center;justify-content:center;padding:16px;cursor:zoom-out">
     <div style="max-width:90vw;max-height:90vh;position:relative" onclick="event.stopPropagation()">
@@ -1723,15 +1831,12 @@
     <input id="editColabNome" type="text" placeholder="Nome do colaborador">
     <label style="margin-top:12px">E-mail</label>
     <input id="editColabEmail" type="email" placeholder="email@exemplo.com">
-    <label style="margin-top:12px">Perfil</label>
-    <select id="editColabPerfil">
-      <option value="USER">👤 Colaborador</option>
-      <option value="RESPONSAVEL">📈 Responsável pela obra</option>
-      <option value="VISITANTE">👁️ Visitante (somente leitura)</option>
-    </select>
-    <div style="margin-top:12px;background:#f0f7ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:10px 14px;display:none" id="editEvolRespWrap">
-      <div style="font-weight:600;font-size:.85rem;color:var(--brand)">📈 Responsável pela obra</div>
-      <div style="font-size:.74rem;color:var(--muted);margin-top:4px">Este perfil terá acesso ampliado à obra, inclusive evolução e gestão operacional.</div>
+    <div style="margin-top:12px;background:#f0f7ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:10px 14px" id="editEvolRespWrap">
+      <label style="margin:0;display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--brand)">
+        <input type="checkbox" id="editEvolResp" style="width:18px;height:18px;accent-color:var(--brand);flex-shrink:0">
+        <span style="font-weight:600;font-size:.85rem">📈 Responsável pela evolução da obra</span>
+      </label>
+      <div style="font-size:.74rem;color:var(--muted);margin-top:4px;margin-left:26px">Permite registrar progresso de unidades e serviços.</div>
     </div>
     <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:10px 12px;margin-top:12px;font-size:.79rem;color:#92400e">
       ⚠️ O e-mail exibido aqui é apenas para identificação no sistema. O e-mail de login (Firebase Auth) não muda — o colaborador continua usando o e-mail original para entrar. Use o botão <strong>🔑 Senha</strong> para redefinir o acesso se necessário.
@@ -1856,12 +1961,12 @@
   const SENHA_PADRAO = "user123";
 
   const firebaseConfig = {
-    apiKey:            "AIzaSyDo9am2JsYE9AX5BavNCGvNjK9FDfVBr-A",
-    authDomain:        "go-app-dev-bc1be.firebaseapp.com",
-    projectId:         "go-app-dev-bc1be",
-    storageBucket:     "go-app-dev-bc1be.firebasestorage.app",
-    messagingSenderId: "908787123120",
-    appId:             "1:908787123120:web:6214f2e5cf548b25008c75"
+    apiKey:            "AIzaSyCdzLjNlN_LucTX-9P7M4yUaQhcdjiKBjg",
+    authDomain:        "go-app-prod-53ab5.firebaseapp.com",
+    projectId:         "go-app-prod-53ab5",
+    storageBucket:     "go-app-prod-53ab5.firebasestorage.app",
+    messagingSenderId: "354997193181",
+    appId:             "1:354997193181:web:0729a32728505bfa3f4e34"
   };
 
   const firebaseMain   = initializeApp(firebaseConfig, "main");
@@ -1981,8 +2086,6 @@
     btn.disabled=true; btn.textContent="Entrando...";
     try {
       await signInWithEmailAndPassword(auth,email,password);
-      _lastLoginEmail = email;
-      _lastLoginPassword = password;
     } catch(e) {
       // Se falhou, verifica no Firestore se há senha_temp definida pelo ADM
       // e tenta login com ela (caso a senha do Firebase Auth ainda seja a antiga)
@@ -1995,8 +2098,6 @@
           if(prof.senha_temp){
             await signInWithEmailAndPassword(auth, email, prof.senha_temp);
             logouComSenhaTemp = true;
-            _lastLoginEmail = email;
-            _lastLoginPassword = prof.senha_temp;
           }
         }
       } catch(_) {}
@@ -2015,13 +2116,9 @@
   }
 
   async function logout(){
-    await signOut(auth).catch(()=>{});
-    await signOut(authAux).catch(()=>{});
+    await signOut(auth);
     currentUser = null;
     currentRole = null;
-    currentProfile = null;
-    _lastLoginEmail = "";
-    _lastLoginPassword = "";
     document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
     document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
     ["obraList","userList","lancList","dashTable","relPreviewContent"].forEach(id => {
@@ -2055,8 +2152,6 @@
         senha_temp: null,
         atualizadoEm: serverTimestamp()
       });
-      _lastLoginEmail = auth.currentUser?.email || _lastLoginEmail;
-      _lastLoginPassword = p1;
       toast("Senha criada com sucesso! ✅");
       await initApp(auth.currentUser);
     } catch(e){
@@ -2081,7 +2176,6 @@
   }
 
   let currentUser=null, currentRole="USER", currentProfile=null;
-  let _lastLoginEmail="", _lastLoginPassword="";
 
   async function initApp(user) {
     currentUser=user;
@@ -2142,32 +2236,6 @@
       showPage("visitantePage");
       $("vNomeVisitante").textContent = nome;
       await visitanteInicializar(profile?.obra_id||"");
-      return;
-    }
-
-    // ── COLABORADOR COMUM: entra direto no registro de ponto ──
-    if(currentRole==="USER" && profile?.evolResponsavel!==true){
-      const emailLogin = (_lastLoginEmail || profile?.email || user?.email || "").trim();
-      const senhaLogin = _lastLoginPassword || profile?.senha_temp || "";
-      try {
-        irParaPonto();
-        if($("pontoEmail")) $("pontoEmail").value = emailLogin;
-        if(emailLogin && senhaLogin){
-          const credPonto = await signInWithEmailAndPassword(authAux, emailLogin, senhaLogin);
-          pontoUser = credPonto.user;
-          pontoProfile = await loadProfileAux(pontoUser.uid) || profile;
-          await _continuarApoLogin();
-          return;
-        }
-        setMsg("pontoLoginMsg","⚠️ Confirme sua senha para registrar o ponto.");
-      } catch(e) {
-        console.warn("Autoacesso ao ponto:", e);
-        try {
-          irParaPonto();
-          if($("pontoEmail")) $("pontoEmail").value = emailLogin;
-        } catch(_){}
-        setMsg("pontoLoginMsg","⚠️ Confirme sua senha para registrar o ponto.");
-      }
       return;
     }
 
@@ -2768,7 +2836,12 @@
   let _eFotoB64   = null;
   let _eChartL    = null;
   let _eChartB    = null;
+  let _eChartClima = null;
   let _eFiltroGrupo = "";
+  let _eClimaHist = [];
+  let _eClimaPrintFile = null;
+  let _eClimaPreviewUrl = null;
+  let _eClimaPrintUrl = "";
 
   const E_CORES = ["#0f3460","#e94560","#10b981","#f5a623","#6366f1","#ec4899","#14b8a6","#f97316","#8b5cf6","#06b6d4","#84cc16","#ef4444","#dc2626","#7c3aed","#0284c7","#16a34a"];
   const E_MARCOS_PAD = [{label:"Mobilização",pct:0,pagPct:20},{label:"21 dias",pct:40,pagPct:30},{label:"42 dias",pct:80,pagPct:30},{label:"Conclusão",pct:100,pagPct:20}];
@@ -2810,16 +2883,27 @@
     $("evolPainelPrincipal").style.display = "none";
     $("btnEvolContrato").style.display  = "none";
     $("btnEvolConfig").style.display    = "none";
+    if($("btnEvolDiario")) $("btnEvolDiario").style.display = "none";
+    if($("btnEvolDiarioCard")) $("btnEvolDiarioCard").style.display = "none";
+    if($("evolClimaConsultaWrap")) $("evolClimaConsultaWrap").style.display = "none";
     if(!id) return;
     if(currentRole==="ADMIN"){
       $("btnEvolContrato").style.display="";
       $("btnEvolGaleria").style.display="";
       $("btnEvolRelatorio").style.display="";
       $("btnEvolConfig").style.display="";
+      if($("btnEvolDiario")) $("btnEvolDiario").style.display="";
+      if($("btnEvolDiarioCard")) $("btnEvolDiarioCard").style.display="";
+      if($("evolClimaConsultaWrap")) $("evolClimaConsultaWrap").style.display="flex";
     } else {
-      // Colaborador responsável vê apenas galeria e relatório (somente leitura)
+      // Colaborador responsável vê galeria, relatório e diário climático
       $("btnEvolGaleria").style.display="";
       $("btnEvolRelatorio").style.display="";
+      if(currentProfile?.evolResponsavel){
+        if($("btnEvolDiario")) $("btnEvolDiario").style.display="";
+        if($("btnEvolDiarioCard")) $("btnEvolDiarioCard").style.display="";
+        if($("evolClimaConsultaWrap")) $("evolClimaConsultaWrap").style.display="flex";
+      }
     }
     const [cS,kS]=await Promise.all([
       getDoc(doc(db,"obras",id,"evolConfig","main")).catch(()=>null),
@@ -3066,7 +3150,9 @@
     try{
       const snap=await getDocs(query(collection(db,"obras",obraId,"evolHistorico"),orderBy("data","asc")));
       const labels=[],dados=[];
-      snap.forEach(d=>{ labels.push(new Date(d.data().data+"T12:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})); dados.push(parseFloat(d.data().pctGlobal.toFixed(1))); });
+      const rows=[];
+      snap.forEach(d=>{ const row={id:d.id,...d.data()}; rows.push(row); labels.push(new Date(d.data().data+"T12:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})); dados.push(parseFloat((Number(d.data().pctGlobal)||0).toFixed(1))); });
+      _eRenderClimaPainel(rows);
       const canvas=$("chartEvolLinha"); if(!canvas) return;
       if(_eChartL) _eChartL.destroy();
       if(labels.length<2){
@@ -3100,7 +3186,383 @@
       });
       Chart.defaults.color = "#666";
       Chart.defaults.borderColor = "rgba(0,0,0,0.1)";
-    }catch(e){}
+    }catch(e){ _eRenderClimaPainel([]); }
+  }
+
+  function _ePodeEditarDiario(){ return currentRole === "ADMIN" || !!currentProfile?.evolResponsavel; }
+
+  function _eHojeStr(){
+    const d=new Date(), z=n=>String(n).padStart(2,"0");
+    return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`;
+  }
+
+  function _bindAmpElement(el, openFn){
+    if(!el || typeof openFn !== "function") return;
+    try{
+      if(el.__ampClickHandler) el.removeEventListener("click", el.__ampClickHandler, true);
+      if(el.__ampKeyHandler) el.removeEventListener("keydown", el.__ampKeyHandler, true);
+    }catch(_){ }
+
+    const clickHandler = (ev)=>{
+      try{
+        ev.preventDefault();
+        ev.stopPropagation();
+        ev.stopImmediatePropagation && ev.stopImmediatePropagation();
+      }catch(_){ }
+      try{ openFn(); }catch(_){ }
+    };
+    const keyHandler = (ev)=>{
+      if(ev.key === "Enter" || ev.key === " "){
+        try{
+          ev.preventDefault();
+          ev.stopPropagation();
+          ev.stopImmediatePropagation && ev.stopImmediatePropagation();
+        }catch(_){ }
+        try{ openFn(); }catch(_){ }
+      }
+    };
+
+    el.__ampClickHandler = clickHandler;
+    el.__ampKeyHandler = keyHandler;
+    el.style.cursor = "zoom-in";
+    el.setAttribute("role", el.getAttribute("role") || "button");
+    if(!el.hasAttribute("tabindex")) el.setAttribute("tabindex","0");
+    el.addEventListener("click", clickHandler, true);
+    el.addEventListener("keydown", keyHandler, true);
+  }
+
+  let _ampDelegationReady = false;
+  function _initAmpDelegation(){
+    if(_ampDelegationReady) return;
+    _ampDelegationReady = true;
+
+    const handleOpen = (target)=>{
+      const vFoto = target.closest?.('.vFotoAmpTrigger');
+      if(vFoto){
+        const regId = vFoto.getAttribute('data-reg-id');
+        const reg = (_vGaleriaRegistros || []).find(r => String(r.id||'') === String(regId||''));
+        if(reg){
+          const delta = (Number(reg.pctDepois)||0) - (Number(reg.pctAntes)||0);
+          return vVerFotoAmp(reg.fotoUrl, reg.unidNome || '', reg.svcDesc || '', reg.data || '', delta.toFixed(1), reg.tipoFoto || 'antes');
+        }
+        const src = vFoto.getAttribute('data-src') || vFoto.querySelector('img')?.src || '';
+        return _abrirImagemAmp(src, '<strong>Registro fotográfico</strong>', 'Nenhuma foto disponível.');
+      }
+
+      if(target.closest?.('#vClimaThumbTrigger') || target.id === 'vClimaThumb' || target.closest?.('#vClimaThumbWrap')) return vVerClimaAmp();
+      if(target.closest?.('#evolClimaThumbTrigger') || target.id === 'evolClimaThumb' || target.closest?.('#evolClimaThumbWrap')) return evolVerClimaFoto();
+      return null;
+    };
+
+    document.addEventListener('click', (ev)=>{
+      const target = ev.target;
+      if(!target || !target.closest) return;
+      const hit = target.closest('.vFotoAmpTrigger, #vClimaThumbTrigger, #vClimaThumbWrap, #vClimaThumb, #evolClimaThumbTrigger, #evolClimaThumbWrap, #evolClimaThumb');
+      if(!hit) return;
+      try{
+        ev.preventDefault();
+        ev.stopPropagation();
+        ev.stopImmediatePropagation && ev.stopImmediatePropagation();
+      }catch(_){ }
+      try{ handleOpen(target); }catch(_){ }
+    }, true);
+
+    document.addEventListener('keydown', (ev)=>{
+      if(ev.key !== 'Enter' && ev.key !== ' ') return;
+      const target = ev.target;
+      if(!target || !target.closest) return;
+      const hit = target.closest('.vFotoAmpTrigger, #vClimaThumbTrigger, #vClimaThumbWrap, #vClimaThumb, #evolClimaThumbTrigger, #evolClimaThumbWrap, #evolClimaThumb');
+      if(!hit) return;
+      try{
+        ev.preventDefault();
+        ev.stopPropagation();
+        ev.stopImmediatePropagation && ev.stopImmediatePropagation();
+      }catch(_){ }
+      try{ handleOpen(target); }catch(_){ }
+    }, true);
+  }
+
+  function _ePerdaDia(row){
+    if(!row || row.impactoPrazo===false) return 0;
+    if(row.houveProducao === "nao") return 1;
+    if(row.houveProducao === "parcial") {
+      const pct = Math.max(0, Math.min(100, Number(row.percentualProducaoDia)||0));
+      return (100 - pct) / 100;
+    }
+    return 0;
+  }
+
+  function _eRenderClimaPainel(rows){
+    _eClimaHist = Array.isArray(rows) ? rows : [];
+    const diarios = _eClimaHist
+      .filter(r => r && (r.diarioClimaPreenchido || r.printMonitorUrl || r.houveProducao || r.clima || r.motivoParalisacao))
+      .sort((a,b)=> String(a.data||"").localeCompare(String(b.data||"")));
+
+    const prod = diarios.filter(r=>r.houveProducao === "sim").length;
+    const parcial = diarios.filter(r=>r.houveProducao === "parcial").length;
+    const clima = diarios.filter(r=>r.houveProducao === "nao" && r.causaDia === "clima").length;
+    const perdidos = diarios.reduce((acc,row)=> acc + _ePerdaDia(row), 0);
+
+    if($("evolClimaKpiProd")) $("evolClimaKpiProd").textContent = prod;
+    if($("evolClimaKpiParcial")) $("evolClimaKpiParcial").textContent = parcial;
+    if($("evolClimaKpiClima")) $("evolClimaKpiClima").textContent = clima;
+    if($("evolClimaKpiPerdidos")) $("evolClimaKpiPerdidos").textContent = perdidos.toFixed(1).replace('.',',');
+
+    const latest = diarios.length ? diarios[diarios.length-1] : null;
+    if(latest){
+      if($("evolClimaResumoBox")) $("evolClimaResumoBox").style.display = "";
+      const base = latest.houveProducao === "nao" ? "Sem produção" : latest.houveProducao === "parcial" ? "Produção parcial" : "Produção normal";
+      const climaTxt = latest.clima ? ` · Clima: ${latest.clima}` : "";
+      const raioTxt = latest.houveRaio === "sim" ? ` · Raios${latest.distanciaRaioKm ? ` a ${String(latest.distanciaRaioKm).replace('.',',')} km` : ''}` : "";
+      if($("evolClimaResumo")) $("evolClimaResumo").textContent = `${latest.data || ''} · ${base}${climaTxt}${raioTxt}`;
+      if($("evolClimaUltimoMeta")) $("evolClimaUltimoMeta").textContent = `${latest.motivoParalisacao || latest.observacao || 'Sem observações adicionais.'}`;
+      if($("evolClimaObsBox")) $("evolClimaObsBox").style.display = latest.observacao ? "" : "none";
+      if($("evolClimaObs")) $("evolClimaObs").textContent = latest.observacao || "Sem observações registradas.";
+      if($("evolClimaConsultaData") && !$("evolClimaConsultaData").value) $("evolClimaConsultaData").value = latest.data || _eHojeStr();
+      if(latest.printMonitorUrl){
+        _eClimaPrintUrl = latest.printMonitorUrl;
+        if($("evolClimaThumb")) $("evolClimaThumb").src = latest.printMonitorUrl;
+        if($("evolClimaThumbWrap")) $("evolClimaThumbWrap").style.display = "";
+        if($("evolClimaThumbEmpty")) $("evolClimaThumbEmpty").style.display = "none";
+        if($("evolClimaThumbInfo")) $("evolClimaThumbInfo").textContent = `Registro de ${latest.data || ''} · Fonte: ${latest.fonteClima || 'WeatherBug'}${latest.preenchidoPorNome ? ` · por ${latest.preenchidoPorNome}` : ''}`;
+        _bindAmpElement($("evolClimaThumbTrigger") || $("evolClimaThumbWrap"), ()=>evolVerClimaFoto());
+        _bindAmpElement($("evolClimaThumb"), ()=>evolVerClimaFoto());
+      } else {
+        _eClimaPrintUrl = "";
+        if($("evolClimaThumbWrap")) $("evolClimaThumbWrap").style.display = "none";
+        if($("evolClimaThumbEmpty")) $("evolClimaThumbEmpty").style.display = "";
+      }
+    } else {
+      _eClimaPrintUrl = "";
+      if($("evolClimaResumoBox")) $("evolClimaResumoBox").style.display = "none";
+      if($("evolClimaObsBox")) $("evolClimaObsBox").style.display = "none";
+      if($("evolClimaThumbWrap")) $("evolClimaThumbWrap").style.display = "none";
+      if($("evolClimaThumbEmpty")) $("evolClimaThumbEmpty").style.display = "";
+    }
+
+    const canvas = $("chartEvolClima");
+    if(!canvas) return;
+    if(_eChartClima) { try{ _eChartClima.destroy(); }catch(_){} _eChartClima = null; }
+    if(diarios.length < 1){
+      canvas.style.display = "none";
+      if($("evolClimaGrafEmpty")) $("evolClimaGrafEmpty").style.display = "";
+      return;
+    }
+    canvas.style.display = "";
+    if($("evolClimaGrafEmpty")) $("evolClimaGrafEmpty").style.display = "none";
+    const ult = diarios.slice(-10);
+    const labels = ult.map(r=>{ try{return new Date(`${r.data}T12:00:00`).toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"});}catch(_){ return r.data||""; }});
+    const values = ult.map(r=> r.houveProducao === "nao" ? 0 : r.houveProducao === "parcial" ? Math.max(0, Math.min(100, Number(r.percentualProducaoDia)||50)) : 100);
+    const colors = ult.map(r=> r.houveProducao === "nao" ? "rgba(239,68,68,.82)" : r.houveProducao === "parcial" ? "rgba(245,166,35,.85)" : "rgba(16,185,129,.85)");
+    _eChartClima = new Chart(canvas,{
+      type:"bar",
+      data:{ labels, datasets:[{ label:"Produção do dia (%)", data:values, backgroundColor:colors, borderRadius:6, borderWidth:0 }]},
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        scales:{
+          y:{ min:0, max:100, ticks:{ callback:v=> v+"%" }, grid:{ color:"rgba(0,0,0,.05)" } },
+          x:{ grid:{ display:false } }
+        },
+        plugins:{
+          legend:{ display:false },
+          tooltip:{ callbacks:{ afterLabel:(ctx)=>{ const r=ult[ctx.dataIndex]; const extra=[]; if(r.clima) extra.push(`Clima: ${r.clima}`); if(r.houveRaio === "sim") extra.push(`Raios${r.distanciaRaioKm ? ` (${String(r.distanciaRaioKm).replace('.',',')} km)` : ''}`); if(r.motivoParalisacao) extra.push(r.motivoParalisacao); return extra; } } }
+        }
+      }
+    });
+  }
+
+  function _eLimparPreviewDiario(){
+    _eClimaPrintFile = null;
+    if(_eClimaPreviewUrl){ try{ URL.revokeObjectURL(_eClimaPreviewUrl); }catch(_){} _eClimaPreviewUrl = null; }
+    if($("evolDiaPrint")) $("evolDiaPrint").value = "";
+    if($("evolDiaPrintUrlAtual")) $("evolDiaPrintUrlAtual").value = "";
+    if($("evolDiaPrintPreviewWrap")) $("evolDiaPrintPreviewWrap").style.display = "none";
+    if($("evolDiaPrintPreview")) $("evolDiaPrintPreview").src = "";
+    if($("evolDiaPrintPreviewInfo")) $("evolDiaPrintPreviewInfo").textContent = "";
+    if($("btnEvolDiaRemoverPrint")) $("btnEvolDiaRemoverPrint").style.display = "none";
+  }
+
+  function evolRemoverClimaFoto(){
+    _eClimaPrintFile = null;
+    if(_eClimaPreviewUrl){ try{ URL.revokeObjectURL(_eClimaPreviewUrl); }catch(_){} _eClimaPreviewUrl = null; }
+    if($("evolDiaPrint")) $("evolDiaPrint").value = "";
+    if($("evolDiaPrintUrlAtual")) $("evolDiaPrintUrlAtual").value = "";
+    if($("evolDiaPrintPreviewWrap")) $("evolDiaPrintPreviewWrap").style.display = "none";
+    if($("evolDiaPrintPreview")) $("evolDiaPrintPreview").src = "";
+    if($("evolDiaPrintPreviewInfo")) $("evolDiaPrintPreviewInfo").textContent = "Imagem removida. Salve o diário para confirmar a exclusão.";
+    if($("btnEvolDiaRemoverPrint")) $("btnEvolDiaRemoverPrint").style.display = "none";
+    toast("Imagem removida do diário. Salve para confirmar.","ok");
+  }
+
+  function evolClimaFotoSel(input){
+    const file = input?.files?.[0];
+    if(!file) return;
+    if(_eClimaPreviewUrl){ try{ URL.revokeObjectURL(_eClimaPreviewUrl); }catch(_){} _eClimaPreviewUrl = null; }
+    _eClimaPrintFile = file;
+    const url = URL.createObjectURL(file);
+    _eClimaPreviewUrl = url;
+    if($("evolDiaPrintUrlAtual")) $("evolDiaPrintUrlAtual").value = "";
+    if($("evolDiaPrintPreview")) $("evolDiaPrintPreview").src = url;
+    if($("evolDiaPrintPreviewWrap")) $("evolDiaPrintPreviewWrap").style.display = "";
+    if($("evolDiaPrintPreviewInfo")) $("evolDiaPrintPreviewInfo").textContent = `${file.name} · ${(file.size/1024/1024).toFixed(2)} MB`;
+    if($("btnEvolDiaRemoverPrint")) $("btnEvolDiaRemoverPrint").style.display = "inline-flex";
+  }
+
+  function evolAtualizarCamposDiario(){
+    const prod = $("evolDiaProd")?.value || "sim";
+    if(prod === "sim"){
+      if($("evolDiaPct")) $("evolDiaPct").value = 100;
+      if($("evolDiaHoras")) $("evolDiaHoras").value = 0;
+      if($("evolDiaCausa")) $("evolDiaCausa").value = "producao";
+    } else if(prod === "nao"){
+      if($("evolDiaPct")) $("evolDiaPct").value = 0;
+      if($("evolDiaHoras")) $("evolDiaHoras").value = 8;
+      if($("evolDiaCausa") && $("evolDiaCausa").value === "producao") $("evolDiaCausa").value = "clima";
+    } else {
+      if($("evolDiaPct") && Number($("evolDiaPct").value) === 100) $("evolDiaPct").value = 50;
+      if($("evolDiaHoras") && Number($("evolDiaHoras").value) === 0) $("evolDiaHoras").value = 4;
+    }
+  }
+
+  async function evolCarregarDiarioData(){
+    if(!_eObraId) return;
+    const data = $("evolDiaData")?.value || _eHojeStr();
+    if($("evolDiaPrintUrlAtual")) $("evolDiaPrintUrlAtual").value = "";
+    _eLimparPreviewDiario();
+    try{
+      const snap = await getDoc(doc(db,"obras",_eObraId,"evolHistorico",data));
+      if(!snap.exists()) {
+        if($("evolDiaClima")) $("evolDiaClima").value = "ensolarado";
+        if($("evolDiaChuva")) $("evolDiaChuva").value = "sem chuva";
+        if($("evolDiaRaios")) $("evolDiaRaios").value = "nao";
+        if($("evolDiaRaioDist")) $("evolDiaRaioDist").value = "";
+        if($("evolDiaFonte")) $("evolDiaFonte").value = "WeatherBug";
+        if($("evolDiaProd")) $("evolDiaProd").value = "sim";
+        if($("evolDiaPct")) $("evolDiaPct").value = 100;
+        if($("evolDiaHoras")) $("evolDiaHoras").value = 0;
+        if($("evolDiaCausa")) $("evolDiaCausa").value = "producao";
+        if($("evolDiaMotivo")) $("evolDiaMotivo").value = "";
+        if($("evolDiaImpacto")) $("evolDiaImpacto").value = "nao";
+        if($("evolDiaObs")) $("evolDiaObs").value = "";
+        return;
+      }
+      const r = snap.data() || {};
+      if($("evolDiaClima")) $("evolDiaClima").value = r.clima || "ensolarado";
+      if($("evolDiaChuva")) $("evolDiaChuva").value = r.chuvaNivel || "sem chuva";
+      if($("evolDiaRaios")) $("evolDiaRaios").value = r.houveRaio || "nao";
+      if($("evolDiaRaioDist")) $("evolDiaRaioDist").value = r.distanciaRaioKm ?? "";
+      if($("evolDiaFonte")) $("evolDiaFonte").value = r.fonteClima || "WeatherBug";
+      if($("evolDiaProd")) $("evolDiaProd").value = r.houveProducao || "sim";
+      if($("evolDiaPct")) $("evolDiaPct").value = Number(r.percentualProducaoDia ?? (r.houveProducao === "nao" ? 0 : 100));
+      if($("evolDiaHoras")) $("evolDiaHoras").value = Number(r.horasParadas || 0);
+      if($("evolDiaCausa")) $("evolDiaCausa").value = r.causaDia || "producao";
+      if($("evolDiaMotivo")) $("evolDiaMotivo").value = r.motivoParalisacao || "";
+      if($("evolDiaImpacto")) $("evolDiaImpacto").value = r.impactoPrazo === false ? "nao" : "sim";
+      if($("evolDiaObs")) $("evolDiaObs").value = r.observacao || "";
+      if(r.printMonitorUrl){
+        if($("evolDiaPrintUrlAtual")) $("evolDiaPrintUrlAtual").value = r.printMonitorUrl;
+        if($("evolDiaPrintPreview")) $("evolDiaPrintPreview").src = r.printMonitorUrl;
+        if($("evolDiaPrintPreviewWrap")) $("evolDiaPrintPreviewWrap").style.display = "";
+        if($("evolDiaPrintPreviewInfo")) $("evolDiaPrintPreviewInfo").textContent = r.printMonitorNome || "Print já anexado";
+        if($("btnEvolDiaRemoverPrint")) $("btnEvolDiaRemoverPrint").style.display = "inline-flex";
+      }
+      evolAtualizarCamposDiario();
+    }catch(e){ console.error(e); }
+  }
+
+  async function evolAbrirDiario(){
+    if(!_eObraId){ toast("Selecione uma obra.","err"); return; }
+    if(!_ePodeEditarDiario()){ toast("Somente ADM ou responsável da obra podem preencher o diário.","err"); return; }
+    if($("evolDiaData")) $("evolDiaData").value = _eHojeStr();
+    await evolCarregarDiarioData();
+    $("modalEvolDiario").classList.remove("hidden");
+  }
+
+  async function evolSalvarDiario(){
+    if(!_eObraId){ toast("Selecione uma obra.","err"); return; }
+    const data = $("evolDiaData")?.value || _eHojeStr();
+    let printUrl = $("evolDiaPrintUrlAtual")?.value || "";
+    let printNome = printUrl ? "Print anexado" : "";
+    try{
+      if(_eClimaPrintFile){
+        const fd = new FormData();
+        fd.append("file", _eClimaPrintFile);
+        fd.append("upload_preset", CLOUDINARY_PRESET);
+        fd.append("folder", "go");
+        const cr = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, { method:"POST", body:fd });
+        const cj = await cr.json().catch(()=>({}));
+        if(!cr.ok || !cj.secure_url) throw new Error(cj.error?.message || "Falha ao enviar o print do monitoramento.");
+        printUrl = cj.secure_url;
+        printNome = _eClimaPrintFile.name || "Print do monitoramento";
+      }
+      const payload = {
+        data,
+        diarioClimaPreenchido:true,
+        clima: $("evolDiaClima")?.value || "ensolarado",
+        chuvaNivel: $("evolDiaChuva")?.value || "sem chuva",
+        houveRaio: $("evolDiaRaios")?.value || "nao",
+        distanciaRaioKm: $("evolDiaRaioDist")?.value ? Number($("evolDiaRaioDist").value) : null,
+        fonteClima: $("evolDiaFonte")?.value || "WeatherBug",
+        houveProducao: $("evolDiaProd")?.value || "sim",
+        percentualProducaoDia: Number($("evolDiaPct")?.value || 0),
+        horasParadas: Number($("evolDiaHoras")?.value || 0),
+        causaDia: $("evolDiaCausa")?.value || "producao",
+        motivoParalisacao: ($("evolDiaMotivo")?.value || "").trim(),
+        impactoPrazo: ($("evolDiaImpacto")?.value || "nao") === "sim",
+        observacao: ($("evolDiaObs")?.value || "").trim(),
+        printMonitorUrl: printUrl || null,
+        printMonitorNome: printNome || null,
+        preenchidoPorUid: currentUser?.uid || null,
+        preenchidoPorNome: currentProfile?.nome || currentUser?.email || "Usuário",
+        atualizadoEm: serverTimestamp()
+      };
+      await setDoc(doc(db,"obras",_eObraId,"evolHistorico",data), payload, { merge:true });
+      _eClimaPrintFile = null;
+      closeModal("modalEvolDiario");
+      toast("Diário salvo com sucesso.","ok");
+      await _eCarregarHistorico(_eObraId);
+    }catch(e){
+      console.error(e);
+      toast(e.message || "Erro ao salvar diário.","err");
+    }
+  }
+
+  function _abrirImagemAmp(url, infoHtml, emptyMsg){
+    const img = $("evolFotoAmpImg");
+    const info = $("evolFotoAmpInfo");
+    const modal = $("modalEvolFotoAmp");
+    if(!url){ toast(emptyMsg || "Nenhuma imagem disponível.","err"); return; }
+    if(!modal || !img || !info){
+      window.open(url,"_blank","noopener,noreferrer");
+      return;
+    }
+    img.removeAttribute("src");
+    img.onerror = ()=> window.open(url,"_blank","noopener,noreferrer");
+    info.innerHTML = infoHtml || "<strong>Imagem ampliada</strong>";
+    modal.style.zIndex = "99999";
+    modal.style.display = "flex";
+    modal.style.visibility = "visible";
+    modal.style.opacity = "1";
+    modal.classList.remove("hidden");
+    requestAnimationFrame(()=>{ img.src = url; });
+  }
+
+  function _abrirFotoClimaAmpliada(url, infoHtml){
+    _abrirImagemAmp(url, infoHtml || "<strong>Monitoramento do clima</strong>", "Nenhum print disponível.");
+  }
+
+  function evolConsultarDiarioData(){
+    const dt = $("evolClimaConsultaData")?.value || _eHojeStr();
+    if($("evolDiaData")) $("evolDiaData").value = dt;
+    evolCarregarDiarioData().then(()=>{
+      const modal = $("modalEvolDiario");
+      if(modal) modal.classList.remove("hidden");
+    });
+  }
+
+  function evolVerClimaFoto(){
+    const url = _eClimaPrintUrl || $("evolClimaThumb")?.src || $("evolDiaPrintPreview")?.src || "";
+    _abrirFotoClimaAmpliada(url, `<strong>Monitoramento do clima</strong>${_eObraId ? ` · ${_eObraId}` : ""}`);
   }
 
   async function _eSnapshotHist(id,g){
@@ -3288,12 +3750,12 @@
 
     // Agrupar por data
     const porData={};
+    const podeEditarAdm = currentRole==="ADMIN" || currentProfile?.evolResponsavel===true;
     regs.forEach(r=>{ const d=r.data||"?"; if(!porData[d]) porData[d]=[]; porData[d].push(r); });
 
     el.style.columns="1";
     el.innerHTML=Object.entries(porData).map(([data,fotos])=>{
       const dtFmt=new Date(data+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"short",year:"numeric"});
-       const podeEditarAdm = currentRole==="ADMIN" || currentProfile?.evolResponsavel===true;
        const cards=fotos.map(r=>{
         const unid=(_eCfg?.unidades||[]).find(u=>u.id===r.unidId);
         const delta=r.pctDepois-r.pctAntes;
@@ -3303,10 +3765,9 @@
         const safeId = r.id.replace(/[^a-zA-Z0-9]/g,"_");
         return `
         <div style="background:#f8f9fc;border:1.5px solid ${tipo==="depois"?"#bbf7d0":"#fde68a"};border-radius:10px;overflow:hidden;margin-bottom:8px">
-          <div style="display:flex;gap:12px;cursor:pointer"
-               onclick="App.evolVerFotoAmp('${r.fotoUrl}','${(r.unidNome||"").replace(/'/g,"&#39;")}','${(r.svcDesc||"").replace(/'/g,"&#39;")}','${data}','${delta.toFixed(1)}')">
+          <div class="evolFotoAmpTrigger" data-reg-id="${r.id}" style="display:flex;gap:12px;cursor:pointer">
             <div style="position:relative;flex-shrink:0">
-              <img src="${r.fotoUrl}" style="width:90px;height:80px;object-fit:cover;display:block" alt="" loading="lazy">
+              <img src="${r.fotoUrl}" style="width:90px;height:80px;object-fit:cover;display:block;pointer-events:none" alt="" loading="lazy">
               <span style="position:absolute;top:4px;left:4px;background:${tipoCor};color:#fff;font-size:.58rem;font-weight:700;padding:1px 5px;border-radius:10px">${tipoLabel}</span>
             </div>
             <div style="padding:9px 10px;min-width:0;flex:1">
@@ -3336,6 +3797,14 @@
         ${cards}
       </div>`;
     }).join("");
+
+    const mapaRegsGaleria = new Map(regs.map(r=>[r.id, r]));
+    el.querySelectorAll(".evolFotoAmpTrigger").forEach(node=>{
+      const reg = mapaRegsGaleria.get(node.getAttribute("data-reg-id"));
+      if(!reg) return;
+      const delta = (Number(reg.pctDepois)||0) - (Number(reg.pctAntes)||0);
+      _bindAmpElement(node, ()=> evolVerFotoAmp(reg.fotoUrl, reg.unidNome || "", reg.svcDesc || "", reg.data || "", delta.toFixed(1)));
+    });
 
     // Listeners dos botões de edição na galeria ADM
     if(podeEditarAdm) {
@@ -3367,7 +3836,7 @@
       const fd = new FormData();
       fd.append("file", file);
       fd.append("upload_preset", "cfo_uploads");
-      fd.append("folder", "cfo");
+      fd.append("folder", "go");
       const r = await fetch("https://api.cloudinary.com/v1_1/dibvvm6ix/image/upload", {method:"POST", body:fd});
       const j = await r.json();
       if(!j.secure_url) throw new Error("Falha no upload");
@@ -3381,10 +3850,9 @@
   }
 
   function evolVerFotoAmp(url,unid,svc,data,delta){
-    $("evolFotoAmpImg").src=url;
-    const dtFmt=new Date(data+"T12:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"});
-    $("evolFotoAmpInfo").innerHTML=`<strong>${unid}</strong> · ${svc} · ${dtFmt} · <span style="color:#86efac">+${delta}%</span>`;
-    $("modalEvolFotoAmp").classList.remove("hidden");
+    const dtFmt = data ? new Date(data+"T12:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"}) : "";
+    const info = `<strong>${unid||"Registro fotográfico"}</strong>${svc ? ` · ${svc}` : ""}${dtFmt ? ` · ${dtFmt}` : ""}${delta!==undefined && delta!==null && delta!=="" ? ` · <span style="color:#86efac">+${delta}%</span>` : ""}`;
+    _abrirImagemAmp(url, info, "Nenhuma foto disponível.");
   }
 
   // ──────────────────────────── RELATÓRIO PDF ──────────────
@@ -4139,17 +4607,13 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
     $("editColabUid").value   = uid;
     $("editColabNome").value  = nome;
     $("editColabEmail").value = email;
+    // Preencher checkbox evolResponsavel
     const u = allUsers.find(x=>x.id===uid);
-    const perfilSel = $("editColabPerfil");
+    const cb = $("editEvolResp");
+    if(cb) cb.checked = u?.evolResponsavel===true;
+    // Ocultar para ADMIN (não faz sentido)
     const wrap = $("editEvolRespWrap");
-    const perfil = (u?.role === "VISITANTE") ? "VISITANTE" : (u?.evolResponsavel===true ? "RESPONSAVEL" : "USER");
-    if(perfilSel) perfilSel.value = perfil;
-    if(wrap) wrap.style.display = perfil === "RESPONSAVEL" ? "" : "none";
-    if(perfilSel){
-      perfilSel.onchange = () => {
-        if(wrap) wrap.style.display = perfilSel.value === "RESPONSAVEL" ? "" : "none";
-      };
-    }
+    if(wrap) wrap.style.display = u?.role==="ADMIN" ? "none" : "";
     setMsg("editColabMsg","");
     $("btnSalvarEditColab").disabled = false;
     $("btnSalvarEditColab").textContent = "💾 Salvar";
@@ -4160,18 +4624,13 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
     const uid   = $("editColabUid").value.trim();
     const nome  = $("editColabNome").value.trim();
     const email = $("editColabEmail").value.trim();
-    const perfil = $("editColabPerfil")?.value || "USER";
     if(!nome)  { setMsg("editColabMsg","⚠️ Informe o nome."); return; }
     if(!email) { setMsg("editColabMsg","⚠️ Informe o e-mail."); return; }
     const btn = $("btnSalvarEditColab");
     btn.disabled = true; btn.textContent = "Salvando...";
     try {
-      await updateDoc(doc(db,"usuarios",uid), {
-        nome,
-        email,
-        role: perfil === "VISITANTE" ? "VISITANTE" : "USER",
-        evolResponsavel: perfil === "RESPONSAVEL"
-      });
+      const evolResp = $("editEvolResp")?.checked || false;
+      await updateDoc(doc(db,"usuarios",uid), { nome, email, evolResponsavel: evolResp });
       toast("✅ Dados atualizados!");
       closeModal("modalEditColab");
       await loadUsers();
@@ -4490,7 +4949,7 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
     const fd = new FormData();
     fd.append("file", selectedFile);
     fd.append("upload_preset", CLOUDINARY_PRESET);
-    fd.append("folder", "cfo");
+    fd.append("folder", "go");
     try {
       const r = await fetch(url, {method:"POST", body:fd});
       const d = await r.json();
@@ -4696,7 +5155,7 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
   // ─────────────────────────────────────────
   // OFFLINE / SYNC
   // ─────────────────────────────────────────
-  const OFFLINE_DB_NAME    = "cfo_offline";
+  const OFFLINE_DB_NAME    = "go_offline";
   const OFFLINE_DB_VERSION = 2;          // ← versão 2: adiciona store de pontos
   const OFFLINE_STORE      = "lancamentos_pendentes";
   const OFFLINE_PONTO_STORE = "pontos_pendentes";
@@ -4754,7 +5213,7 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
   }
 
   // ── Cache de credenciais para autenticação offline no ponto ──
-  const CRED_CACHE_KEY = "go_ponto_cred_cache";
+  const CRED_CACHE_KEY = "go_prod_ponto_cred_cache";
 
   function salvarCredenciaisCache(email, uid, nome, fotoUrl, obras, obra_id, role, obraData) {
     // Salva apenas dados não sensíveis — senha NUNCA é armazenada
@@ -9505,8 +9964,9 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
   // MÓDULO VISITANTE — somente leitura
   // ══════════════════════════════════════════════════════════
   let _vObraId = "", _vCfg = null, _vProg = {}, _vCont = null;
-  let _vChartB = null, _vChartL = null;
+  let _vChartB = null, _vChartL = null, _vChartClima = null;
   let _vGaleriaRegistros = [];
+  let _vClimaHist = [], _vClimaPrintUrl = "";
   const E_CORES_V = ["#3b82f6","#10b981","#f59e0b","#ef4444","#8b5cf6","#06b6d4","#84cc16","#f97316","#ec4899","#14b8a6","#6366f1","#d946ef","#0ea5e9","#22c55e","#eab308","#f43f5e"];
 
   function _vPctSvc(uid, sid) {
@@ -9530,6 +9990,7 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
 
   async function visitanteInicializar(obraId) {
 
+    _vPosicionarCardClima();
     $("vLoading").style.display="";
     $("vMain").style.display="none";
     if(!obraId){ $("vLoading").innerHTML=`<div style="font-size:2rem">⚠️</div><p style="color:rgba(255,255,255,.5);margin-top:8px">Nenhuma obra vinculada à sua conta.<br>Fale com o administrador.</p>`; return; }
@@ -9569,6 +10030,7 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
       _vRenderListaUnidades();
       _vRenderGrafico();
       await _vRenderHistorico();
+      await _vCarregarClima();
       await _vCarregarGaleria();
 
     } catch(e) {
@@ -9759,6 +10221,119 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
     }catch(e){}
   }
 
+  function _vPosicionarCardClima(){
+    const card = $("vCardClima");
+    const grid = $("vGrid3col");
+    if(!card || !grid || !grid.children?.length) return;
+    const leftCol = grid.children[0];
+    if(leftCol && card.parentElement !== leftCol) leftCol.appendChild(card);
+  }
+
+  function _vPerdaDia(row){
+    if(!row) return 0;
+    if(row.impactoPrazo === false) return 0;
+    if(row.houveProducao === "nao") return 1;
+    if(row.houveProducao === "parcial"){
+      const pct = Math.max(0, Math.min(100, Number(row.percentualProducaoDia)||0));
+      return (100 - pct) / 100;
+    }
+    return 0;
+  }
+
+  async function _vCarregarClima(){
+    try{
+      _vPosicionarCardClima();
+      const snap = await getDocs(query(collection(db,"obras",_vObraId,"evolHistorico"), orderBy("data","asc"), limit(120)));
+      const rows = [];
+      snap.forEach(d=> rows.push(d.data()||{}));
+      _vRenderClimaPainel(rows);
+    }catch(e){ console.error(e); }
+  }
+
+  function _vRenderClimaPainel(rows){
+    _vClimaHist = Array.isArray(rows) ? rows : [];
+    const diarios = _vClimaHist.filter(r => r && (r.diarioClimaPreenchido || r.printMonitorUrl || r.houveProducao || r.clima || r.motivoParalisacao || r.observacao)).sort((a,b)=> String(a.data||"").localeCompare(String(b.data||"")));
+    const prod = diarios.filter(r=>r.houveProducao === "sim").length;
+    const parcial = diarios.filter(r=>r.houveProducao === "parcial").length;
+    const clima = diarios.filter(r=>r.houveProducao === "nao" && r.causaDia === "clima").length;
+    const perdidos = diarios.reduce((acc,row)=> acc + _vPerdaDia(row), 0);
+
+    if($("vClimaKpiProd")) $("vClimaKpiProd").textContent = prod;
+    if($("vClimaKpiParcial")) $("vClimaKpiParcial").textContent = parcial;
+    if($("vClimaKpiClima")) $("vClimaKpiClima").textContent = clima;
+    if($("vClimaKpiPerdidos")) $("vClimaKpiPerdidos").textContent = perdidos.toFixed(1).replace('.',',');
+
+    const latest = diarios.length ? diarios[diarios.length-1] : null;
+    if(latest){
+      if($("vClimaResumoBox")) $("vClimaResumoBox").style.display = "";
+      const base = latest.houveProducao === "nao" ? "Sem produção" : latest.houveProducao === "parcial" ? "Produção parcial" : "Produção normal";
+      const climaTxt = latest.clima ? ` · Clima: ${latest.clima}` : "";
+      const raioTxt = latest.houveRaio === "sim" ? ` · Raios${latest.distanciaRaioKm ? ` a ${String(latest.distanciaRaioKm).replace('.',',')} km` : ""}` : "";
+      if($("vClimaResumo")) $("vClimaResumo").textContent = `${latest.data || ''} · ${base}${climaTxt}${raioTxt}`;
+      if($("vClimaUltimoMeta")) $("vClimaUltimoMeta").textContent = `${latest.motivoParalisacao || latest.observacao || 'Sem observações adicionais.'}`;
+      if($("vClimaObsBox")) $("vClimaObsBox").style.display = latest.observacao ? "" : "none";
+      if($("vClimaObs")) $("vClimaObs").textContent = latest.observacao || "Sem observações registradas.";
+      if(latest.printMonitorUrl){
+        _vClimaPrintUrl = latest.printMonitorUrl;
+        if($("vClimaThumb")) $("vClimaThumb").src = latest.printMonitorUrl;
+        if($("vClimaThumbWrap")) $("vClimaThumbWrap").style.display = "";
+        if($("vClimaThumbEmpty")) $("vClimaThumbEmpty").style.display = "none";
+        if($("vClimaThumbInfo")) $("vClimaThumbInfo").textContent = `Registro de ${latest.data || ''} · Fonte: ${latest.fonteClima || 'WeatherBug'}${latest.preenchidoPorNome ? ` · por ${latest.preenchidoPorNome}` : ''}`;
+        _bindAmpElement($("vClimaThumbTrigger") || $("vClimaThumbWrap"), ()=>vVerClimaAmp());
+        _bindAmpElement($("vClimaThumb"), ()=>vVerClimaAmp());
+      } else {
+        _vClimaPrintUrl = "";
+        if($("vClimaThumbWrap")) $("vClimaThumbWrap").style.display = "none";
+        if($("vClimaThumbEmpty")) $("vClimaThumbEmpty").style.display = "";
+      }
+    } else {
+      _vClimaPrintUrl = "";
+      if($("vClimaResumoBox")) $("vClimaResumoBox").style.display = "none";
+      if($("vClimaObsBox")) $("vClimaObsBox").style.display = "none";
+      if($("vClimaThumbWrap")) $("vClimaThumbWrap").style.display = "none";
+      if($("vClimaThumbEmpty")) $("vClimaThumbEmpty").style.display = "";
+    }
+
+    const canvas = $("vChartClima");
+    if(!canvas) return;
+    if(_vChartClima) { try{ _vChartClima.destroy(); }catch(_){} _vChartClima = null; }
+    if(diarios.length < 1){
+      canvas.style.display = "none";
+      if($("vClimaGrafEmpty")) $("vClimaGrafEmpty").style.display = "";
+      return;
+    }
+    canvas.style.display = "";
+    if($("vClimaGrafEmpty")) $("vClimaGrafEmpty").style.display = "none";
+    const ult = diarios.slice(-10);
+    const labels = ult.map(r=>{ try{return new Date(`${r.data}T12:00:00`).toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"});}catch(_){ return r.data||""; }});
+    const values = ult.map(r=> r.houveProducao === "nao" ? 0 : r.houveProducao === "parcial" ? Math.max(0, Math.min(100, Number(r.percentualProducaoDia)||50)) : 100);
+    const colors = ult.map(r=> r.houveProducao === "nao" ? "rgba(248,113,113,.85)" : r.houveProducao === "parcial" ? "rgba(245,166,35,.85)" : "rgba(16,185,129,.85)");
+    Chart.defaults.color = "rgba(255,255,255,0.5)";
+    Chart.defaults.borderColor = "rgba(255,255,255,0.07)";
+    _vChartClima = new Chart(canvas,{
+      type:"bar",
+      data:{ labels, datasets:[{ label:"Produção do dia (%)", data:values, backgroundColor:colors, borderRadius:6, borderWidth:0 }]},
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        scales:{
+          y:{ min:0, max:100, ticks:{ callback:v=>v+"%", font:{size:9}, color:"rgba(255,255,255,.5)" }, grid:{ color:"rgba(255,255,255,.06)" } },
+          x:{ ticks:{ font:{size:9}, color:"rgba(255,255,255,.5)" }, grid:{ display:false } }
+        },
+        plugins:{ legend:{display:false}, tooltip:{ callbacks:{ afterLabel:(ctx)=>{ const r=ult[ctx.dataIndex]; const extra=[]; if(r.clima) extra.push(`Clima: ${r.clima}`); if(r.observacao) extra.push(r.observacao); return extra; } } } }
+      }
+    });
+    Chart.defaults.color = "#666";
+    Chart.defaults.borderColor = "rgba(0,0,0,0.1)";
+  }
+
+  function vVerClimaAmp(){
+    const url = _vClimaPrintUrl || $("vClimaThumb")?.src || "";
+    if(!url){ toast("Nenhum print disponível."); return; }
+    const latest = (_vClimaHist||[]).filter(r => r && (r.diarioClimaPreenchido || r.printMonitorUrl || r.houveProducao || r.clima || r.motivoParalisacao || r.observacao)).sort((a,b)=> String(a.data||"").localeCompare(String(b.data||""))).slice(-1)[0] || null;
+    const dt = latest?.data ? new Date(latest.data+"T12:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"}) : "";
+    _abrirFotoClimaAmpliada(url, `<strong>Monitoramento do clima</strong>${dt ? ` · ${dt}` : ""}${latest?.clima ? ` · ${latest.clima}` : ""}${latest?.houveRaio === "sim" ? ` · Raios${latest?.distanciaRaioKm ? ` a ${String(latest.distanciaRaioKm).replace('.',',')} km` : ""}` : ""}`);
+  }
+
   async function _vCarregarGaleria() {
     try {
       const snap = await getDocs(query(
@@ -9833,9 +10408,9 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
         </div>` : "";
       return `
       <div style="border-radius:10px;overflow:hidden;background:rgba(255,255,255,.06);border:1.5px solid ${tipo==="depois"?"rgba(16,185,129,.3)":"rgba(245,166,35,.3)"}">
-        <div style="position:relative;cursor:zoom-in" onclick="App.vVerFotoAmp('${r.fotoUrl}','${(r.unidNome||"").replace(/'/g,"&#39;")}','${(r.svcDesc||"").replace(/'/g,"&#39;")}','${r.data||""}','${delta.toFixed(1)}','${tipo}')">
-          <img src="${r.fotoUrl}" style="width:100%;height:120px;object-fit:cover;display:block" loading="lazy" alt="">
-          <span style="position:absolute;top:5px;left:5px;background:${tipoCor};color:#fff;font-size:.6rem;font-weight:700;padding:2px 6px;border-radius:16px">${tipoLabel}</span>
+        <div class="vFotoAmpTrigger" data-reg-id="${r.id}" style="position:relative;cursor:zoom-in">
+          <img src="${r.fotoUrl}" style="width:100%;height:120px;object-fit:cover;display:block;pointer-events:none" loading="lazy" alt="">
+          <span style="position:absolute;top:5px;left:5px;background:${tipoCor};color:#fff;font-size:.6rem;font-weight:700;padding:2px 6px;border-radius:16px;pointer-events:none">${tipoLabel}</span>
         </div>
         <div style="padding:6px 8px">
           <div style="font-size:.7rem;font-weight:600;color:rgba(255,255,255,.85);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${unid?.nome||r.unidNome||"—"}</div>
@@ -9844,6 +10419,15 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
         ${btnEditar}
       </div>`;
     }).join("");
+
+    const porId = new Map(regsLimitadas.map(r=>[r.id, r]));
+    grid.querySelectorAll(".vFotoAmpTrigger").forEach(el=>{
+      const reg = porId.get(el.getAttribute("data-reg-id"));
+      if(!reg) return;
+      const delta = (Number(reg.pctDepois)||0) - (Number(reg.pctAntes)||0);
+      const tipo = reg.tipoFoto || "antes";
+      _bindAmpElement(el, ()=> vVerFotoAmp(reg.fotoUrl, reg.unidNome || "", reg.svcDesc || "", reg.data || "", delta.toFixed(1), tipo));
+    });
 
     // Adicionar listeners após render (evita problema de onclick em módulo ES)
     if(podeEditar) {
@@ -9858,13 +10442,12 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
   }
 
   function vVerFotoAmp(url, unid, svc, data, delta, tipo) {
-    $("vFotoAmpImg").src = url;
     const dtFmt = data ? new Date(data+"T12:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"}) : "";
     const tipoLabel = tipo==="depois"
       ? `<span style="background:#10b981;color:#fff;padding:1px 8px;border-radius:12px;font-size:.75rem">✅ Depois</span>`
       : `<span style="background:#f5a623;color:#fff;padding:1px 8px;border-radius:12px;font-size:.75rem">📸 Antes</span>`;
-    $("vFotoAmpInfo").innerHTML = `${tipoLabel} <strong>${unid}</strong> · ${svc} · ${dtFmt} · <span style="color:#86efac">+${delta}%</span>`;
-    $("vModalFotoAmp").classList.remove("hidden");
+    const info = `${tipoLabel} <strong>${unid||"Registro fotográfico"}</strong>${svc ? ` · ${svc}` : ""}${dtFmt ? ` · ${dtFmt}` : ""}${delta!==undefined && delta!==null && delta!=="" ? ` · <span style="color:#86efac">+${delta}%</span>` : ""}`;
+    _abrirImagemAmp(url, info, "Nenhuma foto disponível.");
   }
 
 
@@ -9889,7 +10472,7 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
       const fd = new FormData();
       fd.append("file", file);
       fd.append("upload_preset", "cfo_uploads");
-      fd.append("folder", "cfo");
+      fd.append("folder", "go");
       const r = await fetch(`https://api.cloudinary.com/v1_1/dibvvm6ix/image/upload`, {method:"POST", body:fd});
       const j = await r.json();
       if(!j.secure_url) throw new Error("Falha no upload");
@@ -9904,7 +10487,9 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
 
   // ── fim módulo visitante ──
 
-    window.App = {
+    _initAmpDelegation();
+
+  window.App = {
     // Auth
     login, logout, togglePass, changePassword,
     // Navegação
@@ -9978,7 +10563,8 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
     evolAbrirModalContrato, evolSalvarContrato, evolAddMarco, evolAnexarArquivo, evolTrocarArquivo, evolDeletarArquivo,
     evolAbrirParaColab,
     evolAbrirGaleria, evolFiltrarGaleria, evolVerFotoAmp, evolGerarRelatorio,
-    visitanteInicializar, vFiltrarGaleria, vVerFotoAmp, vFiltrarGrupo,
+    evolAbrirDiario, evolSalvarDiario, evolClimaFotoSel, evolRemoverClimaFoto, evolCarregarDiarioData, evolAtualizarCamposDiario, evolVerClimaFoto, evolConsultarDiarioData,
+    visitanteInicializar, vFiltrarGaleria, vVerFotoAmp, vVerClimaAmp, vFiltrarGrupo,
     vApagarFoto, vTrocarFoto,
 
     // Cadastro de EPIs
@@ -10074,6 +10660,57 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
                 <div id="vBarFill" style="height:100%;border-radius:999px;width:0%;transition:width 1s cubic-bezier(.4,0,.2,1);background:linear-gradient(90deg,#e94560,#f5a623)"></div>
               </div>
               <div style="font-size:.62rem;color:rgba(255,255,255,.3);margin-top:4px;text-align:right" id="vDataAtualizacao"></div>
+            </div>
+
+            <!-- Clima e impacto no prazo -->
+            <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:16px" id="vCardClima">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+                <div>
+                  <div style="font-weight:600;color:rgba(255,255,255,.86);font-size:.86rem">⛅ Clima e Impacto no Prazo</div>
+                  <div style="font-size:.68rem;color:rgba(255,255,255,.45);margin-top:2px">Leitura do clima, paralisações e monitoramento do dia.</div>
+                </div>
+              </div>
+              <div id="vClimaResumoBox" style="display:none;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:10px 12px;margin-bottom:10px">
+                <div style="font-weight:700;color:#fff;font-size:.8rem" id="vClimaResumo">Nenhum diário preenchido.</div>
+                <div style="font-size:.68rem;color:rgba(255,255,255,.5);margin-top:4px" id="vClimaUltimoMeta"></div>
+              </div>
+              <div id="vClimaObsBox" style="display:none;background:rgba(251,146,60,.08);border:1px solid rgba(251,146,60,.28);border-radius:12px;padding:10px 12px;margin-bottom:10px">
+                <div style="font-size:.64rem;color:rgba(255,255,255,.55);text-transform:uppercase;font-weight:800;letter-spacing:.4px;margin-bottom:6px">Observações</div>
+                <div id="vClimaObs" style="font-size:.78rem;color:rgba(255,255,255,.82);white-space:pre-wrap">Sem observações registradas.</div>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:10px">
+                <div style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.22);border-radius:12px;padding:10px;text-align:center">
+                  <div style="font-size:.62rem;color:rgba(255,255,255,.45);text-transform:uppercase;font-weight:700">Produtivos</div>
+                  <div style="font-family:'Syne',sans-serif;font-size:1.15rem;font-weight:800;color:#10b981" id="vClimaKpiProd">0</div>
+                </div>
+                <div style="background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.22);border-radius:12px;padding:10px;text-align:center">
+                  <div style="font-size:.62rem;color:rgba(255,255,255,.45);text-transform:uppercase;font-weight:700">Parciais</div>
+                  <div style="font-family:'Syne',sans-serif;font-size:1.15rem;font-weight:800;color:#f5a623" id="vClimaKpiParcial">0</div>
+                </div>
+                <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.22);border-radius:12px;padding:10px;text-align:center">
+                  <div style="font-size:.62rem;color:rgba(255,255,255,.45);text-transform:uppercase;font-weight:700">Paradas clima</div>
+                  <div style="font-family:'Syne',sans-serif;font-size:1.15rem;font-weight:800;color:#f87171" id="vClimaKpiClima">0</div>
+                </div>
+                <div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.22);border-radius:12px;padding:10px;text-align:center">
+                  <div style="font-size:.62rem;color:rgba(255,255,255,.45);text-transform:uppercase;font-weight:700">Dias perdidos</div>
+                  <div style="font-family:'Syne',sans-serif;font-size:1.15rem;font-weight:800;color:#93c5fd" id="vClimaKpiPerdidos">0,0</div>
+                </div>
+              </div>
+              <div style="position:relative;width:100%;height:170px;margin-bottom:10px">
+                <canvas id="vChartClima" style="position:absolute;inset:0"></canvas>
+                <div id="vClimaGrafEmpty" style="display:none;text-align:center;color:rgba(255,255,255,.4);font-size:.76rem;padding-top:68px">Diários do clima aparecerão aqui.</div>
+              </div>
+              <div>
+                <div style="font-size:.68rem;color:rgba(255,255,255,.45);text-transform:uppercase;font-weight:700;margin-bottom:8px">Último monitoramento</div>
+                <div id="vClimaThumbWrap" style="display:none">
+                  <div id="vClimaThumbTrigger" style="position:relative;cursor:zoom-in" role="button" tabindex="0" aria-label="Ampliar print do monitoramento">
+                    <img id="vClimaThumb" src="" alt="Print do monitoramento" style="width:100%;max-height:180px;object-fit:cover;border-radius:10px;border:1px solid rgba(255,255,255,.12);pointer-events:none">
+                    <span style="position:absolute;top:8px;right:8px;background:rgba(15,52,96,.88);color:#fff;font-size:.68rem;font-weight:700;padding:4px 8px;border-radius:999px;pointer-events:none">🔍 Ampliar</span>
+                  </div>
+                  <div id="vClimaThumbInfo" style="font-size:.7rem;color:rgba(255,255,255,.45);margin-top:8px"></div>
+                </div>
+                <div id="vClimaThumbEmpty" style="font-size:.76rem;color:rgba(255,255,255,.35);padding:8px 0 4px">Nenhum print anexado até o momento.</div>
+              </div>
             </div>
 
           </div><!-- /col esquerda -->
