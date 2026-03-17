@@ -271,7 +271,7 @@
   .evol-dashboard-inner{width:min(100%,980px);margin:0 auto}
   .evol-dash-grid{display:grid;grid-template-columns:minmax(260px,300px) minmax(0,1fr) !important;justify-content:center;align-items:start}
   @media(max-width:900px){.evol-dashboard-inner{width:100%}.evol-dash-grid{grid-template-columns:1fr !important;gap:18px !important}}
-  @media(max-width:600px){.evol-dash-grid{grid-template-columns:1fr !important}.evolGrafGrid{grid-template-columns:1fr!important}}</style>
+  @media(max-width:600px){.evol-dash-grid{grid-template-columns:1fr !important}.evolGrafGrid{grid-template-columns:1fr!important}}.topbar-avatar{width:34px;height:34px;border-radius:999px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;}.topbar-avatar img{width:100%;height:100%;object-fit:cover;display:block;}.topbar-avatar-fallback{color:#fff;font-size:.82rem;font-weight:700;line-height:1;}.ponto-auto-logout{margin-top:10px;background:#fff7ed;color:#9a3412;border:1px solid #fdba74;border-radius:8px;padding:8px 10px;font-size:.8rem;font-weight:600;text-align:center;}</style>
 </head>
 <body>
 
@@ -284,6 +284,10 @@
 <div class="topbar hidden" id="topbar">
   <div class="topbar-brand"><span class="dot"></span>GO — Gestão de Obras</div>
   <div class="topbar-right">
+    <div id="topUserAvatar" class="topbar-avatar hidden" aria-label="Foto do usuário">
+      <img id="topUserAvatarImg" alt="Foto do usuário" class="hidden">
+      <span id="topUserAvatarFallback" class="topbar-avatar-fallback">?</span>
+    </div>
     <div id="pillUser" class="pill hidden"></div>
     <button class="btn btn-ghost sm hidden" id="btnLogout" onclick="App.logout()">Sair</button>
   </div>
@@ -445,6 +449,7 @@
       <p id="pontoOkMsg" style="color:#666;font-size:14px;margin-bottom:4px">—</p>
       <p id="pontoOkFase" style="color:#0f3460;font-size:13px;font-weight:600">—</p>
       <div id="pontoOkDetalhe" style="margin-top:12px;background:#f0f7ff;border-radius:8px;padding:10px 16px;font-size:12px;color:#555;text-align:left"></div>
+      <div id="pontoAutoLogoutMsg" class="ponto-auto-logout hidden"></div>
       <!-- Botão para ir ao Registro de Evolução -->
       <button class="btn btn-primary full" onclick="App.evolAbrirParaColab()" style="margin-top:16px;padding:13px;background:linear-gradient(135deg,#0f3460,#1a4a8a)">
         📈 Registrar Evolução da Obra
@@ -2126,9 +2131,13 @@
       sessionStorage.removeItem("go_login_email");
       sessionStorage.removeItem("go_login_pass");
     } catch(_){}
+    try { if(pontoAutoLogoutTimer){ clearTimeout(pontoAutoLogoutTimer); pontoAutoLogoutTimer=null; } } catch(_){}
+    try { if(pontoAutoLogoutInterval){ clearInterval(pontoAutoLogoutInterval); pontoAutoLogoutInterval=null; } } catch(_){}
+    try { await signOut(authAux); } catch(_){}
     await signOut(auth);
     currentUser = null;
     currentRole = null;
+    limparTopbarUsuario();
     document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
     document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
     ["obraList","userList","lancList","dashTable","relPreviewContent"].forEach(id => {
@@ -2185,7 +2194,32 @@
     return null;
   }
 
+  function atualizarTopbarUsuario(nome, fotoUrl) {
+    const wrap = $("topUserAvatar"), img = $("topUserAvatarImg"), fb = $("topUserAvatarFallback");
+    if(!wrap || !img || !fb) return;
+    const inicial = ((nome||"?").trim().charAt(0) || "?").toUpperCase();
+    fb.textContent = inicial;
+    if(fotoUrl) {
+      img.src = fotoUrl;
+      img.classList.remove("hidden");
+      fb.classList.add("hidden");
+    } else {
+      img.removeAttribute("src");
+      img.classList.add("hidden");
+      fb.classList.remove("hidden");
+    }
+    wrap.classList.remove("hidden");
+  }
+
+  function limparTopbarUsuario() {
+    const wrap = $("topUserAvatar"), img = $("topUserAvatarImg"), fb = $("topUserAvatarFallback");
+    if(img) { img.removeAttribute("src"); img.classList.add("hidden"); }
+    if(fb) { fb.textContent = "?"; fb.classList.remove("hidden"); }
+    if(wrap) wrap.classList.add("hidden");
+  }
+
   let currentUser=null, currentRole="USER", currentProfile=null;
+  let pontoAutoLogoutTimer=null, pontoAutoLogoutInterval=null;
 
   async function initApp(user) {
     currentUser=user;
@@ -2214,6 +2248,7 @@
     $("welcomeRole").textContent=currentRole==="ADMIN"?"👑 Administrador":currentRole==="VISITANTE"?"👁️ Visitante":"👤 Colaborador";
     $("pillUser").textContent=nome;
     $("pillUser").classList.remove("hidden");
+    atualizarTopbarUsuario(nome, profile?.fotoUrl || "");
     $("btnLogout").classList.remove("hidden");
 
     if(currentRole==="ADMIN"){
@@ -4904,6 +4939,7 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
       if(naPontePage) return;
       $("sideNav").classList.add("hidden");
       $("pillUser").classList.add("hidden");
+      limparTopbarUsuario();
       $("btnLogout").classList.add("hidden");
       showPage("loginPage");
     }
@@ -6173,6 +6209,7 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
 
   function irParaPonto() {
     try {
+      limparPontoAutoLogout();
       pontoUser=null; pontoStream=null; pontoFotoB64=null; pontoGPS=null;
       pontoFaseAtual=null; pontoObraData=null; justPontoId=null;
       pontoProfile=null; livenessOk=false; facialOk=false; blinkCount=0; eyeWasClosed=false;
@@ -6196,6 +6233,7 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
   }
 
   function voltarLogin() {
+    limparPontoAutoLogout();
     pararCamera();
     if(livenessDetector){ clearInterval(livenessDetector); livenessDetector=null; }
     signOut(authAux).catch(()=>{});
@@ -6802,6 +6840,42 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
     }
   }
 
+  function limparPontoAutoLogout() {
+    if(pontoAutoLogoutTimer){ clearTimeout(pontoAutoLogoutTimer); pontoAutoLogoutTimer=null; }
+    if(pontoAutoLogoutInterval){ clearInterval(pontoAutoLogoutInterval); pontoAutoLogoutInterval=null; }
+    const msg = $("pontoAutoLogoutMsg");
+    if(msg){ msg.textContent=""; msg.classList.add("hidden"); }
+  }
+
+  function agendarPontoAutoLogout(segundos=60) {
+    if((pontoProfile?.role||currentRole) === "ADMIN") { limparPontoAutoLogout(); return; }
+    limparPontoAutoLogout();
+    let restante = Math.max(1, Number(segundos)||60);
+    const msg = $("pontoAutoLogoutMsg");
+    const render = () => {
+      if(msg){
+        msg.textContent = `Por segurança, esta sessão será encerrada em ${restante}s. Faça novo login para registrar outro ponto.`;
+        msg.classList.remove("hidden");
+      }
+    };
+    render();
+    pontoAutoLogoutInterval = setInterval(() => {
+      restante -= 1;
+      if(restante <= 0){
+        clearInterval(pontoAutoLogoutInterval);
+        pontoAutoLogoutInterval = null;
+        return;
+      }
+      render();
+    }, 1000);
+    pontoAutoLogoutTimer = setTimeout(async () => {
+      limparPontoAutoLogout();
+      try { sessionStorage.removeItem("go_login_email"); sessionStorage.removeItem("go_login_pass"); } catch(_){}
+      try { await signOut(authAux); } catch(_){}
+      await logout();
+    }, restante * 1000);
+  }
+
   function _mostrarSucesso(agora, horaStr, faseNome, obs) {
     pararCamera();
     if(livenessDetector){ clearInterval(livenessDetector); livenessDetector=null; }
@@ -6818,6 +6892,7 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
       ${obs ? `<div style="margin-top:8px;background:#e0f2fe;border-radius:6px;padding:6px 10px;font-size:.8rem;color:#075985">${obs}</div>` : ""}
     `;
     $("pontoStepOk").classList.remove("hidden");
+    agendarPontoAutoLogout(60);
   }
 
   function capitalize(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
@@ -6913,7 +6988,7 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
         const cr=await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/upload`,{method:"POST",body:fd});
         const cj=await cr.json(); docUrl=cj.secure_url||"";
       }
-      await updateDoc(doc(db,"pontos",justPontoId),{
+      await updateDoc(doc(dbAux,"pontos",justPontoId),{
         justificativa:texto, justificativaDoc:docUrl,
         justificativaEnviada:true, justificativaEm:serverTimestamp()
       });
