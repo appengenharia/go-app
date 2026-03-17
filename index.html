@@ -271,7 +271,7 @@
   .evol-dashboard-inner{width:min(100%,980px);margin:0 auto}
   .evol-dash-grid{display:grid;grid-template-columns:minmax(260px,300px) minmax(0,1fr) !important;justify-content:center;align-items:start}
   @media(max-width:900px){.evol-dashboard-inner{width:100%}.evol-dash-grid{grid-template-columns:1fr !important;gap:18px !important}}
-  @media(max-width:600px){.evol-dash-grid{grid-template-columns:1fr !important}.evolGrafGrid{grid-template-columns:1fr!important}}.topbar-avatar{width:34px;height:34px;border-radius:999px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;}.topbar-avatar img{width:100%;height:100%;object-fit:cover;display:block;}.topbar-avatar-fallback{color:#fff;font-size:.82rem;font-weight:700;line-height:1;}.ponto-auto-logout{margin-top:10px;background:#fff7ed;color:#9a3412;border:1px solid #fdba74;border-radius:8px;padding:8px 10px;font-size:.8rem;font-weight:600;text-align:center;}</style>
+  @media(max-width:600px){.evol-dash-grid{grid-template-columns:1fr !important}.evolGrafGrid{grid-template-columns:1fr!important}}</style>
 </head>
 <body>
 
@@ -284,10 +284,6 @@
 <div class="topbar hidden" id="topbar">
   <div class="topbar-brand"><span class="dot"></span>GO — Gestão de Obras</div>
   <div class="topbar-right">
-    <div id="topUserAvatar" class="topbar-avatar hidden" aria-label="Foto do usuário">
-      <img id="topUserAvatarImg" alt="Foto do usuário" class="hidden">
-      <span id="topUserAvatarFallback" class="topbar-avatar-fallback">?</span>
-    </div>
     <div id="pillUser" class="pill hidden"></div>
     <button class="btn btn-ghost sm hidden" id="btnLogout" onclick="App.logout()">Sair</button>
   </div>
@@ -389,7 +385,7 @@
 
       <!-- Aviso sem foto cadastrada -->
       <div id="pontoSemFotoAviso" class="hidden" style="background:#fff3cd;border:1px solid #ffc107;border-radius:6px;padding:8px 12px;font-size:12px;color:#856404;margin-bottom:8px">
-        ⚠️ Sem foto cadastrada. O reconhecimento facial não será verificado.
+        ⚠️ Sem foto cadastrada. Ainda assim a foto do ponto será obrigatória e ficará salva no registro.
       </div>
 
       <!-- Fase do ponto -->
@@ -399,19 +395,14 @@
         <div id="pontoHorarioEsperado" style="font-size:11px;color:#888;margin-top:2px">—</div>
       </div>
 
-      <!-- Câmera com overlay de instrução liveness -->
+      <!-- Câmera com orientação de captura -->
       <div style="position:relative;border-radius:14px;overflow:hidden;background:#000;margin-bottom:10px">
         <video id="pontoVideo" autoplay playsinline muted style="width:100%;border-radius:14px;display:block;transform:scaleX(-1)"></video>
         <canvas id="pontoCanvas" style="display:none"></canvas>
         <!-- Overlay de instrução -->
         <div id="pontoLivenessOverlay" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:12px;background:linear-gradient(transparent 50%,rgba(0,0,0,.7))">
-          <div id="pontoLivenessMsg" style="color:#fff;font-size:14px;font-weight:600;text-align:center;text-shadow:0 1px 4px rgba(0,0,0,.8)">👁️ Olhe para a câmera e pisque os olhos</div>
-          <!-- Indicador de piscar -->
-          <div id="pontoPiscarIndicador" style="margin-top:6px;display:flex;gap:6px">
-            <div id="blink1" style="width:12px;height:12px;border-radius:50%;background:rgba(255,255,255,.3);transition:background .2s"></div>
-            <div id="blink2" style="width:12px;height:12px;border-radius:50%;background:rgba(255,255,255,.3);transition:background .2s"></div>
-            <div id="blink3" style="width:12px;height:12px;border-radius:50%;background:rgba(255,255,255,.3);transition:background .2s"></div>
-          </div>
+          <div id="pontoLivenessMsg" style="color:#fff;font-size:14px;font-weight:600;text-align:center;text-shadow:0 1px 4px rgba(0,0,0,.8)">📸 Centralize o rosto e tire a foto para confirmar o ponto</div>
+          <div id="pontoPiscarIndicador" style="margin-top:6px;font-size:12px;color:rgba(255,255,255,.8)">Mantenha boa iluminação e o rosto visível</div>
         </div>
         <!-- Preview da foto capturada -->
         <div id="pontoFotoPreview" class="hidden" style="position:absolute;inset:0">
@@ -427,15 +418,18 @@
           <span class="ponto-status-txt">GPS / Localização</span>
         </div>
         <div class="ponto-status-item" id="statusLiveness">
-          <span class="ponto-status-icon">⏳</span>
-          <span class="ponto-status-txt">Verificação de presença (piscar olhos)</span>
+          <span class="ponto-status-icon">📸</span>
+          <span class="ponto-status-txt">Tire uma foto nítida do rosto</span>
         </div>
         <div class="ponto-status-item" id="statusFacial">
-          <span class="ponto-status-icon">⏳</span>
-          <span class="ponto-status-txt">Reconhecimento facial</span>
+          <span class="ponto-status-icon">🖼️</span>
+          <span class="ponto-status-txt">A foto será usada no ponto e no DDS</span>
         </div>
       </div>
 
+      <button id="btnCapturarPonto" class="btn btn-outline full" onclick="App.tirarFoto()" style="padding:13px;margin-bottom:8px">
+        📸 Tirar Foto
+      </button>
       <button id="btnRegistrarPonto" class="btn btn-primary full" onclick="App.confirmarPonto()" disabled style="padding:14px">
         ✅ Confirmar Ponto
       </button>
@@ -449,7 +443,6 @@
       <p id="pontoOkMsg" style="color:#666;font-size:14px;margin-bottom:4px">—</p>
       <p id="pontoOkFase" style="color:#0f3460;font-size:13px;font-weight:600">—</p>
       <div id="pontoOkDetalhe" style="margin-top:12px;background:#f0f7ff;border-radius:8px;padding:10px 16px;font-size:12px;color:#555;text-align:left"></div>
-      <div id="pontoAutoLogoutMsg" class="ponto-auto-logout hidden"></div>
       <!-- Botão para ir ao Registro de Evolução -->
       <button class="btn btn-primary full" onclick="App.evolAbrirParaColab()" style="margin-top:16px;padding:13px;background:linear-gradient(135deg,#0f3460,#1a4a8a)">
         📈 Registrar Evolução da Obra
@@ -1836,14 +1829,12 @@
     <input id="editColabNome" type="text" placeholder="Nome do colaborador">
     <label style="margin-top:12px">E-mail</label>
     <input id="editColabEmail" type="email" placeholder="email@exemplo.com">
-    <div style="margin-top:12px;background:#f0f7ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:10px 14px" id="editPerfilWrap">
-      <label style="margin:0;color:var(--brand);font-weight:600;font-size:.85rem">Perfil do colaborador</label>
-      <select id="editPerfil" style="margin-top:8px;background:#fff">
-        <option value="COLAB">👤 Colaborador</option>
-        <option value="RESP">📈 Responsável pela obra</option>
-        <option value="VISITANTE">👁️ Visitante</option>
-      </select>
-      <div style="font-size:.74rem;color:var(--muted);margin-top:6px">Defina se o usuário será apenas colaborador, responsável pela obra ou visitante.</div>
+    <div style="margin-top:12px;background:#f0f7ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:10px 14px" id="editEvolRespWrap">
+      <label style="margin:0;display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--brand)">
+        <input type="checkbox" id="editEvolResp" style="width:18px;height:18px;accent-color:var(--brand);flex-shrink:0">
+        <span style="font-weight:600;font-size:.85rem">📈 Responsável pela evolução da obra</span>
+      </label>
+      <div style="font-size:.74rem;color:var(--muted);margin-top:4px;margin-left:26px">Permite registrar progresso de unidades e serviços.</div>
     </div>
     <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:10px 12px;margin-top:12px;font-size:.79rem;color:#92400e">
       ⚠️ O e-mail exibido aqui é apenas para identificação no sistema. O e-mail de login (Firebase Auth) não muda — o colaborador continua usando o e-mail original para entrar. Use o botão <strong>🔑 Senha</strong> para redefinir o acesso se necessário.
@@ -2090,10 +2081,6 @@
     const btn=$("btnLogin");
     if(!email){setMsg("loginMsg","Informe o e-mail.");return;}
     if(!password){setMsg("loginMsg","Informe a senha.");return;}
-    try {
-      sessionStorage.setItem("go_login_email", email);
-      sessionStorage.setItem("go_login_pass", password);
-    } catch(_){}
     btn.disabled=true; btn.textContent="Entrando...";
     try {
       await signInWithEmailAndPassword(auth,email,password);
@@ -2127,17 +2114,9 @@
   }
 
   async function logout(){
-    try {
-      sessionStorage.removeItem("go_login_email");
-      sessionStorage.removeItem("go_login_pass");
-    } catch(_){}
-    try { if(pontoAutoLogoutTimer){ clearTimeout(pontoAutoLogoutTimer); pontoAutoLogoutTimer=null; } } catch(_){}
-    try { if(pontoAutoLogoutInterval){ clearInterval(pontoAutoLogoutInterval); pontoAutoLogoutInterval=null; } } catch(_){}
-    try { await signOut(authAux); } catch(_){}
     await signOut(auth);
     currentUser = null;
     currentRole = null;
-    limparTopbarUsuario();
     document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
     document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
     ["obraList","userList","lancList","dashTable","relPreviewContent"].forEach(id => {
@@ -2194,32 +2173,7 @@
     return null;
   }
 
-  function atualizarTopbarUsuario(nome, fotoUrl) {
-    const wrap = $("topUserAvatar"), img = $("topUserAvatarImg"), fb = $("topUserAvatarFallback");
-    if(!wrap || !img || !fb) return;
-    const inicial = ((nome||"?").trim().charAt(0) || "?").toUpperCase();
-    fb.textContent = inicial;
-    if(fotoUrl) {
-      img.src = fotoUrl;
-      img.classList.remove("hidden");
-      fb.classList.add("hidden");
-    } else {
-      img.removeAttribute("src");
-      img.classList.add("hidden");
-      fb.classList.remove("hidden");
-    }
-    wrap.classList.remove("hidden");
-  }
-
-  function limparTopbarUsuario() {
-    const wrap = $("topUserAvatar"), img = $("topUserAvatarImg"), fb = $("topUserAvatarFallback");
-    if(img) { img.removeAttribute("src"); img.classList.add("hidden"); }
-    if(fb) { fb.textContent = "?"; fb.classList.remove("hidden"); }
-    if(wrap) wrap.classList.add("hidden");
-  }
-
   let currentUser=null, currentRole="USER", currentProfile=null;
-  let pontoAutoLogoutTimer=null, pontoAutoLogoutInterval=null;
 
   async function initApp(user) {
     currentUser=user;
@@ -2248,7 +2202,6 @@
     $("welcomeRole").textContent=currentRole==="ADMIN"?"👑 Administrador":currentRole==="VISITANTE"?"👁️ Visitante":"👤 Colaborador";
     $("pillUser").textContent=nome;
     $("pillUser").classList.remove("hidden");
-    atualizarTopbarUsuario(nome, profile?.fotoUrl || "");
     $("btnLogout").classList.remove("hidden");
 
     if(currentRole==="ADMIN"){
@@ -2281,22 +2234,6 @@
       showPage("visitantePage");
       $("vNomeVisitante").textContent = nome;
       await visitanteInicializar(profile?.obra_id||"");
-      return;
-    }
-
-    if(currentRole==="USER" && profile?.evolResponsavel!==true){
-      irParaPonto();
-      const pontoEmail = $("pontoEmail");
-      const pontoSenha = $("pontoSenha");
-      const emailCache = (()=>{ try { return sessionStorage.getItem("go_login_email") || user?.email || profile?.email || ""; } catch(_) { return user?.email || profile?.email || ""; } })();
-      const passCache  = (()=>{ try { return sessionStorage.getItem("go_login_pass") || ""; } catch(_) { return ""; } })();
-      if(pontoEmail) pontoEmail.value = emailCache;
-      if(pontoSenha) pontoSenha.value = passCache;
-      if(passCache){
-        setTimeout(()=>{ loginPonto().catch(()=>{}); }, 80);
-      } else {
-        setMsg("pontoLoginMsg","Informe sua senha para registrar o ponto.");
-      }
       return;
     }
 
@@ -4668,15 +4605,13 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
     $("editColabUid").value   = uid;
     $("editColabNome").value  = nome;
     $("editColabEmail").value = email;
-    const u = allUsers.find(x=>x.id===uid) || {};
-    const sel = $("editPerfil");
-    if(sel){
-      if(u?.role === "VISITANTE") sel.value = "VISITANTE";
-      else if(u?.evolResponsavel === true) sel.value = "RESP";
-      else sel.value = "COLAB";
-    }
-    const wrap = $("editPerfilWrap");
-    if(wrap) wrap.style.display = u?.role === "ADMIN" ? "none" : "";
+    // Preencher checkbox evolResponsavel
+    const u = allUsers.find(x=>x.id===uid);
+    const cb = $("editEvolResp");
+    if(cb) cb.checked = u?.evolResponsavel===true;
+    // Ocultar para ADMIN (não faz sentido)
+    const wrap = $("editEvolRespWrap");
+    if(wrap) wrap.style.display = u?.role==="ADMIN" ? "none" : "";
     setMsg("editColabMsg","");
     $("btnSalvarEditColab").disabled = false;
     $("btnSalvarEditColab").textContent = "💾 Salvar";
@@ -4692,22 +4627,8 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
     const btn = $("btnSalvarEditColab");
     btn.disabled = true; btn.textContent = "Salvando...";
     try {
-      const atual = allUsers.find(x=>x.id===uid) || {};
-      const payload = { nome, email };
-      if(atual?.role !== "ADMIN"){
-        const perfil = $("editPerfil")?.value || "COLAB";
-        if(perfil === "VISITANTE"){
-          payload.role = "VISITANTE";
-          payload.evolResponsavel = false;
-        } else if(perfil === "RESP"){
-          payload.role = "USER";
-          payload.evolResponsavel = true;
-        } else {
-          payload.role = "USER";
-          payload.evolResponsavel = false;
-        }
-      }
-      await updateDoc(doc(db,"usuarios",uid), payload);
+      const evolResp = $("editEvolResp")?.checked || false;
+      await updateDoc(doc(db,"usuarios",uid), { nome, email, evolResponsavel: evolResp });
       toast("✅ Dados atualizados!");
       closeModal("modalEditColab");
       await loadUsers();
@@ -4939,7 +4860,6 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
       if(naPontePage) return;
       $("sideNav").classList.add("hidden");
       $("pillUser").classList.add("hidden");
-      limparTopbarUsuario();
       $("btnLogout").classList.add("hidden");
       showPage("loginPage");
     }
@@ -6209,12 +6129,12 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
 
   function irParaPonto() {
     try {
-      limparPontoAutoLogout();
       pontoUser=null; pontoStream=null; pontoFotoB64=null; pontoGPS=null;
       pontoFaseAtual=null; pontoObraData=null; justPontoId=null;
       pontoProfile=null; livenessOk=false; facialOk=false; blinkCount=0; eyeWasClosed=false;
       window._geoBlocked = false;
       if(livenessDetector){ clearInterval(livenessDetector); livenessDetector=null; }
+      clearTimeout(window._pontoAutoLogoutTimer);
       const pontoEmailEl = $("pontoEmail");
       const pontoSenhaEl = $("pontoSenha");
       if(pontoEmailEl) pontoEmailEl.value="";
@@ -6228,14 +6148,16 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
       $("pontoStepCamera")?.classList.add("hidden");
       $("pontoStepOk")?.classList.add("hidden");
       $("pontoStepJustificativa")?.classList.add("hidden");
+      const btnFoto = $("btnCapturarPonto"); if(btnFoto) btnFoto.textContent = "📸 Tirar Foto";
+      const btnPonto = $("btnRegistrarPonto"); if(btnPonto){ btnPonto.disabled = true; btnPonto.textContent = "✅ Confirmar Ponto"; }
     } catch(e) { console.warn("irParaPonto reset:", e); }
     showPage("pontoPage");
   }
 
   function voltarLogin() {
-    limparPontoAutoLogout();
     pararCamera();
     if(livenessDetector){ clearInterval(livenessDetector); livenessDetector=null; }
+    clearTimeout(window._pontoAutoLogoutTimer);
     signOut(authAux).catch(()=>{});
     // Garante que sideNav também some
     $("sideNav")?.classList.add("hidden");
@@ -6389,18 +6311,14 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
     $("pontoStepLogin").classList.add("hidden");
     $("pontoStepCamera").classList.remove("hidden");
 
+    livenessOk = true;
+    facialOk = true;
     setStatusItem("statusGps","loading","📍 Obtendo localização...");
-    setStatusItem("statusLiveness","loading","👁️ Pisque os olhos "+BLINKS_NEEDED+"x para verificar presença");
-    setStatusItem("statusFacial","loading", pontoProfile.fotoUrl ? "🔍 Aguardando foto..." : "⚪ Sem foto cadastrada (verificação dispensada)");
-
-    if(!pontoProfile.fotoUrl) {
-      facialOk = true;
-      setStatusItem("statusFacial","warn","⚪ Sem foto cadastrada — verificação dispensada");
-    }
+    setStatusItem("statusLiveness","ok","📸 Tire uma foto nítida do rosto para registrar o ponto");
+    setStatusItem("statusFacial","ok", "✅ Foto obrigatória pronta para registro");
 
     await iniciarCamera();
     obterGPS();
-    iniciarLiveness();
     setMsg("pontoLoginMsg","");
   }
 
@@ -6604,28 +6522,28 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
   function tirarFoto() {
     const video  = $("pontoVideo");
     const canvas = $("pontoCanvas");
-    if(!video || !canvas || video.readyState < 2) return;
+    if(!video || !canvas || video.readyState < 2) {
+      setMsg("pontoCameraMsg","⚠️ Aguarde a câmera iniciar e tente novamente.");
+      return;
+    }
 
     const w = video.videoWidth || 640;
     const h = video.videoHeight || 480;
     canvas.width = w; canvas.height = h;
     const ctx = canvas.getContext("2d");
-    // Captura com espelho (mesma orientação que o usuário vê)
     ctx.save(); ctx.scale(-1,1); ctx.drawImage(video,-w,0,w,h); ctx.restore();
 
-    pontoFotoB64 = canvas.toDataURL("image/jpeg", 0.85).split(",")[1];
+    pontoFotoB64 = canvas.toDataURL("image/jpeg", 0.88).split(",")[1];
     $("pontoFotoImg").src = "data:image/jpeg;base64," + pontoFotoB64;
     $("pontoVideo").style.display = "none";
     $("pontoLivenessOverlay").style.display = "none";
     $("pontoFotoPreview").classList.remove("hidden");
-
-    // Se tem foto cadastrada, faz reconhecimento facial
-    if(pontoProfile?.fotoUrl) {
-      verificarFacial();
-    } else {
-      facialOk = true;
-      verificarTudoPronto();
-    }
+    $("btnCapturarPonto").textContent = "🔄 Tirar Outra Foto";
+    livenessOk = true;
+    facialOk = true;
+    setStatusItem("statusLiveness","ok","✅ Foto capturada com sucesso");
+    setStatusItem("statusFacial","ok","✅ Foto pronta para registro e DDS");
+    verificarTudoPronto();
   }
 
   function retirarFoto() {
@@ -6634,13 +6552,14 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
     $("pontoFotoPreview").classList.add("hidden");
     $("pontoLivenessOverlay").style.display = "";
     if($("pontoVideo")) $("pontoVideo").style.display = "block";
-    facialOk = pontoProfile?.fotoUrl ? false : true;
+    livenessOk = true;
+    facialOk = true;
     $("btnRegistrarPonto").disabled = true;
-    // Reinicia liveness
-    if(!livenessOk) iniciarLiveness();
-    if(pontoProfile?.fotoUrl) {
-      setStatusItem("statusFacial","loading","🔍 Aguardando nova foto...");
-    }
+    const btnFoto = $("btnCapturarPonto");
+    if(btnFoto) btnFoto.textContent = "📸 Tirar Foto";
+    setStatusItem("statusLiveness","ok","📸 Tire uma nova foto para continuar");
+    setStatusItem("statusFacial","ok","🖼️ Aguardando nova foto");
+    setMsg("pontoCameraMsg","⚠️ Tire uma nova foto para confirmar o ponto.");
   }
 
   // ── RECONHECIMENTO FACIAL VIA API CLAUDE ──
@@ -6708,7 +6627,7 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
     if(!btn) return;
     // Não habilita se bloqueado por geofencing
     if(window._geoBlocked) return;
-    const tudo = livenessOk && facialOk && pontoFotoB64;
+    const tudo = !!pontoFotoB64;
     btn.disabled = !tudo;
     if(tudo) {
       btn.textContent = "✅ Confirmar Ponto";
@@ -6718,8 +6637,7 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
 
   // ── CONFIRMAR E SALVAR PONTO ──
   async function confirmarPonto() {
-    if(!livenessOk) { setMsg("pontoCameraMsg","⚠️ Pisque os olhos para confirmar presença."); return; }
-    if(!facialOk)   { setMsg("pontoCameraMsg","⚠️ Reconhecimento facial não confirmado."); return; }
+    if(!pontoFotoB64) { setMsg("pontoCameraMsg","⚠️ Tire a foto antes de confirmar o ponto."); return; }
 
     const btn = $("btnRegistrarPonto");
     btn.disabled = true;
@@ -6733,15 +6651,20 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
       // Upload foto (tenta mesmo offline — Cloudinary é externo, pode falhar)
       let fotoUrl = "";
       if(pontoFotoB64 && navigator.onLine) {
-        try {
-          const fd = new FormData();
-          fd.append("file","data:image/jpeg;base64,"+pontoFotoB64);
-          fd.append("upload_preset",CLOUDINARY_PRESET);
-          fd.append("folder","pontos");
-          const cr = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`,{method:"POST",body:fd});
-          const cj = await cr.json();
-          fotoUrl = cj.secure_url || "";
-        } catch(e){ console.warn("Foto não enviada:",e.message); }
+        let ultimoErro = "";
+        for(let tentativa=1; tentativa<=2 && !fotoUrl; tentativa++) {
+          try {
+            const fd = new FormData();
+            fd.append("file","data:image/jpeg;base64,"+pontoFotoB64);
+            fd.append("upload_preset",CLOUDINARY_PRESET);
+            fd.append("folder","pontos");
+            const cr = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/auto/upload`,{method:"POST",body:fd});
+            const cj = await cr.json();
+            if(cj.secure_url) fotoUrl = cj.secure_url;
+            else ultimoErro = cj.error?.message || "Falha ao enviar foto do ponto";
+          } catch(e){ ultimoErro = e.message || "Falha ao enviar foto do ponto"; }
+        }
+        if(!fotoUrl) throw new Error("Não foi possível enviar a foto do ponto. Verifique a internet e tente novamente.");
       }
       // Offline: armazena base64 no IndexedDB para referenciar (sem upload)
       const fotoRef = fotoUrl || (pontoFotoB64 && !navigator.onLine ? "[foto_offline]" : "");
@@ -6757,11 +6680,12 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
       }
 
       // anomaliasBase: guarda o tipo descritivo (ex: "atraso", "saida_cedo", "fora_raio")
+      const isAnomalia = !!anomaliaEntrada;
       const anomaliasBase = anomaliaEntrada ? [anomaliaEntrada] : [];
       if(foraDoRaio) anomaliasBase.push("fora_raio");
       if(window._facialAnomaliaRegistrar) { anomaliasBase.push("facial_indisponivel"); window._facialAnomaliaRegistrar=false; }
       if(!pontoProfile?.fotoUrl) anomaliasBase.push("sem_foto_cadastrada");
-      const statusFinal = (anomaliaEntrada || foraDoRaio || anomaliasBase.length) ? "anomalia" : "ok";
+      const statusFinal = (isAnomalia || foraDoRaio || anomaliasBase.length) ? "anomalia" : "ok";
 
       // ── MODO OFFLINE: salva no IndexedDB ──────────────────────
       if(!navigator.onLine) {
@@ -6779,8 +6703,8 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
           horaExtra: "0h00",
           status:    statusFinal,
           anomalias: anomaliasBase,
-          livenessVerificado: true,
-          facialVerificado:   !!pontoProfile.fotoUrl,
+          livenessVerificado: false,
+          facialVerificado: false,
           _fase:     pontoFaseAtual,  // usado pela sync para merge
           dataHora:  agora.toISOString()
         };
@@ -6801,16 +6725,16 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
           obra_nome:        pontoObraData?.nome || "",
           data:             hoje,
           diaSemana:        dia,
-          entrada:          horaStr,
-          fotoEntrada:      fotoUrl,
-          gpsEntrada:       pontoGPS,
+          entrada:null, almoco:null, retorno:null, saida:null,
+          [pontoFaseAtual]: horaStr,
+          ["foto"+capitalize(pontoFaseAtual)]: fotoUrl,
+          ["gps"+capitalize(pontoFaseAtual)]: pontoGPS,
           distanciaM, foraDoRaio,
-          almoco:null, retorno:null, saida:null,
           horaExtra:        "0h00",
           status:           statusFinal,
           anomalias:        anomaliasBase,
-          livenessVerificado: true,
-          facialVerificado:   !!pontoProfile.fotoUrl,
+          livenessVerificado: false,
+          facialVerificado: false,
           criadoEm:         serverTimestamp()
         });
       } else {
@@ -6840,42 +6764,6 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
     }
   }
 
-  function limparPontoAutoLogout() {
-    if(pontoAutoLogoutTimer){ clearTimeout(pontoAutoLogoutTimer); pontoAutoLogoutTimer=null; }
-    if(pontoAutoLogoutInterval){ clearInterval(pontoAutoLogoutInterval); pontoAutoLogoutInterval=null; }
-    const msg = $("pontoAutoLogoutMsg");
-    if(msg){ msg.textContent=""; msg.classList.add("hidden"); }
-  }
-
-  function agendarPontoAutoLogout(segundos=60) {
-    if((pontoProfile?.role||currentRole) === "ADMIN") { limparPontoAutoLogout(); return; }
-    limparPontoAutoLogout();
-    let restante = Math.max(1, Number(segundos)||60);
-    const msg = $("pontoAutoLogoutMsg");
-    const render = () => {
-      if(msg){
-        msg.textContent = `Por segurança, esta sessão será encerrada em ${restante}s. Faça novo login para registrar outro ponto.`;
-        msg.classList.remove("hidden");
-      }
-    };
-    render();
-    pontoAutoLogoutInterval = setInterval(() => {
-      restante -= 1;
-      if(restante <= 0){
-        clearInterval(pontoAutoLogoutInterval);
-        pontoAutoLogoutInterval = null;
-        return;
-      }
-      render();
-    }, 1000);
-    pontoAutoLogoutTimer = setTimeout(async () => {
-      limparPontoAutoLogout();
-      try { sessionStorage.removeItem("go_login_email"); sessionStorage.removeItem("go_login_pass"); } catch(_){}
-      try { await signOut(authAux); } catch(_){}
-      await logout();
-    }, restante * 1000);
-  }
-
   function _mostrarSucesso(agora, horaStr, faseNome, obs) {
     pararCamera();
     if(livenessDetector){ clearInterval(livenessDetector); livenessDetector=null; }
@@ -6888,11 +6776,13 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
       <div>👤 <strong>${pontoProfile.nome||pontoUser.email}</strong></div>
       <div>🏗️ ${pontoObraData?.nome||"Sem obra"}</div>
       <div style="margin-top:4px">${gpsInfo}</div>
-      <div style="margin-top:4px">✅ Liveness verificado &nbsp;·&nbsp; ${pontoProfile.fotoUrl?"✅ Facial verificado":"⚪ Facial dispensado"}</div>
+      <div style="margin-top:4px">📸 Foto registrada com sucesso para o ponto</div>
+      <div style="margin-top:8px;background:#fff7ed;border-radius:6px;padding:6px 10px;font-size:.8rem;color:#9a3412">Esta sessão será encerrada automaticamente em 60 segundos.</div>
       ${obs ? `<div style="margin-top:8px;background:#e0f2fe;border-radius:6px;padding:6px 10px;font-size:.8rem;color:#075985">${obs}</div>` : ""}
     `;
     $("pontoStepOk").classList.remove("hidden");
-    agendarPontoAutoLogout(60);
+    clearTimeout(window._pontoAutoLogoutTimer);
+    window._pontoAutoLogoutTimer = setTimeout(()=>voltarLogin(),60000);
   }
 
   function capitalize(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
@@ -6985,8 +6875,10 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
       if(file){
         const fd=new FormData();
         fd.append("file",file); fd.append("upload_preset",CLOUDINARY_PRESET); fd.append("folder","justificativas");
-        const cr=await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/upload`,{method:"POST",body:fd});
-        const cj=await cr.json(); docUrl=cj.secure_url||"";
+        const cr=await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/auto/upload`,{method:"POST",body:fd});
+        const cj=await cr.json();
+        if(!cj.secure_url) throw new Error(cj.error?.message || "Falha ao enviar documento");
+        docUrl=cj.secure_url||"";
       }
       await updateDoc(doc(dbAux,"pontos",justPontoId),{
         justificativa:texto, justificativaDoc:docUrl,
