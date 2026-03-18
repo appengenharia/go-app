@@ -284,6 +284,7 @@
 <div class="topbar hidden" id="topbar">
   <div class="topbar-brand"><span class="dot"></span>GO — Gestão de Obras</div>
   <div class="topbar-right">
+    <img id="topbarAvatar" class="hidden" alt="Foto do colaborador" style="width:34px;height:34px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,.28);box-shadow:0 2px 10px rgba(0,0,0,.18)">
     <div id="pillUser" class="pill hidden"></div>
     <button class="btn btn-ghost sm hidden" id="btnLogout" onclick="App.logout()">Sair</button>
   </div>
@@ -385,7 +386,7 @@
 
       <!-- Aviso sem foto cadastrada -->
       <div id="pontoSemFotoAviso" class="hidden" style="background:#fff3cd;border:1px solid #ffc107;border-radius:6px;padding:8px 12px;font-size:12px;color:#856404;margin-bottom:8px">
-        ⚠️ Sem foto cadastrada. Ainda assim a foto do ponto será obrigatória e ficará salva no registro.
+        ⚠️ Sem foto cadastrada. O reconhecimento facial não será verificado.
       </div>
 
       <!-- Fase do ponto -->
@@ -395,14 +396,19 @@
         <div id="pontoHorarioEsperado" style="font-size:11px;color:#888;margin-top:2px">—</div>
       </div>
 
-      <!-- Câmera com orientação de captura -->
+      <!-- Câmera com overlay de instrução liveness -->
       <div style="position:relative;border-radius:14px;overflow:hidden;background:#000;margin-bottom:10px">
         <video id="pontoVideo" autoplay playsinline muted style="width:100%;border-radius:14px;display:block;transform:scaleX(-1)"></video>
         <canvas id="pontoCanvas" style="display:none"></canvas>
         <!-- Overlay de instrução -->
         <div id="pontoLivenessOverlay" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:12px;background:linear-gradient(transparent 50%,rgba(0,0,0,.7))">
-          <div id="pontoLivenessMsg" style="color:#fff;font-size:14px;font-weight:600;text-align:center;text-shadow:0 1px 4px rgba(0,0,0,.8)">📸 Centralize o rosto e tire a foto para confirmar o ponto</div>
-          <div id="pontoPiscarIndicador" style="margin-top:6px;font-size:12px;color:rgba(255,255,255,.8)">Mantenha boa iluminação e o rosto visível</div>
+          <div id="pontoLivenessMsg" style="color:#fff;font-size:14px;font-weight:600;text-align:center;text-shadow:0 1px 4px rgba(0,0,0,.8)">👁️ Olhe para a câmera e pisque os olhos</div>
+          <!-- Indicador de piscar -->
+          <div id="pontoPiscarIndicador" style="margin-top:6px;display:flex;gap:6px">
+            <div id="blink1" style="width:12px;height:12px;border-radius:50%;background:rgba(255,255,255,.3);transition:background .2s"></div>
+            <div id="blink2" style="width:12px;height:12px;border-radius:50%;background:rgba(255,255,255,.3);transition:background .2s"></div>
+            <div id="blink3" style="width:12px;height:12px;border-radius:50%;background:rgba(255,255,255,.3);transition:background .2s"></div>
+          </div>
         </div>
         <!-- Preview da foto capturada -->
         <div id="pontoFotoPreview" class="hidden" style="position:absolute;inset:0">
@@ -418,18 +424,15 @@
           <span class="ponto-status-txt">GPS / Localização</span>
         </div>
         <div class="ponto-status-item" id="statusLiveness">
-          <span class="ponto-status-icon">📸</span>
-          <span class="ponto-status-txt">Tire uma foto nítida do rosto</span>
+          <span class="ponto-status-icon">⏳</span>
+          <span class="ponto-status-txt">Verificação de presença (piscar olhos)</span>
         </div>
         <div class="ponto-status-item" id="statusFacial">
-          <span class="ponto-status-icon">🖼️</span>
-          <span class="ponto-status-txt">A foto será usada no ponto e no DDS</span>
+          <span class="ponto-status-icon">⏳</span>
+          <span class="ponto-status-txt">Reconhecimento facial</span>
         </div>
       </div>
 
-      <button id="btnCapturarPonto" class="btn btn-outline full" onclick="App.tirarFoto()" style="padding:13px;margin-bottom:8px">
-        📸 Tirar Foto
-      </button>
       <button id="btnRegistrarPonto" class="btn btn-primary full" onclick="App.confirmarPonto()" disabled style="padding:14px">
         ✅ Confirmar Ponto
       </button>
@@ -535,8 +538,8 @@
 <div class="app-layout hidden" id="appLayout">
   <nav class="side-nav hidden" id="sideNav">
     <button class="nav-item active" onclick="App.goTab('dashboard')" data-tab="dashboard"><span class="nav-icon">📊</span> Dashboard</button>
-    <button class="nav-item" onclick="App.goTab('lancamentos')" data-tab="lancamentos"><span class="nav-icon">➕</span> Lançamentos</button>
-    <button class="nav-item" onclick="App.goTab('relatorios')" data-tab="relatorios"><span class="nav-icon">📋</span> Relatórios</button>
+    <button class="nav-item hidden" id="sideLancamentos" onclick="App.goTab('lancamentos')" data-tab="lancamentos"><span class="nav-icon">➕</span> Lançamentos</button>
+    <button class="nav-item hidden" id="sideRelatorios" onclick="App.goTab('relatorios')" data-tab="relatorios"><span class="nav-icon">📋</span> Relatórios</button>
     <div class="nav-divider"></div>
     <button class="nav-item hidden" id="sidePonto" onclick="App.goTab('ponto')" data-tab="ponto"><span class="nav-icon">🕐</span> Cartão de Ponto</button>
     <button class="nav-item hidden" id="sideRH" onclick="App.goTab('rh')" data-tab="rh"><span class="nav-icon">👔</span> RH</button>
@@ -950,21 +953,22 @@
           <label>E-mail</label>
           <input id="userEmail" type="email" placeholder="joao@email.com">
           <label>Perfil</label>
-          <select id="userRole">
+          <select id="userRole" onchange="App.onUserRoleChange()">
             <option value="USER">👤 Colaborador</option>
             <option value="ADMIN">👑 Administrador</option>
             <option value="VISITANTE">👁️ Visitante (somente leitura)</option>
           </select>
           <label>Alocar em obra (opcional)</label>
-          <select id="userObra" onchange="document.getElementById('userEvolRespWrap').style.display=this.value?'':'none'">
+          <select id="userObra">
             <option value="">— Sem alocação por enquanto —</option>
           </select>
-          <div id="userEvolRespWrap" style="display:none;margin-top:10px;background:#f0f7ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:10px 14px">
-            <label style="margin:0;display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--brand)">
-              <input type="checkbox" id="userEvolResp" style="width:18px;height:18px;accent-color:var(--brand);flex-shrink:0">
-              <span style="font-weight:600;font-size:.85rem">📈 Responsável pela evolução desta obra</span>
-            </label>
-            <div style="font-size:.74rem;color:var(--muted);margin-top:4px;margin-left:26px">O colaborador poderá registrar o progresso das unidades e serviços da obra.</div>
+          <div id="userPermsWrap" style="margin-top:10px;background:#f0f7ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:12px 14px">
+            <div style="font-size:.78rem;font-weight:700;color:var(--brand);margin-bottom:8px">Permissões do colaborador</div>
+            <label style="margin:0;display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--text)"><input type="checkbox" id="userPermEvolucao" style="width:18px;height:18px;accent-color:var(--brand);flex-shrink:0"><span>📈 Evoluir obra</span></label>
+            <label style="margin:8px 0 0;display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--text)"><input type="checkbox" id="userPermPonto" style="width:18px;height:18px;accent-color:var(--brand);flex-shrink:0"><span>🕐 Acesso ao cartão de ponto</span></label>
+            <label style="margin:8px 0 0;display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--text)"><input type="checkbox" id="userPermLanc" style="width:18px;height:18px;accent-color:var(--brand);flex-shrink:0"><span>➕ Fazer lançamentos</span></label>
+            <label style="margin:8px 0 0;display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--text)"><input type="checkbox" id="userPermDDS" style="width:18px;height:18px;accent-color:var(--brand);flex-shrink:0"><span>🦺 Fazer DDS</span></label>
+            <div style="font-size:.74rem;color:var(--muted);margin-top:8px">Se nenhuma permissão for marcada, o colaborador entrará direto apenas para registrar o ponto.</div>
           </div>
           <p style="font-size:.78rem;color:var(--muted);margin-top:6px">💡 Você pode alocar em mais obras depois pela lista de colaboradores.</p>
           <label>Foto do rosto <span style="color:var(--accent);font-size:.75rem">★ Obrigatória para bater ponto</span></label>
@@ -1260,7 +1264,6 @@
           <button class="btn sm" id="btnEvolContrato" onclick="App.evolAbrirModalContrato()" style="display:none;background:#f0f7ff;color:var(--brand);border:1.5px solid #bfdbfe;font-size:.8rem">📄 Contrato</button>
           <button class="btn sm" id="btnEvolGaleria" onclick="App.evolAbrirGaleria()" style="display:none;background:#fff7ed;color:#c2410c;border:1.5px solid #fed7aa;font-size:.8rem">🖼️ Galeria</button>
           <button class="btn sm" id="btnEvolRelatorio" onclick="App.evolGerarRelatorio()" style="display:none;background:#f0fdf4;color:var(--success);border:1.5px solid #a7f3d0;font-size:.8rem">📄 Relatório PDF</button>
-          <button class="btn sm" id="btnEvolDiario" onclick="App.evolAbrirDiario()" style="display:none;background:#ecfeff;color:#0f766e;border:1.5px solid #99f6e4;font-size:.8rem">⛅ Preencher Diário</button>
           <button class="btn btn-primary sm" id="btnEvolConfig" onclick="App.evolAbrirConfig()" style="display:none;font-size:.8rem">⚙️ Configurar</button>
         </div>
       </div>
@@ -1316,69 +1319,6 @@
 
         <!-- Próximo marco -->
         <div id="evolProximoMarco" style="display:none;margin-bottom:12px;padding:9px 14px;background:#eff6ff;border-radius:10px;border-left:4px solid var(--brand);font-size:.79rem;color:var(--brand);font-weight:500"></div>
-
-        <!-- Clima do dia e impacto no prazo -->
-        <div class="card" id="evolClimaCard" style="margin-bottom:14px;border:1px solid #dbeafe">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
-            <div>
-              <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;color:var(--brand)">⛅ Clima do Dia e Impacto no Prazo</div>
-              <div style="font-size:.78rem;color:var(--muted);margin-top:2px">Registre chuva, raios, paralisações e o print do monitoramento.</div>
-            </div>
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <div id="evolClimaConsultaWrap" style="display:none;align-items:center;gap:8px;flex-wrap:wrap">
-              <input type="date" id="evolClimaConsultaData" style="width:auto;min-width:160px;padding:8px 10px;background:#fff">
-              <button class="btn sm btn-outline" type="button" onclick="App.evolConsultarDiarioData()">📅 Consultar dia</button>
-            </div>
-            <button class="btn sm" id="btnEvolDiarioCard" onclick="App.evolAbrirDiario()" style="display:none;background:#ecfeff;color:#0f766e;border:1.5px solid #99f6e4">⛅ Preencher Diário</button>
-          </div>
-          </div>
-          <div id="evolClimaResumoBox" style="display:none;background:#f8fafc;border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:12px">
-            <div style="font-weight:700;color:var(--text);font-size:.86rem" id="evolClimaResumo">Nenhum diário preenchido.</div>
-            <div style="font-size:.76rem;color:var(--muted);margin-top:4px" id="evolClimaUltimoMeta"></div>
-          </div>
-          <div id="evolClimaObsBox" style="display:none;background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:12px 14px;margin-bottom:12px">
-            <div style="font-size:.72rem;color:#9a3412;text-transform:uppercase;font-weight:800;letter-spacing:.4px;margin-bottom:6px">Observações do dia</div>
-            <div id="evolClimaObs" style="font-size:.82rem;color:#7c2d12;white-space:pre-wrap">Sem observações registradas.</div>
-          </div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px">
-            <div style="background:#f8fafc;border:1px solid var(--border);border-radius:12px;padding:12px">
-              <div style="font-size:.68rem;color:var(--muted);text-transform:uppercase;font-weight:700">Dias produtivos</div>
-              <div style="font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;color:var(--success)" id="evolClimaKpiProd">0</div>
-            </div>
-            <div style="background:#f8fafc;border:1px solid var(--border);border-radius:12px;padding:12px">
-              <div style="font-size:.68rem;color:var(--muted);text-transform:uppercase;font-weight:700">Dias parciais</div>
-              <div style="font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;color:var(--accent2)" id="evolClimaKpiParcial">0</div>
-            </div>
-            <div style="background:#f8fafc;border:1px solid var(--border);border-radius:12px;padding:12px">
-              <div style="font-size:.68rem;color:var(--muted);text-transform:uppercase;font-weight:700">Paradas por clima</div>
-              <div style="font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;color:var(--danger)" id="evolClimaKpiClima">0</div>
-            </div>
-            <div style="background:#f8fafc;border:1px solid var(--border);border-radius:12px;padding:12px">
-              <div style="font-size:.68rem;color:var(--muted);text-transform:uppercase;font-weight:700">Dias perdidos</div>
-              <div style="font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;color:var(--brand)" id="evolClimaKpiPerdidos">0,0</div>
-            </div>
-          </div>
-          <div style="display:grid;grid-template-columns:minmax(0,1.4fr) minmax(220px,.8fr);gap:14px;align-items:start">
-            <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px">
-              <div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;font-weight:700;margin-bottom:8px">Produção x clima</div>
-              <div style="position:relative;width:100%;height:180px">
-                <canvas id="chartEvolClima" style="position:absolute;inset:0"></canvas>
-              </div>
-              <div id="evolClimaGrafEmpty" style="display:none;text-align:center;color:var(--muted);font-size:.77rem;padding-top:56px">Preencha o diário para gerar o gráfico.</div>
-            </div>
-            <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px">
-              <div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;font-weight:700;margin-bottom:8px">Último monitoramento</div>
-              <div id="evolClimaThumbWrap" style="display:none">
-                <div id="evolClimaThumbTrigger" style="position:relative;cursor:zoom-in" role="button" tabindex="0" aria-label="Ampliar print do monitoramento">
-                  <img id="evolClimaThumb" src="" alt="Print do monitoramento" style="width:100%;max-height:180px;object-fit:cover;border-radius:10px;border:1px solid var(--border);pointer-events:none">
-                  <div style="position:absolute;right:8px;top:8px;background:rgba(15,52,96,.82);color:#fff;border-radius:999px;padding:4px 7px;font-size:.68rem;font-weight:700;pointer-events:none">🔎 Ampliar</div>
-                </div>
-                <div id="evolClimaThumbInfo" style="font-size:.75rem;color:var(--muted);margin-top:8px"></div>
-              </div>
-              <div id="evolClimaThumbEmpty" style="font-size:.78rem;color:var(--muted);padding-top:30px">Nenhum print anexado até o momento.</div>
-            </div>
-          </div>
-        </div>
 
         <!-- Painel gráficos estilo dashboard escuro -->
         <div style="background:var(--brand2);border-radius:16px;padding:20px;margin-bottom:14px;border:1px solid rgba(255,255,255,.07)">
@@ -1693,50 +1633,6 @@
     </div>
   </div>
 
-  <!-- ═══ MODAL: Diário de clima ═══ -->
-  <div class="modal-overlay hidden" id="modalEvolDiario">
-    <div class="modal" style="max-width:760px;max-height:92vh;overflow-y:auto">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px">
-        <div>
-          <h3 style="font-family:'Syne',sans-serif;color:var(--brand);font-size:1.1rem">⛅ Diário de Clima e Produção</h3>
-          <p style="font-size:.78rem;color:var(--muted);margin-top:2px">Use para registrar chuva, raios, paralisações e print do monitoramento.</p>
-        </div>
-        <button class="btn btn-outline sm" onclick="App.closeModal('modalEvolDiario')">Fechar</button>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">
-        <div><label>Data</label><input type="date" id="evolDiaData" onchange="App.evolCarregarDiarioData()"></div>
-        <div><label>Clima predominante</label><select id="evolDiaClima"><option value="ensolarado">Ensolarado</option><option value="parcialmente nublado">Parcialmente nublado</option><option value="nublado">Nublado</option><option value="chuvoso">Chuvoso</option><option value="chuva intensa">Chuva intensa</option><option value="relampejando">Relampejando</option><option value="ventania">Ventania</option></select></div>
-        <div><label>Chuva</label><select id="evolDiaChuva"><option value="sem chuva">Sem chuva</option><option value="leve">Leve</option><option value="moderada">Moderada</option><option value="forte">Forte</option></select></div>
-        <div><label>Ocorrência de raios</label><select id="evolDiaRaios"><option value="nao">Não</option><option value="sim">Sim</option></select></div>
-        <div><label>Distância do raio (km)</label><input type="number" step="0.1" min="0" id="evolDiaRaioDist" placeholder="Ex.: 10.0"></div>
-        <div><label>Fonte do monitoramento</label><select id="evolDiaFonte"><option value="WeatherBug">WeatherBug</option><option value="manual">Manual</option><option value="outro">Outro</option></select></div>
-        <div><label>Houve produção?</label><select id="evolDiaProd" onchange="App.evolAtualizarCamposDiario()"><option value="sim">Sim</option><option value="parcial">Parcial</option><option value="nao">Não</option></select></div>
-        <div><label>% produtivo do dia</label><input type="number" min="0" max="100" id="evolDiaPct" value="100"></div>
-        <div><label>Horas paradas</label><input type="number" min="0" max="24" step="0.5" id="evolDiaHoras" value="0"></div>
-        <div><label>Causa do dia</label><select id="evolDiaCausa"><option value="producao">Produção normal</option><option value="clima">Clima</option><option value="operacional">Operacional</option><option value="seguranca">Segurança</option><option value="outro">Outro</option></select></div>
-        <div style="grid-column:1/-1"><label>Motivo principal / ocorrência</label><input type="text" id="evolDiaMotivo" placeholder="Ex.: paralisação por raios dentro da área monitorada"></div>
-        <div><label>Impacto no prazo</label><select id="evolDiaImpacto"><option value="sim">Sim</option><option value="nao">Não</option></select></div>
-        <div style="grid-column:1/-1"><label>Observação</label><textarea id="evolDiaObs" rows="3" placeholder="Descreva o que ocorreu no dia."></textarea></div>
-      </div>
-      <div style="margin-top:14px">
-        <label>Print do monitoramento</label>
-        <input type="file" id="evolDiaPrint" accept="image/*" onchange="App.evolClimaFotoSel(this)">
-        <input type="hidden" id="evolDiaPrintUrlAtual">
-        <div id="evolDiaPrintPreviewWrap" style="display:none;margin-top:10px">
-          <img id="evolDiaPrintPreview" src="" alt="Prévia do monitoramento" style="max-width:100%;max-height:220px;border-radius:12px;border:1px solid var(--border)">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:6px">
-            <div id="evolDiaPrintPreviewInfo" style="font-size:.75rem;color:var(--muted)"></div>
-            <button type="button" class="btn btn-outline sm" id="btnEvolDiaRemoverPrint" onclick="App.evolRemoverClimaFoto()" style="display:none;border-color:#fecaca;color:#b91c1c">🗑️ Remover imagem</button>
-          </div>
-        </div>
-      </div>
-      <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
-        <button class="btn btn-outline" onclick="App.closeModal('modalEvolDiario')">Cancelar</button>
-        <button class="btn btn-primary" onclick="App.evolSalvarDiario()">Salvar diário</button>
-      </div>
-    </div>
-  </div>
-
   <!-- ═══ MODAL: Visualizar foto ampliada ═══ -->
   <div class="modal-overlay hidden" id="modalEvolFotoAmp" onclick="App.closeModal('modalEvolFotoAmp')" style="align-items:center;justify-content:center;padding:16px;cursor:zoom-out">
     <div style="max-width:90vw;max-height:90vh;position:relative" onclick="event.stopPropagation()">
@@ -1748,8 +1644,8 @@
 
   <nav class="bottom-nav">
     <button class="nav-item active" onclick="App.goTab('dashboard')" data-tab="dashboard"><span class="nav-icon">📊</span><span>Dashboard</span></button>
-    <button class="nav-item" onclick="App.goTab('lancamentos')" data-tab="lancamentos"><span class="nav-icon">➕</span><span>Lançar</span></button>
-    <button class="nav-item" onclick="App.goTab('relatorios')" data-tab="relatorios"><span class="nav-icon">📋</span><span>Relatórios</span></button>
+    <button class="nav-item hidden" id="bottomLancamentos" onclick="App.goTab('lancamentos')" data-tab="lancamentos"><span class="nav-icon">➕</span><span>Lançar</span></button>
+    <button class="nav-item hidden" id="bottomRelatorios" onclick="App.goTab('relatorios')" data-tab="relatorios"><span class="nav-icon">📋</span><span>Relatórios</span></button>
     <button class="nav-item hidden" id="bottomPonto" onclick="App.goTab('ponto')" data-tab="ponto"><span class="nav-icon">🕐</span><span>Ponto</span></button>
     <button class="nav-item hidden" id="bottomRH" onclick="App.goTab('rh')" data-tab="rh"><span class="nav-icon">👔</span><span>RH</span></button>
     <button class="nav-item hidden" id="bottomAdmin" onclick="App.goTab('admin')" data-tab="admin"><span class="nav-icon">⚙️</span><span>Admin</span></button>
@@ -1829,12 +1725,18 @@
     <input id="editColabNome" type="text" placeholder="Nome do colaborador">
     <label style="margin-top:12px">E-mail</label>
     <input id="editColabEmail" type="email" placeholder="email@exemplo.com">
-    <div style="margin-top:12px;background:#f0f7ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:10px 14px" id="editEvolRespWrap">
-      <label style="margin:0;display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--brand)">
-        <input type="checkbox" id="editEvolResp" style="width:18px;height:18px;accent-color:var(--brand);flex-shrink:0">
-        <span style="font-weight:600;font-size:.85rem">📈 Responsável pela evolução da obra</span>
-      </label>
-      <div style="font-size:.74rem;color:var(--muted);margin-top:4px;margin-left:26px">Permite registrar progresso de unidades e serviços.</div>
+    <label style="margin-top:12px">Perfil</label>
+    <select id="editColabPerfil" onchange="App.onEditPerfilChange()">
+      <option value="USER">👤 Colaborador</option>
+      <option value="ADMIN">👑 Administrador</option>
+      <option value="VISITANTE">👁️ Visitante</option>
+    </select>
+    <div style="margin-top:12px;background:#f0f7ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:12px 14px" id="editPermsWrap">
+      <div style="font-size:.78rem;font-weight:700;color:var(--brand);margin-bottom:8px">Permissões do colaborador</div>
+      <label style="margin:0;display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--text)"><input type="checkbox" id="editPermEvolucao" style="width:18px;height:18px;accent-color:var(--brand);flex-shrink:0"><span>📈 Evoluir obra</span></label>
+      <label style="margin:8px 0 0;display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--text)"><input type="checkbox" id="editPermPonto" style="width:18px;height:18px;accent-color:var(--brand);flex-shrink:0"><span>🕐 Acesso ao cartão de ponto</span></label>
+      <label style="margin:8px 0 0;display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--text)"><input type="checkbox" id="editPermLanc" style="width:18px;height:18px;accent-color:var(--brand);flex-shrink:0"><span>➕ Fazer lançamentos</span></label>
+      <label style="margin:8px 0 0;display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--text)"><input type="checkbox" id="editPermDDS" style="width:18px;height:18px;accent-color:var(--brand);flex-shrink:0"><span>🦺 Fazer DDS</span></label>
     </div>
     <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:10px 12px;margin-top:12px;font-size:.79rem;color:#92400e">
       ⚠️ O e-mail exibido aqui é apenas para identificação no sistema. O e-mail de login (Firebase Auth) não muda — o colaborador continua usando o e-mail original para entrar. Use o botão <strong>🔑 Senha</strong> para redefinir o acesso se necessário.
@@ -2017,13 +1919,12 @@
   // NAVEGAÇÃO POR ABAS
   // ─────────────────────────────────────────
   function goTab(tab) {
-    if(tab==="admin"    && currentRole!=="ADMIN") return;
-    if(tab==="ponto"    && currentRole!=="ADMIN") return;
-    if(tab==="rh"       && currentRole!=="ADMIN") return;
-    // Evolução: ADMIN sempre, colaborador só se for responsável pela evolução
-    if(tab==="evolucao" && currentRole!=="ADMIN") {
-      if(!currentProfile?.evolResponsavel) return;
-    }
+    if(tab==="admin" && currentRole!=="ADMIN") return;
+    if(tab==="rh"    && currentRole!=="ADMIN") return;
+    if(tab==="ponto" && currentRole!=="ADMIN" && !canAcessarCartaoPonto()) return;
+    if(tab==="evolucao" && currentRole!=="ADMIN" && !canEvoluirObra()) return;
+    if(tab==="lancamentos" && currentRole!=="ADMIN" && !canFazerLancamentos()) return;
+    if(tab==="relatorios"  && currentRole!=="ADMIN" && !canAcessarRelatorios()) return;
     document.querySelectorAll(".tab-panel").forEach(p=>p.classList.remove("active"));
     document.querySelectorAll(".nav-item[data-tab]").forEach(b=>b.classList.remove("active"));
     $(`tab-${tab}`)?.classList.add("active");
@@ -2175,12 +2076,46 @@
 
   let currentUser=null, currentRole="USER", currentProfile=null;
 
+  function canEvoluirObra(profile = currentProfile) {
+    return !!(profile?.permEvolucao || profile?.evolResponsavel);
+  }
+
+  function canAcessarCartaoPonto(profile = currentProfile) {
+    return !!(profile?.permPontoAdmin);
+  }
+
+  function canFazerLancamentos(profile = currentProfile) {
+    return !!(profile?.canLancamentos);
+  }
+
+  function canAcessarRelatorios(profile = currentProfile) {
+    return !!(profile?.canRelatorios || profile?.canLancamentos);
+  }
+
+  function canFazerDDS(profile = currentProfile) {
+    return !!(profile?.permDDS);
+  }
+
+  function temAcessoAppUsuario(profile = currentProfile) {
+    if(!profile || profile?.role !== "USER") return false;
+    return canEvoluirObra(profile) || canAcessarCartaoPonto(profile) || canFazerLancamentos(profile) || canFazerDDS(profile);
+  }
+
+  function onUserRoleChange() {
+    const isUser = ($("userRole")?.value || "USER") === "USER";
+    const wrap = $("userPermsWrap");
+    if(wrap) wrap.style.display = isUser ? "block" : "none";
+  }
+
+  function onEditPerfilChange() {
+    const isUser = ($("editColabPerfil")?.value || "USER") === "USER";
+    const wrap = $("editPermsWrap");
+    if(wrap) wrap.style.display = isUser ? "block" : "none";
+  }
+
   async function initApp(user) {
     currentUser=user;
-    $("sideAdmin")?.classList.add("hidden");
-    $("bottomAdmin")?.classList.add("hidden");
-    $("sidePonto")?.classList.add("hidden");
-    $("bottomPonto")?.classList.add("hidden");
+    ["sideAdmin","bottomAdmin","sidePonto","bottomPonto","sideRH","bottomRH","sideEvolucao","bottomEvolucao","sideLancamentos","bottomLancamentos","sideRelatorios","bottomRelatorios"].forEach(id=>$(id)?.classList.add("hidden"));
     const profile=await loadProfile(user.uid);
     const nome=profile?.nome||user.email.split("@")[0];
     currentRole=profile?.role||"USER";
@@ -2203,21 +2138,20 @@
     $("pillUser").textContent=nome;
     $("pillUser").classList.remove("hidden");
     $("btnLogout").classList.remove("hidden");
+    const av = $("topbarAvatar");
+    if(av){
+      if(profile?.fotoUrl){ av.src = profile.fotoUrl; av.classList.remove("hidden"); }
+      else { av.src = ""; av.classList.add("hidden"); }
+    }
 
     if(currentRole==="ADMIN"){
-      $("sideAdmin")?.classList.remove("hidden");
-      $("bottomAdmin")?.classList.remove("hidden");
-      $("sidePonto")?.classList.remove("hidden");
-      $("bottomPonto")?.classList.remove("hidden");
-      $("sideRH")?.classList.remove("hidden");
-      $("bottomRH")?.classList.remove("hidden");
-      $("sideEvolucao")?.classList.remove("hidden");
-      $("bottomEvolucao")?.classList.remove("hidden");
+      ["sideAdmin","bottomAdmin","sidePonto","bottomPonto","sideRH","bottomRH","sideEvolucao","bottomEvolucao","sideLancamentos","bottomLancamentos","sideRelatorios","bottomRelatorios"].forEach(id=>$(id)?.classList.remove("hidden"));
     }
-    // Colaborador responsável pela evolução também vê a aba
-    if(currentRole==="USER" && profile?.evolResponsavel===true){
-      $("sideEvolucao")?.classList.remove("hidden");
-      $("bottomEvolucao")?.classList.remove("hidden");
+    if(currentRole==="USER"){
+      if(canFazerLancamentos(profile)){ $("sideLancamentos")?.classList.remove("hidden"); $("bottomLancamentos")?.classList.remove("hidden"); }
+      if(canAcessarRelatorios(profile)){ $("sideRelatorios")?.classList.remove("hidden"); $("bottomRelatorios")?.classList.remove("hidden"); }
+      if(canAcessarCartaoPonto(profile)){ $("sidePonto")?.classList.remove("hidden"); $("bottomPonto")?.classList.remove("hidden"); }
+      if(canEvoluirObra(profile)){ $("sideEvolucao")?.classList.remove("hidden"); $("bottomEvolucao")?.classList.remove("hidden"); }
     }
 
 
@@ -2261,6 +2195,7 @@
           sel.appendChild(o);
         }
       });
+      onUserRoleChange();
     } catch(_){}
   }
 
@@ -2587,6 +2522,10 @@
     setMsg("userMsg","");
     const nome=$("userNome").value.trim(), email=$("userEmail").value.trim();
     const role=$("userRole").value, obra=$("userObra").value;
+    const permEvolucao = !!$("userPermEvolucao")?.checked;
+    const permPonto    = !!$("userPermPonto")?.checked;
+    const permLanc     = !!$("userPermLanc")?.checked;
+    const permDDS      = !!$("userPermDDS")?.checked;
     const btn=$("btnSaveUser");
     if(!nome){setMsg("userMsg","Informe o nome.");return;}
     if(!email){setMsg("userMsg","Informe o e-mail.");return;}
@@ -2613,12 +2552,20 @@
         obra_id: obra||"",
         obras:   obra ? [obra] : [],
         fotoUrl: fotoUrl,
+        permEvolucao: role==="USER" ? permEvolucao : false,
+        evolResponsavel: role==="USER" ? permEvolucao : false,
+        permPontoAdmin: role==="USER" ? permPonto : false,
+        canLancamentos: role==="USER" ? permLanc : false,
+        canRelatorios:  role==="USER" ? permLanc : false,
+        permDDS:        role==="USER" ? permDDS : false,
         ativo:true, primeiro_acesso:true,
         criadoPor:currentUser.uid, criadoEm:serverTimestamp()
       });
 
       // Limpa formulário
       $("userNome").value=""; $("userEmail").value=""; $("userObra").value="";
+      ["userPermEvolucao","userPermPonto","userPermLanc","userPermDDS"].forEach(id=>{ const el=$(id); if(el) el.checked=false; });
+      onUserRoleChange();
       userFotoFile = null;
       const img = $("userFotoPreviewImg");
       if(img){ img.src=""; img.style.display="none"; }
@@ -2689,8 +2636,12 @@
         : `<span style="font-size:.7rem;background:#fef9ec;color:#92400e;border:1px solid #fcd34d;border-radius:12px;padding:1px 7px">⚠️ Sem foto</span>`;
       const badges=`
         <div class="badges">
-          <span class="badge-status ${u.role==="ADMIN"?"admin":"user"}">${u.role==="ADMIN"?"👑 Admin":"👤 Colab."}</span>
-          ${u.evolResponsavel?'<span class="badge-status" style="background:#f0f7ff;color:var(--brand);border:1px solid #bfdbfe">📈 Resp. Evolução</span>':''}
+          <span class="badge-status ${u.role==="ADMIN"?"admin":u.role==="VISITANTE"?"warning":"user"}">${u.role==="ADMIN"?"👑 Admin":u.role==="VISITANTE"?"👁️ Visitante":"👤 Colab."}</span>
+          ${(u.permEvolucao||u.evolResponsavel)?'<span class="badge-status" style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe">📈 Evolução</span>':''}
+          ${u.permPontoAdmin?'<span class="badge-status" style="background:#ecfeff;color:#155e75;border:1px solid #a5f3fc">🕐 Cartão</span>':''}
+          ${u.canLancamentos?'<span class="badge-status" style="background:#ecfdf5;color:#047857;border:1px solid #a7f3d0">➕ Lançamentos</span>':''}
+          ${u.permDDS?'<span class="badge-status" style="background:#fff7ed;color:#c2410c;border:1px solid #fed7aa">🦺 DDS</span>':''}
+          ${u.role==="USER" && !(u.permEvolucao||u.evolResponsavel||u.permPontoAdmin||u.canLancamentos||u.permDDS)?'<span class="badge-status" style="background:#f3f4f6;color:#6b7280">🕐 Somente ponto</span>':''}
           ${u.ativo===false?'<span class="badge-status inactive">⛔ Inativo</span>':''}
           ${u.primeiro_acesso===true&&u.ativo!==false?'<span class="badge-status warning">⏳ Aguard. 1º acesso</span>':''}
         </div>`;
@@ -2834,12 +2785,7 @@
   let _eFotoB64   = null;
   let _eChartL    = null;
   let _eChartB    = null;
-  let _eChartClima = null;
   let _eFiltroGrupo = "";
-  let _eClimaHist = [];
-  let _eClimaPrintFile = null;
-  let _eClimaPreviewUrl = null;
-  let _eClimaPrintUrl = "";
 
   const E_CORES = ["#0f3460","#e94560","#10b981","#f5a623","#6366f1","#ec4899","#14b8a6","#f97316","#8b5cf6","#06b6d4","#84cc16","#ef4444","#dc2626","#7c3aed","#0284c7","#16a34a"];
   const E_MARCOS_PAD = [{label:"Mobilização",pct:0,pagPct:20},{label:"21 dias",pct:40,pagPct:30},{label:"42 dias",pct:80,pagPct:30},{label:"Conclusão",pct:100,pagPct:20}];
@@ -2854,7 +2800,7 @@
       // Colaborador responsável: vê só a obra à qual está alocado
       const profileSnap = currentUser ? await getDoc(doc(db,"usuarios",currentUser.uid)).catch(()=>null) : null;
       const profile = profileSnap?.exists() ? profileSnap.data() : null;
-      const obraFiltro = (currentRole==="USER" && profile?.evolResponsavel) ? profile?.obra_id : null;
+      const obraFiltro = (currentRole==="USER" && canEvoluirObra(profile)) ? profile?.obra_id : null;
 
       snap.forEach(d=>{
         if(d.data().ativa!==false){
@@ -2881,27 +2827,16 @@
     $("evolPainelPrincipal").style.display = "none";
     $("btnEvolContrato").style.display  = "none";
     $("btnEvolConfig").style.display    = "none";
-    if($("btnEvolDiario")) $("btnEvolDiario").style.display = "none";
-    if($("btnEvolDiarioCard")) $("btnEvolDiarioCard").style.display = "none";
-    if($("evolClimaConsultaWrap")) $("evolClimaConsultaWrap").style.display = "none";
     if(!id) return;
     if(currentRole==="ADMIN"){
       $("btnEvolContrato").style.display="";
       $("btnEvolGaleria").style.display="";
       $("btnEvolRelatorio").style.display="";
       $("btnEvolConfig").style.display="";
-      if($("btnEvolDiario")) $("btnEvolDiario").style.display="";
-      if($("btnEvolDiarioCard")) $("btnEvolDiarioCard").style.display="";
-      if($("evolClimaConsultaWrap")) $("evolClimaConsultaWrap").style.display="flex";
     } else {
-      // Colaborador responsável vê galeria, relatório e diário climático
+      // Colaborador responsável vê apenas galeria e relatório (somente leitura)
       $("btnEvolGaleria").style.display="";
       $("btnEvolRelatorio").style.display="";
-      if(currentProfile?.evolResponsavel){
-        if($("btnEvolDiario")) $("btnEvolDiario").style.display="";
-        if($("btnEvolDiarioCard")) $("btnEvolDiarioCard").style.display="";
-        if($("evolClimaConsultaWrap")) $("evolClimaConsultaWrap").style.display="flex";
-      }
     }
     const [cS,kS]=await Promise.all([
       getDoc(doc(db,"obras",id,"evolConfig","main")).catch(()=>null),
@@ -3148,9 +3083,7 @@
     try{
       const snap=await getDocs(query(collection(db,"obras",obraId,"evolHistorico"),orderBy("data","asc")));
       const labels=[],dados=[];
-      const rows=[];
-      snap.forEach(d=>{ const row={id:d.id,...d.data()}; rows.push(row); labels.push(new Date(d.data().data+"T12:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})); dados.push(parseFloat((Number(d.data().pctGlobal)||0).toFixed(1))); });
-      _eRenderClimaPainel(rows);
+      snap.forEach(d=>{ labels.push(new Date(d.data().data+"T12:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})); dados.push(parseFloat(d.data().pctGlobal.toFixed(1))); });
       const canvas=$("chartEvolLinha"); if(!canvas) return;
       if(_eChartL) _eChartL.destroy();
       if(labels.length<2){
@@ -3184,383 +3117,7 @@
       });
       Chart.defaults.color = "#666";
       Chart.defaults.borderColor = "rgba(0,0,0,0.1)";
-    }catch(e){ _eRenderClimaPainel([]); }
-  }
-
-  function _ePodeEditarDiario(){ return currentRole === "ADMIN" || !!currentProfile?.evolResponsavel; }
-
-  function _eHojeStr(){
-    const d=new Date(), z=n=>String(n).padStart(2,"0");
-    return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`;
-  }
-
-  function _bindAmpElement(el, openFn){
-    if(!el || typeof openFn !== "function") return;
-    try{
-      if(el.__ampClickHandler) el.removeEventListener("click", el.__ampClickHandler, true);
-      if(el.__ampKeyHandler) el.removeEventListener("keydown", el.__ampKeyHandler, true);
-    }catch(_){ }
-
-    const clickHandler = (ev)=>{
-      try{
-        ev.preventDefault();
-        ev.stopPropagation();
-        ev.stopImmediatePropagation && ev.stopImmediatePropagation();
-      }catch(_){ }
-      try{ openFn(); }catch(_){ }
-    };
-    const keyHandler = (ev)=>{
-      if(ev.key === "Enter" || ev.key === " "){
-        try{
-          ev.preventDefault();
-          ev.stopPropagation();
-          ev.stopImmediatePropagation && ev.stopImmediatePropagation();
-        }catch(_){ }
-        try{ openFn(); }catch(_){ }
-      }
-    };
-
-    el.__ampClickHandler = clickHandler;
-    el.__ampKeyHandler = keyHandler;
-    el.style.cursor = "zoom-in";
-    el.setAttribute("role", el.getAttribute("role") || "button");
-    if(!el.hasAttribute("tabindex")) el.setAttribute("tabindex","0");
-    el.addEventListener("click", clickHandler, true);
-    el.addEventListener("keydown", keyHandler, true);
-  }
-
-  let _ampDelegationReady = false;
-  function _initAmpDelegation(){
-    if(_ampDelegationReady) return;
-    _ampDelegationReady = true;
-
-    const handleOpen = (target)=>{
-      const vFoto = target.closest?.('.vFotoAmpTrigger');
-      if(vFoto){
-        const regId = vFoto.getAttribute('data-reg-id');
-        const reg = (_vGaleriaRegistros || []).find(r => String(r.id||'') === String(regId||''));
-        if(reg){
-          const delta = (Number(reg.pctDepois)||0) - (Number(reg.pctAntes)||0);
-          return vVerFotoAmp(reg.fotoUrl, reg.unidNome || '', reg.svcDesc || '', reg.data || '', delta.toFixed(1), reg.tipoFoto || 'antes');
-        }
-        const src = vFoto.getAttribute('data-src') || vFoto.querySelector('img')?.src || '';
-        return _abrirImagemAmp(src, '<strong>Registro fotográfico</strong>', 'Nenhuma foto disponível.');
-      }
-
-      if(target.closest?.('#vClimaThumbTrigger') || target.id === 'vClimaThumb' || target.closest?.('#vClimaThumbWrap')) return vVerClimaAmp();
-      if(target.closest?.('#evolClimaThumbTrigger') || target.id === 'evolClimaThumb' || target.closest?.('#evolClimaThumbWrap')) return evolVerClimaFoto();
-      return null;
-    };
-
-    document.addEventListener('click', (ev)=>{
-      const target = ev.target;
-      if(!target || !target.closest) return;
-      const hit = target.closest('.vFotoAmpTrigger, #vClimaThumbTrigger, #vClimaThumbWrap, #vClimaThumb, #evolClimaThumbTrigger, #evolClimaThumbWrap, #evolClimaThumb');
-      if(!hit) return;
-      try{
-        ev.preventDefault();
-        ev.stopPropagation();
-        ev.stopImmediatePropagation && ev.stopImmediatePropagation();
-      }catch(_){ }
-      try{ handleOpen(target); }catch(_){ }
-    }, true);
-
-    document.addEventListener('keydown', (ev)=>{
-      if(ev.key !== 'Enter' && ev.key !== ' ') return;
-      const target = ev.target;
-      if(!target || !target.closest) return;
-      const hit = target.closest('.vFotoAmpTrigger, #vClimaThumbTrigger, #vClimaThumbWrap, #vClimaThumb, #evolClimaThumbTrigger, #evolClimaThumbWrap, #evolClimaThumb');
-      if(!hit) return;
-      try{
-        ev.preventDefault();
-        ev.stopPropagation();
-        ev.stopImmediatePropagation && ev.stopImmediatePropagation();
-      }catch(_){ }
-      try{ handleOpen(target); }catch(_){ }
-    }, true);
-  }
-
-  function _ePerdaDia(row){
-    if(!row || row.impactoPrazo===false) return 0;
-    if(row.houveProducao === "nao") return 1;
-    if(row.houveProducao === "parcial") {
-      const pct = Math.max(0, Math.min(100, Number(row.percentualProducaoDia)||0));
-      return (100 - pct) / 100;
-    }
-    return 0;
-  }
-
-  function _eRenderClimaPainel(rows){
-    _eClimaHist = Array.isArray(rows) ? rows : [];
-    const diarios = _eClimaHist
-      .filter(r => r && (r.diarioClimaPreenchido || r.printMonitorUrl || r.houveProducao || r.clima || r.motivoParalisacao))
-      .sort((a,b)=> String(a.data||"").localeCompare(String(b.data||"")));
-
-    const prod = diarios.filter(r=>r.houveProducao === "sim").length;
-    const parcial = diarios.filter(r=>r.houveProducao === "parcial").length;
-    const clima = diarios.filter(r=>r.houveProducao === "nao" && r.causaDia === "clima").length;
-    const perdidos = diarios.reduce((acc,row)=> acc + _ePerdaDia(row), 0);
-
-    if($("evolClimaKpiProd")) $("evolClimaKpiProd").textContent = prod;
-    if($("evolClimaKpiParcial")) $("evolClimaKpiParcial").textContent = parcial;
-    if($("evolClimaKpiClima")) $("evolClimaKpiClima").textContent = clima;
-    if($("evolClimaKpiPerdidos")) $("evolClimaKpiPerdidos").textContent = perdidos.toFixed(1).replace('.',',');
-
-    const latest = diarios.length ? diarios[diarios.length-1] : null;
-    if(latest){
-      if($("evolClimaResumoBox")) $("evolClimaResumoBox").style.display = "";
-      const base = latest.houveProducao === "nao" ? "Sem produção" : latest.houveProducao === "parcial" ? "Produção parcial" : "Produção normal";
-      const climaTxt = latest.clima ? ` · Clima: ${latest.clima}` : "";
-      const raioTxt = latest.houveRaio === "sim" ? ` · Raios${latest.distanciaRaioKm ? ` a ${String(latest.distanciaRaioKm).replace('.',',')} km` : ''}` : "";
-      if($("evolClimaResumo")) $("evolClimaResumo").textContent = `${latest.data || ''} · ${base}${climaTxt}${raioTxt}`;
-      if($("evolClimaUltimoMeta")) $("evolClimaUltimoMeta").textContent = `${latest.motivoParalisacao || latest.observacao || 'Sem observações adicionais.'}`;
-      if($("evolClimaObsBox")) $("evolClimaObsBox").style.display = latest.observacao ? "" : "none";
-      if($("evolClimaObs")) $("evolClimaObs").textContent = latest.observacao || "Sem observações registradas.";
-      if($("evolClimaConsultaData") && !$("evolClimaConsultaData").value) $("evolClimaConsultaData").value = latest.data || _eHojeStr();
-      if(latest.printMonitorUrl){
-        _eClimaPrintUrl = latest.printMonitorUrl;
-        if($("evolClimaThumb")) $("evolClimaThumb").src = latest.printMonitorUrl;
-        if($("evolClimaThumbWrap")) $("evolClimaThumbWrap").style.display = "";
-        if($("evolClimaThumbEmpty")) $("evolClimaThumbEmpty").style.display = "none";
-        if($("evolClimaThumbInfo")) $("evolClimaThumbInfo").textContent = `Registro de ${latest.data || ''} · Fonte: ${latest.fonteClima || 'WeatherBug'}${latest.preenchidoPorNome ? ` · por ${latest.preenchidoPorNome}` : ''}`;
-        _bindAmpElement($("evolClimaThumbTrigger") || $("evolClimaThumbWrap"), ()=>evolVerClimaFoto());
-        _bindAmpElement($("evolClimaThumb"), ()=>evolVerClimaFoto());
-      } else {
-        _eClimaPrintUrl = "";
-        if($("evolClimaThumbWrap")) $("evolClimaThumbWrap").style.display = "none";
-        if($("evolClimaThumbEmpty")) $("evolClimaThumbEmpty").style.display = "";
-      }
-    } else {
-      _eClimaPrintUrl = "";
-      if($("evolClimaResumoBox")) $("evolClimaResumoBox").style.display = "none";
-      if($("evolClimaObsBox")) $("evolClimaObsBox").style.display = "none";
-      if($("evolClimaThumbWrap")) $("evolClimaThumbWrap").style.display = "none";
-      if($("evolClimaThumbEmpty")) $("evolClimaThumbEmpty").style.display = "";
-    }
-
-    const canvas = $("chartEvolClima");
-    if(!canvas) return;
-    if(_eChartClima) { try{ _eChartClima.destroy(); }catch(_){} _eChartClima = null; }
-    if(diarios.length < 1){
-      canvas.style.display = "none";
-      if($("evolClimaGrafEmpty")) $("evolClimaGrafEmpty").style.display = "";
-      return;
-    }
-    canvas.style.display = "";
-    if($("evolClimaGrafEmpty")) $("evolClimaGrafEmpty").style.display = "none";
-    const ult = diarios.slice(-10);
-    const labels = ult.map(r=>{ try{return new Date(`${r.data}T12:00:00`).toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"});}catch(_){ return r.data||""; }});
-    const values = ult.map(r=> r.houveProducao === "nao" ? 0 : r.houveProducao === "parcial" ? Math.max(0, Math.min(100, Number(r.percentualProducaoDia)||50)) : 100);
-    const colors = ult.map(r=> r.houveProducao === "nao" ? "rgba(239,68,68,.82)" : r.houveProducao === "parcial" ? "rgba(245,166,35,.85)" : "rgba(16,185,129,.85)");
-    _eChartClima = new Chart(canvas,{
-      type:"bar",
-      data:{ labels, datasets:[{ label:"Produção do dia (%)", data:values, backgroundColor:colors, borderRadius:6, borderWidth:0 }]},
-      options:{
-        responsive:true, maintainAspectRatio:false,
-        scales:{
-          y:{ min:0, max:100, ticks:{ callback:v=> v+"%" }, grid:{ color:"rgba(0,0,0,.05)" } },
-          x:{ grid:{ display:false } }
-        },
-        plugins:{
-          legend:{ display:false },
-          tooltip:{ callbacks:{ afterLabel:(ctx)=>{ const r=ult[ctx.dataIndex]; const extra=[]; if(r.clima) extra.push(`Clima: ${r.clima}`); if(r.houveRaio === "sim") extra.push(`Raios${r.distanciaRaioKm ? ` (${String(r.distanciaRaioKm).replace('.',',')} km)` : ''}`); if(r.motivoParalisacao) extra.push(r.motivoParalisacao); return extra; } } }
-        }
-      }
-    });
-  }
-
-  function _eLimparPreviewDiario(){
-    _eClimaPrintFile = null;
-    if(_eClimaPreviewUrl){ try{ URL.revokeObjectURL(_eClimaPreviewUrl); }catch(_){} _eClimaPreviewUrl = null; }
-    if($("evolDiaPrint")) $("evolDiaPrint").value = "";
-    if($("evolDiaPrintUrlAtual")) $("evolDiaPrintUrlAtual").value = "";
-    if($("evolDiaPrintPreviewWrap")) $("evolDiaPrintPreviewWrap").style.display = "none";
-    if($("evolDiaPrintPreview")) $("evolDiaPrintPreview").src = "";
-    if($("evolDiaPrintPreviewInfo")) $("evolDiaPrintPreviewInfo").textContent = "";
-    if($("btnEvolDiaRemoverPrint")) $("btnEvolDiaRemoverPrint").style.display = "none";
-  }
-
-  function evolRemoverClimaFoto(){
-    _eClimaPrintFile = null;
-    if(_eClimaPreviewUrl){ try{ URL.revokeObjectURL(_eClimaPreviewUrl); }catch(_){} _eClimaPreviewUrl = null; }
-    if($("evolDiaPrint")) $("evolDiaPrint").value = "";
-    if($("evolDiaPrintUrlAtual")) $("evolDiaPrintUrlAtual").value = "";
-    if($("evolDiaPrintPreviewWrap")) $("evolDiaPrintPreviewWrap").style.display = "none";
-    if($("evolDiaPrintPreview")) $("evolDiaPrintPreview").src = "";
-    if($("evolDiaPrintPreviewInfo")) $("evolDiaPrintPreviewInfo").textContent = "Imagem removida. Salve o diário para confirmar a exclusão.";
-    if($("btnEvolDiaRemoverPrint")) $("btnEvolDiaRemoverPrint").style.display = "none";
-    toast("Imagem removida do diário. Salve para confirmar.","ok");
-  }
-
-  function evolClimaFotoSel(input){
-    const file = input?.files?.[0];
-    if(!file) return;
-    if(_eClimaPreviewUrl){ try{ URL.revokeObjectURL(_eClimaPreviewUrl); }catch(_){} _eClimaPreviewUrl = null; }
-    _eClimaPrintFile = file;
-    const url = URL.createObjectURL(file);
-    _eClimaPreviewUrl = url;
-    if($("evolDiaPrintUrlAtual")) $("evolDiaPrintUrlAtual").value = "";
-    if($("evolDiaPrintPreview")) $("evolDiaPrintPreview").src = url;
-    if($("evolDiaPrintPreviewWrap")) $("evolDiaPrintPreviewWrap").style.display = "";
-    if($("evolDiaPrintPreviewInfo")) $("evolDiaPrintPreviewInfo").textContent = `${file.name} · ${(file.size/1024/1024).toFixed(2)} MB`;
-    if($("btnEvolDiaRemoverPrint")) $("btnEvolDiaRemoverPrint").style.display = "inline-flex";
-  }
-
-  function evolAtualizarCamposDiario(){
-    const prod = $("evolDiaProd")?.value || "sim";
-    if(prod === "sim"){
-      if($("evolDiaPct")) $("evolDiaPct").value = 100;
-      if($("evolDiaHoras")) $("evolDiaHoras").value = 0;
-      if($("evolDiaCausa")) $("evolDiaCausa").value = "producao";
-    } else if(prod === "nao"){
-      if($("evolDiaPct")) $("evolDiaPct").value = 0;
-      if($("evolDiaHoras")) $("evolDiaHoras").value = 8;
-      if($("evolDiaCausa") && $("evolDiaCausa").value === "producao") $("evolDiaCausa").value = "clima";
-    } else {
-      if($("evolDiaPct") && Number($("evolDiaPct").value) === 100) $("evolDiaPct").value = 50;
-      if($("evolDiaHoras") && Number($("evolDiaHoras").value) === 0) $("evolDiaHoras").value = 4;
-    }
-  }
-
-  async function evolCarregarDiarioData(){
-    if(!_eObraId) return;
-    const data = $("evolDiaData")?.value || _eHojeStr();
-    if($("evolDiaPrintUrlAtual")) $("evolDiaPrintUrlAtual").value = "";
-    _eLimparPreviewDiario();
-    try{
-      const snap = await getDoc(doc(db,"obras",_eObraId,"evolHistorico",data));
-      if(!snap.exists()) {
-        if($("evolDiaClima")) $("evolDiaClima").value = "ensolarado";
-        if($("evolDiaChuva")) $("evolDiaChuva").value = "sem chuva";
-        if($("evolDiaRaios")) $("evolDiaRaios").value = "nao";
-        if($("evolDiaRaioDist")) $("evolDiaRaioDist").value = "";
-        if($("evolDiaFonte")) $("evolDiaFonte").value = "WeatherBug";
-        if($("evolDiaProd")) $("evolDiaProd").value = "sim";
-        if($("evolDiaPct")) $("evolDiaPct").value = 100;
-        if($("evolDiaHoras")) $("evolDiaHoras").value = 0;
-        if($("evolDiaCausa")) $("evolDiaCausa").value = "producao";
-        if($("evolDiaMotivo")) $("evolDiaMotivo").value = "";
-        if($("evolDiaImpacto")) $("evolDiaImpacto").value = "nao";
-        if($("evolDiaObs")) $("evolDiaObs").value = "";
-        return;
-      }
-      const r = snap.data() || {};
-      if($("evolDiaClima")) $("evolDiaClima").value = r.clima || "ensolarado";
-      if($("evolDiaChuva")) $("evolDiaChuva").value = r.chuvaNivel || "sem chuva";
-      if($("evolDiaRaios")) $("evolDiaRaios").value = r.houveRaio || "nao";
-      if($("evolDiaRaioDist")) $("evolDiaRaioDist").value = r.distanciaRaioKm ?? "";
-      if($("evolDiaFonte")) $("evolDiaFonte").value = r.fonteClima || "WeatherBug";
-      if($("evolDiaProd")) $("evolDiaProd").value = r.houveProducao || "sim";
-      if($("evolDiaPct")) $("evolDiaPct").value = Number(r.percentualProducaoDia ?? (r.houveProducao === "nao" ? 0 : 100));
-      if($("evolDiaHoras")) $("evolDiaHoras").value = Number(r.horasParadas || 0);
-      if($("evolDiaCausa")) $("evolDiaCausa").value = r.causaDia || "producao";
-      if($("evolDiaMotivo")) $("evolDiaMotivo").value = r.motivoParalisacao || "";
-      if($("evolDiaImpacto")) $("evolDiaImpacto").value = r.impactoPrazo === false ? "nao" : "sim";
-      if($("evolDiaObs")) $("evolDiaObs").value = r.observacao || "";
-      if(r.printMonitorUrl){
-        if($("evolDiaPrintUrlAtual")) $("evolDiaPrintUrlAtual").value = r.printMonitorUrl;
-        if($("evolDiaPrintPreview")) $("evolDiaPrintPreview").src = r.printMonitorUrl;
-        if($("evolDiaPrintPreviewWrap")) $("evolDiaPrintPreviewWrap").style.display = "";
-        if($("evolDiaPrintPreviewInfo")) $("evolDiaPrintPreviewInfo").textContent = r.printMonitorNome || "Print já anexado";
-        if($("btnEvolDiaRemoverPrint")) $("btnEvolDiaRemoverPrint").style.display = "inline-flex";
-      }
-      evolAtualizarCamposDiario();
-    }catch(e){ console.error(e); }
-  }
-
-  async function evolAbrirDiario(){
-    if(!_eObraId){ toast("Selecione uma obra.","err"); return; }
-    if(!_ePodeEditarDiario()){ toast("Somente ADM ou responsável da obra podem preencher o diário.","err"); return; }
-    if($("evolDiaData")) $("evolDiaData").value = _eHojeStr();
-    await evolCarregarDiarioData();
-    $("modalEvolDiario").classList.remove("hidden");
-  }
-
-  async function evolSalvarDiario(){
-    if(!_eObraId){ toast("Selecione uma obra.","err"); return; }
-    const data = $("evolDiaData")?.value || _eHojeStr();
-    let printUrl = $("evolDiaPrintUrlAtual")?.value || "";
-    let printNome = printUrl ? "Print anexado" : "";
-    try{
-      if(_eClimaPrintFile){
-        const fd = new FormData();
-        fd.append("file", _eClimaPrintFile);
-        fd.append("upload_preset", CLOUDINARY_PRESET);
-        fd.append("folder", "go");
-        const cr = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, { method:"POST", body:fd });
-        const cj = await cr.json().catch(()=>({}));
-        if(!cr.ok || !cj.secure_url) throw new Error(cj.error?.message || "Falha ao enviar o print do monitoramento.");
-        printUrl = cj.secure_url;
-        printNome = _eClimaPrintFile.name || "Print do monitoramento";
-      }
-      const payload = {
-        data,
-        diarioClimaPreenchido:true,
-        clima: $("evolDiaClima")?.value || "ensolarado",
-        chuvaNivel: $("evolDiaChuva")?.value || "sem chuva",
-        houveRaio: $("evolDiaRaios")?.value || "nao",
-        distanciaRaioKm: $("evolDiaRaioDist")?.value ? Number($("evolDiaRaioDist").value) : null,
-        fonteClima: $("evolDiaFonte")?.value || "WeatherBug",
-        houveProducao: $("evolDiaProd")?.value || "sim",
-        percentualProducaoDia: Number($("evolDiaPct")?.value || 0),
-        horasParadas: Number($("evolDiaHoras")?.value || 0),
-        causaDia: $("evolDiaCausa")?.value || "producao",
-        motivoParalisacao: ($("evolDiaMotivo")?.value || "").trim(),
-        impactoPrazo: ($("evolDiaImpacto")?.value || "nao") === "sim",
-        observacao: ($("evolDiaObs")?.value || "").trim(),
-        printMonitorUrl: printUrl || null,
-        printMonitorNome: printNome || null,
-        preenchidoPorUid: currentUser?.uid || null,
-        preenchidoPorNome: currentProfile?.nome || currentUser?.email || "Usuário",
-        atualizadoEm: serverTimestamp()
-      };
-      await setDoc(doc(db,"obras",_eObraId,"evolHistorico",data), payload, { merge:true });
-      _eClimaPrintFile = null;
-      closeModal("modalEvolDiario");
-      toast("Diário salvo com sucesso.","ok");
-      await _eCarregarHistorico(_eObraId);
-    }catch(e){
-      console.error(e);
-      toast(e.message || "Erro ao salvar diário.","err");
-    }
-  }
-
-  function _abrirImagemAmp(url, infoHtml, emptyMsg){
-    const img = $("evolFotoAmpImg");
-    const info = $("evolFotoAmpInfo");
-    const modal = $("modalEvolFotoAmp");
-    if(!url){ toast(emptyMsg || "Nenhuma imagem disponível.","err"); return; }
-    if(!modal || !img || !info){
-      window.open(url,"_blank","noopener,noreferrer");
-      return;
-    }
-    img.removeAttribute("src");
-    img.onerror = ()=> window.open(url,"_blank","noopener,noreferrer");
-    info.innerHTML = infoHtml || "<strong>Imagem ampliada</strong>";
-    modal.style.zIndex = "99999";
-    modal.style.display = "flex";
-    modal.style.visibility = "visible";
-    modal.style.opacity = "1";
-    modal.classList.remove("hidden");
-    requestAnimationFrame(()=>{ img.src = url; });
-  }
-
-  function _abrirFotoClimaAmpliada(url, infoHtml){
-    _abrirImagemAmp(url, infoHtml || "<strong>Monitoramento do clima</strong>", "Nenhum print disponível.");
-  }
-
-  function evolConsultarDiarioData(){
-    const dt = $("evolClimaConsultaData")?.value || _eHojeStr();
-    if($("evolDiaData")) $("evolDiaData").value = dt;
-    evolCarregarDiarioData().then(()=>{
-      const modal = $("modalEvolDiario");
-      if(modal) modal.classList.remove("hidden");
-    });
-  }
-
-  function evolVerClimaFoto(){
-    const url = _eClimaPrintUrl || $("evolClimaThumb")?.src || $("evolDiaPrintPreview")?.src || "";
-    _abrirFotoClimaAmpliada(url, `<strong>Monitoramento do clima</strong>${_eObraId ? ` · ${_eObraId}` : ""}`);
+    }catch(e){}
   }
 
   async function _eSnapshotHist(id,g){
@@ -3748,12 +3305,12 @@
 
     // Agrupar por data
     const porData={};
-    const podeEditarAdm = currentRole==="ADMIN" || currentProfile?.evolResponsavel===true;
     regs.forEach(r=>{ const d=r.data||"?"; if(!porData[d]) porData[d]=[]; porData[d].push(r); });
 
     el.style.columns="1";
     el.innerHTML=Object.entries(porData).map(([data,fotos])=>{
       const dtFmt=new Date(data+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"short",year:"numeric"});
+       const podeEditarAdm = currentRole==="ADMIN" || canEvoluirObra(currentProfile);
        const cards=fotos.map(r=>{
         const unid=(_eCfg?.unidades||[]).find(u=>u.id===r.unidId);
         const delta=r.pctDepois-r.pctAntes;
@@ -3763,9 +3320,10 @@
         const safeId = r.id.replace(/[^a-zA-Z0-9]/g,"_");
         return `
         <div style="background:#f8f9fc;border:1.5px solid ${tipo==="depois"?"#bbf7d0":"#fde68a"};border-radius:10px;overflow:hidden;margin-bottom:8px">
-          <div class="evolFotoAmpTrigger" data-reg-id="${r.id}" style="display:flex;gap:12px;cursor:pointer">
+          <div style="display:flex;gap:12px;cursor:pointer"
+               onclick="App.evolVerFotoAmp('${r.fotoUrl}','${(r.unidNome||"").replace(/'/g,"&#39;")}','${(r.svcDesc||"").replace(/'/g,"&#39;")}','${data}','${delta.toFixed(1)}')">
             <div style="position:relative;flex-shrink:0">
-              <img src="${r.fotoUrl}" style="width:90px;height:80px;object-fit:cover;display:block;pointer-events:none" alt="" loading="lazy">
+              <img src="${r.fotoUrl}" style="width:90px;height:80px;object-fit:cover;display:block" alt="" loading="lazy">
               <span style="position:absolute;top:4px;left:4px;background:${tipoCor};color:#fff;font-size:.58rem;font-weight:700;padding:1px 5px;border-radius:10px">${tipoLabel}</span>
             </div>
             <div style="padding:9px 10px;min-width:0;flex:1">
@@ -3795,14 +3353,6 @@
         ${cards}
       </div>`;
     }).join("");
-
-    const mapaRegsGaleria = new Map(regs.map(r=>[r.id, r]));
-    el.querySelectorAll(".evolFotoAmpTrigger").forEach(node=>{
-      const reg = mapaRegsGaleria.get(node.getAttribute("data-reg-id"));
-      if(!reg) return;
-      const delta = (Number(reg.pctDepois)||0) - (Number(reg.pctAntes)||0);
-      _bindAmpElement(node, ()=> evolVerFotoAmp(reg.fotoUrl, reg.unidNome || "", reg.svcDesc || "", reg.data || "", delta.toFixed(1)));
-    });
 
     // Listeners dos botões de edição na galeria ADM
     if(podeEditarAdm) {
@@ -3848,9 +3398,10 @@
   }
 
   function evolVerFotoAmp(url,unid,svc,data,delta){
-    const dtFmt = data ? new Date(data+"T12:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"}) : "";
-    const info = `<strong>${unid||"Registro fotográfico"}</strong>${svc ? ` · ${svc}` : ""}${dtFmt ? ` · ${dtFmt}` : ""}${delta!==undefined && delta!==null && delta!=="" ? ` · <span style="color:#86efac">+${delta}%</span>` : ""}`;
-    _abrirImagemAmp(url, info, "Nenhuma foto disponível.");
+    $("evolFotoAmpImg").src=url;
+    const dtFmt=new Date(data+"T12:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"});
+    $("evolFotoAmpInfo").innerHTML=`<strong>${unid}</strong> · ${svc} · ${dtFmt} · <span style="color:#86efac">+${delta}%</span>`;
+    $("modalEvolFotoAmp").classList.remove("hidden");
   }
 
   // ──────────────────────────── RELATÓRIO PDF ──────────────
@@ -4605,30 +4156,42 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
     $("editColabUid").value   = uid;
     $("editColabNome").value  = nome;
     $("editColabEmail").value = email;
-    // Preencher checkbox evolResponsavel
-    const u = allUsers.find(x=>x.id===uid);
-    const cb = $("editEvolResp");
-    if(cb) cb.checked = u?.evolResponsavel===true;
-    // Ocultar para ADMIN (não faz sentido)
-    const wrap = $("editEvolRespWrap");
-    if(wrap) wrap.style.display = u?.role==="ADMIN" ? "none" : "";
-    setMsg("editColabMsg","");
+    const u = (allUsers || []).find(x=>x.id===uid) || {};
+    if($("editColabPerfil")) $("editColabPerfil").value = u.role || "USER";
+    if($("editPermEvolucao")) $("editPermEvolucao").checked = !!(u.permEvolucao || u.evolResponsavel);
+    if($("editPermPonto")) $("editPermPonto").checked = !!u.permPontoAdmin;
+    if($("editPermLanc")) $("editPermLanc").checked = !!u.canLancamentos;
+    if($("editPermDDS")) $("editPermDDS").checked = !!u.permDDS;
+    onEditPerfilChange();
+    setMsg("editColabMsg", "");
     $("btnSalvarEditColab").disabled = false;
     $("btnSalvarEditColab").textContent = "💾 Salvar";
     $("modalEditColab").classList.remove("hidden");
   }
 
   async function salvarEdicaoColab() {
-    const uid   = $("editColabUid").value.trim();
-    const nome  = $("editColabNome").value.trim();
-    const email = $("editColabEmail").value.trim();
+    const uid    = $("editColabUid").value.trim();
+    const nome   = $("editColabNome").value.trim();
+    const email  = $("editColabEmail").value.trim();
+    const perfil = $("editColabPerfil")?.value || "USER";
     if(!nome)  { setMsg("editColabMsg","⚠️ Informe o nome."); return; }
     if(!email) { setMsg("editColabMsg","⚠️ Informe o e-mail."); return; }
     const btn = $("btnSalvarEditColab");
     btn.disabled = true; btn.textContent = "Salvando...";
     try {
-      const evolResp = $("editEvolResp")?.checked || false;
-      await updateDoc(doc(db,"usuarios",uid), { nome, email, evolResponsavel: evolResp });
+      const permEvolucao = perfil === "USER" ? !!$("editPermEvolucao")?.checked : false;
+      const permPonto    = perfil === "USER" ? !!$("editPermPonto")?.checked : false;
+      const permLanc     = perfil === "USER" ? !!$("editPermLanc")?.checked : false;
+      const permDDS      = perfil === "USER" ? !!$("editPermDDS")?.checked : false;
+      await updateDoc(doc(db,"usuarios",uid), {
+        nome, email, role: perfil,
+        permEvolucao,
+        evolResponsavel: permEvolucao,
+        permPontoAdmin: permPonto,
+        canLancamentos: permLanc,
+        canRelatorios: permLanc,
+        permDDS
+      });
       toast("✅ Dados atualizados!");
       closeModal("modalEditColab");
       await loadUsers();
@@ -5222,7 +4785,6 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
         uid, nome, fotoUrl: fotoUrl||"",
         obras: obras||[], obra_id: obra_id||"",
         role: role||"USER", ativo: true,
-        evolResponsavel: obraId ? (document.getElementById("userEvolResp")?.checked||false) : false,
         obraData: obraData || null,
         cachedAt: Date.now()
       };
@@ -6134,7 +5696,6 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
       pontoProfile=null; livenessOk=false; facialOk=false; blinkCount=0; eyeWasClosed=false;
       window._geoBlocked = false;
       if(livenessDetector){ clearInterval(livenessDetector); livenessDetector=null; }
-      clearTimeout(window._pontoAutoLogoutTimer);
       const pontoEmailEl = $("pontoEmail");
       const pontoSenhaEl = $("pontoSenha");
       if(pontoEmailEl) pontoEmailEl.value="";
@@ -6148,8 +5709,6 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
       $("pontoStepCamera")?.classList.add("hidden");
       $("pontoStepOk")?.classList.add("hidden");
       $("pontoStepJustificativa")?.classList.add("hidden");
-      const btnFoto = $("btnCapturarPonto"); if(btnFoto) btnFoto.textContent = "📸 Tirar Foto";
-      const btnPonto = $("btnRegistrarPonto"); if(btnPonto){ btnPonto.disabled = true; btnPonto.textContent = "✅ Confirmar Ponto"; }
     } catch(e) { console.warn("irParaPonto reset:", e); }
     showPage("pontoPage");
   }
@@ -6157,7 +5716,6 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
   function voltarLogin() {
     pararCamera();
     if(livenessDetector){ clearInterval(livenessDetector); livenessDetector=null; }
-    clearTimeout(window._pontoAutoLogoutTimer);
     signOut(authAux).catch(()=>{});
     // Garante que sideNav também some
     $("sideNav")?.classList.add("hidden");
@@ -6311,14 +5869,18 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
     $("pontoStepLogin").classList.add("hidden");
     $("pontoStepCamera").classList.remove("hidden");
 
-    livenessOk = true;
-    facialOk = true;
     setStatusItem("statusGps","loading","📍 Obtendo localização...");
-    setStatusItem("statusLiveness","ok","📸 Tire uma foto nítida do rosto para registrar o ponto");
-    setStatusItem("statusFacial","ok", "✅ Foto obrigatória pronta para registro");
+    setStatusItem("statusLiveness","loading","👁️ Pisque os olhos "+BLINKS_NEEDED+"x para verificar presença");
+    setStatusItem("statusFacial","loading", pontoProfile.fotoUrl ? "🔍 Aguardando foto..." : "⚪ Sem foto cadastrada (verificação dispensada)");
+
+    if(!pontoProfile.fotoUrl) {
+      facialOk = true;
+      setStatusItem("statusFacial","warn","⚪ Sem foto cadastrada — verificação dispensada");
+    }
 
     await iniciarCamera();
     obterGPS();
+    iniciarLiveness();
     setMsg("pontoLoginMsg","");
   }
 
@@ -6522,28 +6084,28 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
   function tirarFoto() {
     const video  = $("pontoVideo");
     const canvas = $("pontoCanvas");
-    if(!video || !canvas || video.readyState < 2) {
-      setMsg("pontoCameraMsg","⚠️ Aguarde a câmera iniciar e tente novamente.");
-      return;
-    }
+    if(!video || !canvas || video.readyState < 2) return;
 
     const w = video.videoWidth || 640;
     const h = video.videoHeight || 480;
     canvas.width = w; canvas.height = h;
     const ctx = canvas.getContext("2d");
+    // Captura com espelho (mesma orientação que o usuário vê)
     ctx.save(); ctx.scale(-1,1); ctx.drawImage(video,-w,0,w,h); ctx.restore();
 
-    pontoFotoB64 = canvas.toDataURL("image/jpeg", 0.88).split(",")[1];
+    pontoFotoB64 = canvas.toDataURL("image/jpeg", 0.85).split(",")[1];
     $("pontoFotoImg").src = "data:image/jpeg;base64," + pontoFotoB64;
     $("pontoVideo").style.display = "none";
     $("pontoLivenessOverlay").style.display = "none";
     $("pontoFotoPreview").classList.remove("hidden");
-    $("btnCapturarPonto").textContent = "🔄 Tirar Outra Foto";
-    livenessOk = true;
-    facialOk = true;
-    setStatusItem("statusLiveness","ok","✅ Foto capturada com sucesso");
-    setStatusItem("statusFacial","ok","✅ Foto pronta para registro e DDS");
-    verificarTudoPronto();
+
+    // Se tem foto cadastrada, faz reconhecimento facial
+    if(pontoProfile?.fotoUrl) {
+      verificarFacial();
+    } else {
+      facialOk = true;
+      verificarTudoPronto();
+    }
   }
 
   function retirarFoto() {
@@ -6552,14 +6114,13 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
     $("pontoFotoPreview").classList.add("hidden");
     $("pontoLivenessOverlay").style.display = "";
     if($("pontoVideo")) $("pontoVideo").style.display = "block";
-    livenessOk = true;
-    facialOk = true;
+    facialOk = pontoProfile?.fotoUrl ? false : true;
     $("btnRegistrarPonto").disabled = true;
-    const btnFoto = $("btnCapturarPonto");
-    if(btnFoto) btnFoto.textContent = "📸 Tirar Foto";
-    setStatusItem("statusLiveness","ok","📸 Tire uma nova foto para continuar");
-    setStatusItem("statusFacial","ok","🖼️ Aguardando nova foto");
-    setMsg("pontoCameraMsg","⚠️ Tire uma nova foto para confirmar o ponto.");
+    // Reinicia liveness
+    if(!livenessOk) iniciarLiveness();
+    if(pontoProfile?.fotoUrl) {
+      setStatusItem("statusFacial","loading","🔍 Aguardando nova foto...");
+    }
   }
 
   // ── RECONHECIMENTO FACIAL VIA API CLAUDE ──
@@ -6627,7 +6188,7 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
     if(!btn) return;
     // Não habilita se bloqueado por geofencing
     if(window._geoBlocked) return;
-    const tudo = !!pontoFotoB64;
+    const tudo = livenessOk && facialOk && pontoFotoB64;
     btn.disabled = !tudo;
     if(tudo) {
       btn.textContent = "✅ Confirmar Ponto";
@@ -6637,7 +6198,8 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
 
   // ── CONFIRMAR E SALVAR PONTO ──
   async function confirmarPonto() {
-    if(!pontoFotoB64) { setMsg("pontoCameraMsg","⚠️ Tire a foto antes de confirmar o ponto."); return; }
+    if(!livenessOk) { setMsg("pontoCameraMsg","⚠️ Pisque os olhos para confirmar presença."); return; }
+    if(!facialOk)   { setMsg("pontoCameraMsg","⚠️ Reconhecimento facial não confirmado."); return; }
 
     const btn = $("btnRegistrarPonto");
     btn.disabled = true;
@@ -6651,20 +6213,15 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
       // Upload foto (tenta mesmo offline — Cloudinary é externo, pode falhar)
       let fotoUrl = "";
       if(pontoFotoB64 && navigator.onLine) {
-        let ultimoErro = "";
-        for(let tentativa=1; tentativa<=2 && !fotoUrl; tentativa++) {
-          try {
-            const fd = new FormData();
-            fd.append("file","data:image/jpeg;base64,"+pontoFotoB64);
-            fd.append("upload_preset",CLOUDINARY_PRESET);
-            fd.append("folder","pontos");
-            const cr = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/auto/upload`,{method:"POST",body:fd});
-            const cj = await cr.json();
-            if(cj.secure_url) fotoUrl = cj.secure_url;
-            else ultimoErro = cj.error?.message || "Falha ao enviar foto do ponto";
-          } catch(e){ ultimoErro = e.message || "Falha ao enviar foto do ponto"; }
-        }
-        if(!fotoUrl) throw new Error("Não foi possível enviar a foto do ponto. Verifique a internet e tente novamente.");
+        try {
+          const fd = new FormData();
+          fd.append("file","data:image/jpeg;base64,"+pontoFotoB64);
+          fd.append("upload_preset",CLOUDINARY_PRESET);
+          fd.append("folder","pontos");
+          const cr = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`,{method:"POST",body:fd});
+          const cj = await cr.json();
+          fotoUrl = cj.secure_url || "";
+        } catch(e){ console.warn("Foto não enviada:",e.message); }
       }
       // Offline: armazena base64 no IndexedDB para referenciar (sem upload)
       const fotoRef = fotoUrl || (pontoFotoB64 && !navigator.onLine ? "[foto_offline]" : "");
@@ -6680,12 +6237,11 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
       }
 
       // anomaliasBase: guarda o tipo descritivo (ex: "atraso", "saida_cedo", "fora_raio")
-      const isAnomalia = !!anomaliaEntrada;
       const anomaliasBase = anomaliaEntrada ? [anomaliaEntrada] : [];
       if(foraDoRaio) anomaliasBase.push("fora_raio");
       if(window._facialAnomaliaRegistrar) { anomaliasBase.push("facial_indisponivel"); window._facialAnomaliaRegistrar=false; }
       if(!pontoProfile?.fotoUrl) anomaliasBase.push("sem_foto_cadastrada");
-      const statusFinal = (isAnomalia || foraDoRaio || anomaliasBase.length) ? "anomalia" : "ok";
+      const statusFinal = (anomaliaEntrada || foraDoRaio || anomaliasBase.length) ? "anomalia" : "ok";
 
       // ── MODO OFFLINE: salva no IndexedDB ──────────────────────
       if(!navigator.onLine) {
@@ -6703,8 +6259,8 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
           horaExtra: "0h00",
           status:    statusFinal,
           anomalias: anomaliasBase,
-          livenessVerificado: false,
-          facialVerificado: false,
+          livenessVerificado: true,
+          facialVerificado:   !!pontoProfile.fotoUrl,
           _fase:     pontoFaseAtual,  // usado pela sync para merge
           dataHora:  agora.toISOString()
         };
@@ -6725,16 +6281,16 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
           obra_nome:        pontoObraData?.nome || "",
           data:             hoje,
           diaSemana:        dia,
-          entrada:null, almoco:null, retorno:null, saida:null,
-          [pontoFaseAtual]: horaStr,
-          ["foto"+capitalize(pontoFaseAtual)]: fotoUrl,
-          ["gps"+capitalize(pontoFaseAtual)]: pontoGPS,
+          entrada:          horaStr,
+          fotoEntrada:      fotoUrl,
+          gpsEntrada:       pontoGPS,
           distanciaM, foraDoRaio,
+          almoco:null, retorno:null, saida:null,
           horaExtra:        "0h00",
           status:           statusFinal,
           anomalias:        anomaliasBase,
-          livenessVerificado: false,
-          facialVerificado: false,
+          livenessVerificado: true,
+          facialVerificado:   !!pontoProfile.fotoUrl,
           criadoEm:         serverTimestamp()
         });
       } else {
@@ -6776,13 +6332,10 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
       <div>👤 <strong>${pontoProfile.nome||pontoUser.email}</strong></div>
       <div>🏗️ ${pontoObraData?.nome||"Sem obra"}</div>
       <div style="margin-top:4px">${gpsInfo}</div>
-      <div style="margin-top:4px">📸 Foto registrada com sucesso para o ponto</div>
-      <div style="margin-top:8px;background:#fff7ed;border-radius:6px;padding:6px 10px;font-size:.8rem;color:#9a3412">Esta sessão será encerrada automaticamente em 60 segundos.</div>
+      <div style="margin-top:4px">✅ Liveness verificado &nbsp;·&nbsp; ${pontoProfile.fotoUrl?"✅ Facial verificado":"⚪ Facial dispensado"}</div>
       ${obs ? `<div style="margin-top:8px;background:#e0f2fe;border-radius:6px;padding:6px 10px;font-size:.8rem;color:#075985">${obs}</div>` : ""}
     `;
     $("pontoStepOk").classList.remove("hidden");
-    clearTimeout(window._pontoAutoLogoutTimer);
-    window._pontoAutoLogoutTimer = setTimeout(()=>voltarLogin(),60000);
   }
 
   function capitalize(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
@@ -6875,12 +6428,10 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
       if(file){
         const fd=new FormData();
         fd.append("file",file); fd.append("upload_preset",CLOUDINARY_PRESET); fd.append("folder","justificativas");
-        const cr=await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/auto/upload`,{method:"POST",body:fd});
-        const cj=await cr.json();
-        if(!cj.secure_url) throw new Error(cj.error?.message || "Falha ao enviar documento");
-        docUrl=cj.secure_url||"";
+        const cr=await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/upload`,{method:"POST",body:fd});
+        const cj=await cr.json(); docUrl=cj.secure_url||"";
       }
-      await updateDoc(doc(dbAux,"pontos",justPontoId),{
+      await updateDoc(doc(db,"pontos",justPontoId),{
         justificativa:texto, justificativaDoc:docUrl,
         justificativaEnviada:true, justificativaEm:serverTimestamp()
       });
@@ -6921,20 +6472,23 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
     const colabSel = $("pontoFiltroColab");
     if(!obraSel || !colabSel) return;
 
-    // Todas as obras (incluindo inativas para consulta histórica)
     const obrasSnap = await getDocs(collection(db,"obras"));
+    const usersSnap = await getDocs(collection(db,"usuarios"));
+    const obraRestrita = currentRole !== "ADMIN" ? (currentProfile?.obra_id || "") : "";
+
     obraSel.innerHTML = '<option value="">Todas as obras</option>';
     obrasSnap.forEach(d => {
+      if(obraRestrita && d.id !== obraRestrita) return;
       const nome = d.data().nome + (d.data().ativa===false ? " (inativa)" : "");
       obraSel.innerHTML += `<option value="${d.id}">${nome}</option>`;
     });
+    if(obraRestrita) obraSel.value = obraRestrita;
 
-    // TODOS os colaboradores — incluindo inativos para consulta histórica
-    const usersSnap = await getDocs(collection(db,"usuarios"));
     colabSel.innerHTML = '<option value="">Selecione colaborador</option>';
     const ativos=[], inativos=[];
     usersSnap.forEach(d => {
       if(d.data().role === "ADMIN") return;
+      if(obraRestrita && d.data().obra_id !== obraRestrita) return;
       const nome = d.data().nome || d.data().email;
       const opt  = `<option value="${d.id}">${nome}${d.data().ativo===false?" (inativo)":""}</option>`;
       if(d.data().ativo===false) inativos.push(opt);
@@ -6943,7 +6497,6 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
     if(ativos.length)   colabSel.innerHTML += `<optgroup label="── Ativos">${ativos.join("")}</optgroup>`;
     if(inativos.length) colabSel.innerHTML += `<optgroup label="── Inativos (histórico)">${inativos.join("")}</optgroup>`;
 
-    // Mês atual
     const hoje = new Date();
     $("pontoFiltroMes").value = `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,"0")}`;
   }
@@ -7055,9 +6608,9 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
         ? `<button onclick="App.verFotosPonto('${p.fotoEntrada||""}','${p.fotoAlmoco||""}','${p.fotoRetorno||""}','${p.fotoSaida||""}')" style="background:none;border:none;cursor:pointer;font-size:14px;padding:4px" title="Ver fotos do dia">📷</button>`
         : "";
 
-      const acoes = currentRole==="ADMIN"
+      const acoes = (currentRole==="ADMIN" || canAcessarCartaoPonto(currentProfile))
         ? `${fotoBtn}<button onclick="App.abrirCorrecao('${dataStr}')" style="background:none;border:none;cursor:pointer;font-size:14px;padding:4px" title="Corrigir ponto">✏️</button>`
-        : "—";
+        : (fotoBtn || "—");
 
       const entradaStyle = isAtrasoEntrada(p?.anomalias) ? "color:#dc2626;font-weight:700" : "";
       rows += `<tr style="${bgRow}">
@@ -9973,9 +9526,8 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
   // MÓDULO VISITANTE — somente leitura
   // ══════════════════════════════════════════════════════════
   let _vObraId = "", _vCfg = null, _vProg = {}, _vCont = null;
-  let _vChartB = null, _vChartL = null, _vChartClima = null;
+  let _vChartB = null, _vChartL = null;
   let _vGaleriaRegistros = [];
-  let _vClimaHist = [], _vClimaPrintUrl = "";
   const E_CORES_V = ["#3b82f6","#10b981","#f59e0b","#ef4444","#8b5cf6","#06b6d4","#84cc16","#f97316","#ec4899","#14b8a6","#6366f1","#d946ef","#0ea5e9","#22c55e","#eab308","#f43f5e"];
 
   function _vPctSvc(uid, sid) {
@@ -9999,7 +9551,6 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
 
   async function visitanteInicializar(obraId) {
 
-    _vPosicionarCardClima();
     $("vLoading").style.display="";
     $("vMain").style.display="none";
     if(!obraId){ $("vLoading").innerHTML=`<div style="font-size:2rem">⚠️</div><p style="color:rgba(255,255,255,.5);margin-top:8px">Nenhuma obra vinculada à sua conta.<br>Fale com o administrador.</p>`; return; }
@@ -10039,7 +9590,6 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
       _vRenderListaUnidades();
       _vRenderGrafico();
       await _vRenderHistorico();
-      await _vCarregarClima();
       await _vCarregarGaleria();
 
     } catch(e) {
@@ -10230,119 +9780,6 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
     }catch(e){}
   }
 
-  function _vPosicionarCardClima(){
-    const card = $("vCardClima");
-    const grid = $("vGrid3col");
-    if(!card || !grid || !grid.children?.length) return;
-    const leftCol = grid.children[0];
-    if(leftCol && card.parentElement !== leftCol) leftCol.appendChild(card);
-  }
-
-  function _vPerdaDia(row){
-    if(!row) return 0;
-    if(row.impactoPrazo === false) return 0;
-    if(row.houveProducao === "nao") return 1;
-    if(row.houveProducao === "parcial"){
-      const pct = Math.max(0, Math.min(100, Number(row.percentualProducaoDia)||0));
-      return (100 - pct) / 100;
-    }
-    return 0;
-  }
-
-  async function _vCarregarClima(){
-    try{
-      _vPosicionarCardClima();
-      const snap = await getDocs(query(collection(db,"obras",_vObraId,"evolHistorico"), orderBy("data","asc"), limit(120)));
-      const rows = [];
-      snap.forEach(d=> rows.push(d.data()||{}));
-      _vRenderClimaPainel(rows);
-    }catch(e){ console.error(e); }
-  }
-
-  function _vRenderClimaPainel(rows){
-    _vClimaHist = Array.isArray(rows) ? rows : [];
-    const diarios = _vClimaHist.filter(r => r && (r.diarioClimaPreenchido || r.printMonitorUrl || r.houveProducao || r.clima || r.motivoParalisacao || r.observacao)).sort((a,b)=> String(a.data||"").localeCompare(String(b.data||"")));
-    const prod = diarios.filter(r=>r.houveProducao === "sim").length;
-    const parcial = diarios.filter(r=>r.houveProducao === "parcial").length;
-    const clima = diarios.filter(r=>r.houveProducao === "nao" && r.causaDia === "clima").length;
-    const perdidos = diarios.reduce((acc,row)=> acc + _vPerdaDia(row), 0);
-
-    if($("vClimaKpiProd")) $("vClimaKpiProd").textContent = prod;
-    if($("vClimaKpiParcial")) $("vClimaKpiParcial").textContent = parcial;
-    if($("vClimaKpiClima")) $("vClimaKpiClima").textContent = clima;
-    if($("vClimaKpiPerdidos")) $("vClimaKpiPerdidos").textContent = perdidos.toFixed(1).replace('.',',');
-
-    const latest = diarios.length ? diarios[diarios.length-1] : null;
-    if(latest){
-      if($("vClimaResumoBox")) $("vClimaResumoBox").style.display = "";
-      const base = latest.houveProducao === "nao" ? "Sem produção" : latest.houveProducao === "parcial" ? "Produção parcial" : "Produção normal";
-      const climaTxt = latest.clima ? ` · Clima: ${latest.clima}` : "";
-      const raioTxt = latest.houveRaio === "sim" ? ` · Raios${latest.distanciaRaioKm ? ` a ${String(latest.distanciaRaioKm).replace('.',',')} km` : ""}` : "";
-      if($("vClimaResumo")) $("vClimaResumo").textContent = `${latest.data || ''} · ${base}${climaTxt}${raioTxt}`;
-      if($("vClimaUltimoMeta")) $("vClimaUltimoMeta").textContent = `${latest.motivoParalisacao || latest.observacao || 'Sem observações adicionais.'}`;
-      if($("vClimaObsBox")) $("vClimaObsBox").style.display = latest.observacao ? "" : "none";
-      if($("vClimaObs")) $("vClimaObs").textContent = latest.observacao || "Sem observações registradas.";
-      if(latest.printMonitorUrl){
-        _vClimaPrintUrl = latest.printMonitorUrl;
-        if($("vClimaThumb")) $("vClimaThumb").src = latest.printMonitorUrl;
-        if($("vClimaThumbWrap")) $("vClimaThumbWrap").style.display = "";
-        if($("vClimaThumbEmpty")) $("vClimaThumbEmpty").style.display = "none";
-        if($("vClimaThumbInfo")) $("vClimaThumbInfo").textContent = `Registro de ${latest.data || ''} · Fonte: ${latest.fonteClima || 'WeatherBug'}${latest.preenchidoPorNome ? ` · por ${latest.preenchidoPorNome}` : ''}`;
-        _bindAmpElement($("vClimaThumbTrigger") || $("vClimaThumbWrap"), ()=>vVerClimaAmp());
-        _bindAmpElement($("vClimaThumb"), ()=>vVerClimaAmp());
-      } else {
-        _vClimaPrintUrl = "";
-        if($("vClimaThumbWrap")) $("vClimaThumbWrap").style.display = "none";
-        if($("vClimaThumbEmpty")) $("vClimaThumbEmpty").style.display = "";
-      }
-    } else {
-      _vClimaPrintUrl = "";
-      if($("vClimaResumoBox")) $("vClimaResumoBox").style.display = "none";
-      if($("vClimaObsBox")) $("vClimaObsBox").style.display = "none";
-      if($("vClimaThumbWrap")) $("vClimaThumbWrap").style.display = "none";
-      if($("vClimaThumbEmpty")) $("vClimaThumbEmpty").style.display = "";
-    }
-
-    const canvas = $("vChartClima");
-    if(!canvas) return;
-    if(_vChartClima) { try{ _vChartClima.destroy(); }catch(_){} _vChartClima = null; }
-    if(diarios.length < 1){
-      canvas.style.display = "none";
-      if($("vClimaGrafEmpty")) $("vClimaGrafEmpty").style.display = "";
-      return;
-    }
-    canvas.style.display = "";
-    if($("vClimaGrafEmpty")) $("vClimaGrafEmpty").style.display = "none";
-    const ult = diarios.slice(-10);
-    const labels = ult.map(r=>{ try{return new Date(`${r.data}T12:00:00`).toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"});}catch(_){ return r.data||""; }});
-    const values = ult.map(r=> r.houveProducao === "nao" ? 0 : r.houveProducao === "parcial" ? Math.max(0, Math.min(100, Number(r.percentualProducaoDia)||50)) : 100);
-    const colors = ult.map(r=> r.houveProducao === "nao" ? "rgba(248,113,113,.85)" : r.houveProducao === "parcial" ? "rgba(245,166,35,.85)" : "rgba(16,185,129,.85)");
-    Chart.defaults.color = "rgba(255,255,255,0.5)";
-    Chart.defaults.borderColor = "rgba(255,255,255,0.07)";
-    _vChartClima = new Chart(canvas,{
-      type:"bar",
-      data:{ labels, datasets:[{ label:"Produção do dia (%)", data:values, backgroundColor:colors, borderRadius:6, borderWidth:0 }]},
-      options:{
-        responsive:true, maintainAspectRatio:false,
-        scales:{
-          y:{ min:0, max:100, ticks:{ callback:v=>v+"%", font:{size:9}, color:"rgba(255,255,255,.5)" }, grid:{ color:"rgba(255,255,255,.06)" } },
-          x:{ ticks:{ font:{size:9}, color:"rgba(255,255,255,.5)" }, grid:{ display:false } }
-        },
-        plugins:{ legend:{display:false}, tooltip:{ callbacks:{ afterLabel:(ctx)=>{ const r=ult[ctx.dataIndex]; const extra=[]; if(r.clima) extra.push(`Clima: ${r.clima}`); if(r.observacao) extra.push(r.observacao); return extra; } } } }
-      }
-    });
-    Chart.defaults.color = "#666";
-    Chart.defaults.borderColor = "rgba(0,0,0,0.1)";
-  }
-
-  function vVerClimaAmp(){
-    const url = _vClimaPrintUrl || $("vClimaThumb")?.src || "";
-    if(!url){ toast("Nenhum print disponível."); return; }
-    const latest = (_vClimaHist||[]).filter(r => r && (r.diarioClimaPreenchido || r.printMonitorUrl || r.houveProducao || r.clima || r.motivoParalisacao || r.observacao)).sort((a,b)=> String(a.data||"").localeCompare(String(b.data||""))).slice(-1)[0] || null;
-    const dt = latest?.data ? new Date(latest.data+"T12:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"}) : "";
-    _abrirFotoClimaAmpliada(url, `<strong>Monitoramento do clima</strong>${dt ? ` · ${dt}` : ""}${latest?.clima ? ` · ${latest.clima}` : ""}${latest?.houveRaio === "sim" ? ` · Raios${latest?.distanciaRaioKm ? ` a ${String(latest.distanciaRaioKm).replace('.',',')} km` : ""}` : ""}`);
-  }
-
   async function _vCarregarGaleria() {
     try {
       const snap = await getDocs(query(
@@ -10395,7 +9832,7 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
 
     grid.style.gridTemplateColumns = "repeat(2,1fr)";
     // Verificar se usuário pode editar (ADM ou responsável pela evolução)
-    const podeEditar = currentRole==="ADMIN" || currentProfile?.evolResponsavel===true;
+    const podeEditar = currentRole==="ADMIN" || canEvoluirObra(currentProfile);
 
     grid.innerHTML = regsLimitadas.map(r=>{
       const dtFmt = new Date((r.data||"")+"T12:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"});
@@ -10417,9 +9854,9 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
         </div>` : "";
       return `
       <div style="border-radius:10px;overflow:hidden;background:rgba(255,255,255,.06);border:1.5px solid ${tipo==="depois"?"rgba(16,185,129,.3)":"rgba(245,166,35,.3)"}">
-        <div class="vFotoAmpTrigger" data-reg-id="${r.id}" style="position:relative;cursor:zoom-in">
-          <img src="${r.fotoUrl}" style="width:100%;height:120px;object-fit:cover;display:block;pointer-events:none" loading="lazy" alt="">
-          <span style="position:absolute;top:5px;left:5px;background:${tipoCor};color:#fff;font-size:.6rem;font-weight:700;padding:2px 6px;border-radius:16px;pointer-events:none">${tipoLabel}</span>
+        <div style="position:relative;cursor:zoom-in" onclick="App.vVerFotoAmp('${r.fotoUrl}','${(r.unidNome||"").replace(/'/g,"&#39;")}','${(r.svcDesc||"").replace(/'/g,"&#39;")}','${r.data||""}','${delta.toFixed(1)}','${tipo}')">
+          <img src="${r.fotoUrl}" style="width:100%;height:120px;object-fit:cover;display:block" loading="lazy" alt="">
+          <span style="position:absolute;top:5px;left:5px;background:${tipoCor};color:#fff;font-size:.6rem;font-weight:700;padding:2px 6px;border-radius:16px">${tipoLabel}</span>
         </div>
         <div style="padding:6px 8px">
           <div style="font-size:.7rem;font-weight:600;color:rgba(255,255,255,.85);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${unid?.nome||r.unidNome||"—"}</div>
@@ -10428,15 +9865,6 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
         ${btnEditar}
       </div>`;
     }).join("");
-
-    const porId = new Map(regsLimitadas.map(r=>[r.id, r]));
-    grid.querySelectorAll(".vFotoAmpTrigger").forEach(el=>{
-      const reg = porId.get(el.getAttribute("data-reg-id"));
-      if(!reg) return;
-      const delta = (Number(reg.pctDepois)||0) - (Number(reg.pctAntes)||0);
-      const tipo = reg.tipoFoto || "antes";
-      _bindAmpElement(el, ()=> vVerFotoAmp(reg.fotoUrl, reg.unidNome || "", reg.svcDesc || "", reg.data || "", delta.toFixed(1), tipo));
-    });
 
     // Adicionar listeners após render (evita problema de onclick em módulo ES)
     if(podeEditar) {
@@ -10451,12 +9879,13 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
   }
 
   function vVerFotoAmp(url, unid, svc, data, delta, tipo) {
+    $("vFotoAmpImg").src = url;
     const dtFmt = data ? new Date(data+"T12:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"}) : "";
     const tipoLabel = tipo==="depois"
       ? `<span style="background:#10b981;color:#fff;padding:1px 8px;border-radius:12px;font-size:.75rem">✅ Depois</span>`
       : `<span style="background:#f5a623;color:#fff;padding:1px 8px;border-radius:12px;font-size:.75rem">📸 Antes</span>`;
-    const info = `${tipoLabel} <strong>${unid||"Registro fotográfico"}</strong>${svc ? ` · ${svc}` : ""}${dtFmt ? ` · ${dtFmt}` : ""}${delta!==undefined && delta!==null && delta!=="" ? ` · <span style="color:#86efac">+${delta}%</span>` : ""}`;
-    _abrirImagemAmp(url, info, "Nenhuma foto disponível.");
+    $("vFotoAmpInfo").innerHTML = `${tipoLabel} <strong>${unid}</strong> · ${svc} · ${dtFmt} · <span style="color:#86efac">+${delta}%</span>`;
+    $("vModalFotoAmp").classList.remove("hidden");
   }
 
 
@@ -10496,9 +9925,7 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
 
   // ── fim módulo visitante ──
 
-    _initAmpDelegation();
-
-  window.App = {
+    window.App = {
     // Auth
     login, logout, togglePass, changePassword,
     // Navegação
@@ -10511,6 +9938,7 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
     onUserFotoSelect,
     abrirModalFoto, onFotoColabSelect, salvarFotoColab,
     abrirEditColab, salvarEdicaoColab,
+    onUserRoleChange, onEditPerfilChange,
     // Alocação
     openAlocModal, saveAlocacao, closeAlocModal,
     // Lançamentos
@@ -10572,8 +10000,7 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
     evolAbrirModalContrato, evolSalvarContrato, evolAddMarco, evolAnexarArquivo, evolTrocarArquivo, evolDeletarArquivo,
     evolAbrirParaColab,
     evolAbrirGaleria, evolFiltrarGaleria, evolVerFotoAmp, evolGerarRelatorio,
-    evolAbrirDiario, evolSalvarDiario, evolClimaFotoSel, evolRemoverClimaFoto, evolCarregarDiarioData, evolAtualizarCamposDiario, evolVerClimaFoto, evolConsultarDiarioData,
-    visitanteInicializar, vFiltrarGaleria, vVerFotoAmp, vVerClimaAmp, vFiltrarGrupo,
+    visitanteInicializar, vFiltrarGaleria, vVerFotoAmp, vFiltrarGrupo,
     vApagarFoto, vTrocarFoto,
 
     // Cadastro de EPIs
@@ -10669,57 +10096,6 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
                 <div id="vBarFill" style="height:100%;border-radius:999px;width:0%;transition:width 1s cubic-bezier(.4,0,.2,1);background:linear-gradient(90deg,#e94560,#f5a623)"></div>
               </div>
               <div style="font-size:.62rem;color:rgba(255,255,255,.3);margin-top:4px;text-align:right" id="vDataAtualizacao"></div>
-            </div>
-
-            <!-- Clima e impacto no prazo -->
-            <div style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:16px" id="vCardClima">
-              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-                <div>
-                  <div style="font-weight:600;color:rgba(255,255,255,.86);font-size:.86rem">⛅ Clima e Impacto no Prazo</div>
-                  <div style="font-size:.68rem;color:rgba(255,255,255,.45);margin-top:2px">Leitura do clima, paralisações e monitoramento do dia.</div>
-                </div>
-              </div>
-              <div id="vClimaResumoBox" style="display:none;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:10px 12px;margin-bottom:10px">
-                <div style="font-weight:700;color:#fff;font-size:.8rem" id="vClimaResumo">Nenhum diário preenchido.</div>
-                <div style="font-size:.68rem;color:rgba(255,255,255,.5);margin-top:4px" id="vClimaUltimoMeta"></div>
-              </div>
-              <div id="vClimaObsBox" style="display:none;background:rgba(251,146,60,.08);border:1px solid rgba(251,146,60,.28);border-radius:12px;padding:10px 12px;margin-bottom:10px">
-                <div style="font-size:.64rem;color:rgba(255,255,255,.55);text-transform:uppercase;font-weight:800;letter-spacing:.4px;margin-bottom:6px">Observações</div>
-                <div id="vClimaObs" style="font-size:.78rem;color:rgba(255,255,255,.82);white-space:pre-wrap">Sem observações registradas.</div>
-              </div>
-              <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:10px">
-                <div style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.22);border-radius:12px;padding:10px;text-align:center">
-                  <div style="font-size:.62rem;color:rgba(255,255,255,.45);text-transform:uppercase;font-weight:700">Produtivos</div>
-                  <div style="font-family:'Syne',sans-serif;font-size:1.15rem;font-weight:800;color:#10b981" id="vClimaKpiProd">0</div>
-                </div>
-                <div style="background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.22);border-radius:12px;padding:10px;text-align:center">
-                  <div style="font-size:.62rem;color:rgba(255,255,255,.45);text-transform:uppercase;font-weight:700">Parciais</div>
-                  <div style="font-family:'Syne',sans-serif;font-size:1.15rem;font-weight:800;color:#f5a623" id="vClimaKpiParcial">0</div>
-                </div>
-                <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.22);border-radius:12px;padding:10px;text-align:center">
-                  <div style="font-size:.62rem;color:rgba(255,255,255,.45);text-transform:uppercase;font-weight:700">Paradas clima</div>
-                  <div style="font-family:'Syne',sans-serif;font-size:1.15rem;font-weight:800;color:#f87171" id="vClimaKpiClima">0</div>
-                </div>
-                <div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.22);border-radius:12px;padding:10px;text-align:center">
-                  <div style="font-size:.62rem;color:rgba(255,255,255,.45);text-transform:uppercase;font-weight:700">Dias perdidos</div>
-                  <div style="font-family:'Syne',sans-serif;font-size:1.15rem;font-weight:800;color:#93c5fd" id="vClimaKpiPerdidos">0,0</div>
-                </div>
-              </div>
-              <div style="position:relative;width:100%;height:170px;margin-bottom:10px">
-                <canvas id="vChartClima" style="position:absolute;inset:0"></canvas>
-                <div id="vClimaGrafEmpty" style="display:none;text-align:center;color:rgba(255,255,255,.4);font-size:.76rem;padding-top:68px">Diários do clima aparecerão aqui.</div>
-              </div>
-              <div>
-                <div style="font-size:.68rem;color:rgba(255,255,255,.45);text-transform:uppercase;font-weight:700;margin-bottom:8px">Último monitoramento</div>
-                <div id="vClimaThumbWrap" style="display:none">
-                  <div id="vClimaThumbTrigger" style="position:relative;cursor:zoom-in" role="button" tabindex="0" aria-label="Ampliar print do monitoramento">
-                    <img id="vClimaThumb" src="" alt="Print do monitoramento" style="width:100%;max-height:180px;object-fit:cover;border-radius:10px;border:1px solid rgba(255,255,255,.12);pointer-events:none">
-                    <span style="position:absolute;top:8px;right:8px;background:rgba(15,52,96,.88);color:#fff;font-size:.68rem;font-weight:700;padding:4px 8px;border-radius:999px;pointer-events:none">🔍 Ampliar</span>
-                  </div>
-                  <div id="vClimaThumbInfo" style="font-size:.7rem;color:rgba(255,255,255,.45);margin-top:8px"></div>
-                </div>
-                <div id="vClimaThumbEmpty" style="font-size:.76rem;color:rgba(255,255,255,.35);padding:8px 0 4px">Nenhum print anexado até o momento.</div>
-              </div>
             </div>
 
           </div><!-- /col esquerda -->
