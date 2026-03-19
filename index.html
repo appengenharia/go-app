@@ -10068,8 +10068,19 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
 
 <script>
   if('serviceWorker' in navigator){
-    window.addEventListener('load',function(){
-      navigator.serviceWorker.register('sw.js').catch(function(){});
+    window.addEventListener('load', async function(){
+      try {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        for (const reg of regs) {
+          try { await reg.unregister(); } catch(_) {}
+        }
+        if (window.caches && caches.keys) {
+          const keys = await caches.keys();
+          for (const k of keys) {
+            try { await caches.delete(k); } catch(_) {}
+          }
+        }
+      } catch(_) {}
     });
   }
 </script>
