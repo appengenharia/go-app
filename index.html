@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════════════╗
@@ -1578,6 +1577,34 @@
             </div>
           </div><!-- /col direita -->
 
+
+        <!-- ── Card configuração de e-mail DDS ── -->
+        <div class="card" style="margin-top:16px;padding:18px 20px" id="ddsEmailCard" style="display:none">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
+            <div>
+              <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:.95rem">📧 Envio do DDS por E-mail</div>
+              <div style="font-size:.78rem;color:var(--muted);margin-top:2px">PDF enviado toda sexta-feira automaticamente ou manualmente. Máx. 5 destinatários.</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <div style="display:flex;border:1.5px solid var(--border);border-radius:10px;overflow:hidden">
+                <div id="ddsEnvAutoSim" class="reemb-opt active-opt" onclick="App.ddsSetEnvioAuto(true)" style="font-size:.82rem;padding:8px 14px;cursor:pointer">🤖 Auto sexta</div>
+                <div id="ddsEnvAutoNao" class="reemb-opt"             onclick="App.ddsSetEnvioAuto(false)" style="font-size:.82rem;padding:8px 14px;cursor:pointer">✋ Manual</div>
+              </div>
+              <button class="btn btn-outline sm" onclick="App.ddsEnviarEmailAgora()" id="btnDdsEnviarEmail">📨 Enviar agora</button>
+            </div>
+          </div>
+
+          <label style="margin-top:0">Destinatários (e-mails do departamento de segurança da contratante)</label>
+          <div id="ddsEmailList" style="display:flex;flex-direction:column;gap:7px;margin-bottom:8px"></div>
+          <button class="btn btn-outline sm" onclick="App.ddsAddEmail()" style="margin-bottom:4px">+ Adicionar e-mail</button>
+          <p style="font-size:.74rem;color:var(--muted);margin-top:4px">⚠️ Clique em <strong>Salvar configuração</strong> após adicionar ou remover e-mails.</p>
+
+          <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;align-items:center">
+            <button class="btn btn-primary sm" onclick="App.ddsSalvarEmailConfig()">💾 Salvar configuração</button>
+          </div>
+          <div class="msg" id="ddsEmailMsg" style="margin-top:8px"></div>
+        </div>
+
         </div><!-- /grid -->
       </div><!-- /ddsPainel -->
     </div>
@@ -2501,6 +2528,7 @@
     setTimeout(syncPendingLancs, 2000);
     setTimeout(verificarFechamentoMensal, 3000);
     setTimeout(verificarFechamentoPonto, 5000);  // Fechamento mensal de ponto
+    setTimeout(_ddsVerificarEnvioSexta, 7000);    // DDS automático sexta-feira
     setTimeout(_rhIniciarMonitoramentoExames, 4000); // Monitoramento de exames (ciclo 2h)
     loadPontoEmailConfig();
   }
@@ -10667,6 +10695,7 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
     $("ddsPainel").style.display  = obraId ? ""     : "none";
     $("btnDdsSalvar").style.display    = obraId ? "" : "none";
     $("btnDdsSincronizar").style.display = obraId ? "" : "none";
+    if($("ddsEmailCard")) $("ddsEmailCard").style.display = obraId ? "" : "none";
     if(!obraId){ _ddsObraId=""; return; }
 
     try{
@@ -10682,6 +10711,7 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
     }
 
     await ddsCarregarSemana();
+    await ddsCarregarEmailConfig();
   }
 
   // ── Carregar DDS da semana selecionada ───────────────────
@@ -10997,6 +11027,364 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
     }
   }
 
+
+  // ── Configuração de e-mail DDS ────────────────────────────
+  let _ddsEnvioAuto = true;
+
+  async function ddsCarregarEmailConfig(){
+    try{
+      if(!_ddsObraId) return;
+      const snap = await getDoc(doc(db,"obras",_ddsObraId,"dds","_emailConfig"));
+      const lista = $("ddsEmailList"); if(!lista) return;
+      lista.innerHTML = "";
+      if(snap.exists()){
+        const cfg = snap.data();
+        _ddsEnvioAuto = cfg.envioAutomatico !== false;
+        (cfg.destinatarios||[]).forEach(em => _ddsAddEmailRow(em));
+      } else {
+        _ddsAddEmailRow(""); // linha vazia inicial
+      }
+      $("ddsEnvAutoSim")?.classList.toggle("active-opt",  _ddsEnvioAuto);
+      $("ddsEnvAutoNao")?.classList.toggle("active-opt", !_ddsEnvioAuto);
+    }catch(e){ console.error(e); }
+  }
+
+  function _ddsAddEmailRow(val=""){
+    const lista = $("ddsEmailList"); if(!lista) return;
+    if(lista.children.length >= 5){ toast("Máximo 5 e-mails.", false); return; }
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;gap:8px;align-items:center;background:#f8f9fc;border:1.5px solid var(--border);border-radius:10px;padding:8px 12px";
+    row.innerHTML = `
+      <span style="font-size:.82rem;color:var(--muted);min-width:16px;font-weight:600">${lista.children.length+1}.</span>
+      <input type="email" placeholder="email@empresa.com" value="${val}"
+        style="flex:1;border:none;background:transparent;padding:0;font-size:.9rem"
+        onfocus="this.parentElement.style.borderColor='var(--brand)'"
+        onblur="this.parentElement.style.borderColor='var(--border)'">
+      <button onclick="this.parentElement.remove()" style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:1.1rem;padding:2px 6px;border-radius:6px">🗑️</button>`;
+    lista.appendChild(row);
+  }
+
+  function ddsAddEmail(){ _ddsAddEmailRow(); }
+
+  function ddsSetEnvioAuto(val){
+    _ddsEnvioAuto = val;
+    $("ddsEnvAutoSim")?.classList.toggle("active-opt",  val);
+    $("ddsEnvAutoNao")?.classList.toggle("active-opt", !val);
+  }
+
+  async function ddsSalvarEmailConfig(){
+    if(!_ddsObraId){ setMsg("ddsEmailMsg","⚠️ Selecione uma obra."); return; }
+    const inputs = $("ddsEmailList")?.querySelectorAll("input[type=email]") || [];
+    const emails = [...inputs].map(i=>i.value.trim()).filter(e=>e && e.includes("@"));
+    if(!emails.length){ setMsg("ddsEmailMsg","⚠️ Informe pelo menos um e-mail válido."); return; }
+    try{
+      await setDoc(doc(db,"obras",_ddsObraId,"dds","_emailConfig"),{
+        destinatarios:   emails,
+        envioAutomatico: _ddsEnvioAuto,
+        atualizadoEm:    serverTimestamp(),
+        atualizadoPor:   currentUser?.uid || null,
+      });
+      setMsg("ddsEmailMsg","✅ Configuração salva!", true);
+      toast("📧 E-mails do DDS salvos!");
+      setTimeout(()=>setMsg("ddsEmailMsg",""), 3000);
+    }catch(e){ setMsg("ddsEmailMsg","❌ Erro: "+e.message); }
+  }
+
+  // ── Gerar PDF do DDS ──────────────────────────────────────
+  async function _ddsGerarPDF(semana, obraId){
+    // Carregar dados salvos
+    const snap = await getDoc(doc(db,"obras",obraId,"dds",semana));
+    if(!snap.exists()) throw new Error("DDS não encontrado para a semana "+semana);
+    const d = snap.data();
+
+    // Dados da empresa contratada
+    let empNome = ""; let empCnpj = "";
+    try{
+      const empSnap = await getDoc(doc(db,"configuracoes","empresa"));
+      if(empSnap.exists()){ empNome = empSnap.data().nome||""; empCnpj = empSnap.data().cnpj||""; }
+    }catch(_){}
+
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({orientation:"portrait", unit:"mm", format:"a4"});
+    const W=210, mg=14, mr=196;
+
+    // Formatar semana legível
+    const [ano, semN] = semana.split("-W").map(Number);
+    const jan4   = new Date(ano, 0, 4);
+    const inicio = new Date(jan4);
+    inicio.setDate(jan4.getDate() - (jan4.getDay()||7) + 1 + (semN-1)*7);
+    const fim    = new Date(inicio); fim.setDate(inicio.getDate()+4);
+    const fmtD   = dt => dt.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"});
+    const semLabel = `${fmtD(inicio)} a ${fmtD(fim)}`;
+
+    const azul   = [15,52,96];
+    const branco = [255,255,255];
+    const cinza  = [107,114,128];
+    const lv     = [240,242,247];
+
+    // ── CABEÇALHO ──────────────────────────────────────────
+    pdf.setFillColor(...azul); pdf.rect(0,0,W,32,"F");
+    pdf.setTextColor(...branco);
+    pdf.setFontSize(16); pdf.setFont("helvetica","bold");
+    pdf.text("DDS — DIÁLOGO DIÁRIO DE SEGURANÇA", W/2, 12, {align:"center"});
+    pdf.setFontSize(9);  pdf.setFont("helvetica","normal");
+    pdf.text(`Obra: ${d.obraNome||"—"}  ·  Semana: ${semLabel}`, W/2, 19, {align:"center"});
+    pdf.setFontSize(8);
+    pdf.text(`Condutor: ${d.condutor?.nome||"—"}  ·  ${d.condutor?.cargo||""}`, W/2, 25, {align:"center"});
+    pdf.setTextColor(0,0,0);
+
+    let y = 37;
+
+    // ── ATIVIDADE / LOCAL ──
+    pdf.setFillColor(...lv); pdf.roundedRect(mg, y, W-mg*2, 14, 2, 2, "F");
+    pdf.setFontSize(8); pdf.setFont("helvetica","bold"); pdf.setTextColor(...cinza);
+    pdf.text("ATIVIDADE PRINCIPAL", mg+3, y+5);
+    pdf.text("ÁREA / LOCAL", mg+100, y+5);
+    pdf.setFont("helvetica","normal"); pdf.setTextColor(0,0,0); pdf.setFontSize(9);
+    pdf.text((d.atividade||"—").slice(0,50), mg+3, y+11);
+    pdf.text((d.local||"—").slice(0,30), mg+100, y+11);
+    y += 18;
+
+    // ── 5 TEMAS ──
+    pdf.setFontSize(10); pdf.setFont("helvetica","bold"); pdf.setTextColor(...azul);
+    pdf.text("TEMAS DA SEMANA", mg, y); y+=5;
+    pdf.setDrawColor(200,200,200); pdf.setLineWidth(0.3); pdf.line(mg, y, mr, y); y+=3;
+
+    const temas = d.temas || [];
+    const EMOJIS_DIA = ["Seg","Ter","Qua","Qui","Sex"];
+    temas.forEach((t, i)=>{
+      if(y > 240){ pdf.addPage(); y = mg; }
+      pdf.setFillColor(i%2===0?248:255, i%2===0?249:255, i%2===0?252:255);
+      const conteudoLines = pdf.splitTextToSize(t.conteudo||"", W-mg*2-22);
+      const hBox = 8 + conteudoLines.length * 4.5;
+      pdf.roundedRect(mg, y, W-mg*2, hBox, 2, 2, "F");
+      // Marcador do dia
+      pdf.setFillColor(...azul);
+      pdf.roundedRect(mg+2, y+3, 18, 6, 1, 1, "F");
+      pdf.setTextColor(...branco); pdf.setFontSize(7); pdf.setFont("helvetica","bold");
+      pdf.text(EMOJIS_DIA[i]||"", mg+11, y+7.2, {align:"center"});
+      pdf.setTextColor(0,0,0);
+      // Título
+      pdf.setFontSize(8.5); pdf.setFont("helvetica","bold");
+      pdf.text((t.titulo||"").slice(0,70), mg+23, y+6);
+      // Conteúdo
+      pdf.setFontSize(7.8); pdf.setFont("helvetica","normal"); pdf.setTextColor(...cinza);
+      pdf.text(conteudoLines, mg+23, y+11);
+      pdf.setTextColor(0,0,0);
+      y += hBox + 3;
+    });
+    y += 3;
+
+    // ── PARTICIPANTES E ASSINATURAS ──
+    if(y > 220){ pdf.addPage(); y = mg; }
+    pdf.setFontSize(10); pdf.setFont("helvetica","bold"); pdf.setTextColor(...azul);
+    pdf.text("PARTICIPANTES E ASSINATURAS", mg, y); y+=5;
+    pdf.setDrawColor(200,200,200); pdf.line(mg, y, mr, y); y+=4;
+
+    // Cabeçalho tabela
+    const dias = ["Segunda","Terça","Quarta","Quinta","Sexta"];
+    pdf.setFontSize(7.5); pdf.setFont("helvetica","bold"); pdf.setTextColor(...cinza);
+    pdf.text("Nome / Função", mg, y);
+    dias.forEach((dia, i)=> pdf.text(dia, mg+80+i*22, y, {align:"center"}));
+    y+=3; pdf.setDrawColor(200,200,200); pdf.line(mg, y, mr, y); y+=3;
+
+    const parts = d.participantes || [];
+    parts.forEach((p, pi)=>{
+      if(y > 270){ pdf.addPage(); y = mg; }
+      pdf.setFontSize(7); pdf.setFont("helvetica","normal"); pdf.setTextColor(0,0,0);
+      if(pi%2===0){ pdf.setFillColor(248,249,252); pdf.rect(mg, y-2, W-mg*2, 7, "F"); }
+      pdf.text((p.nome||"—").slice(0,25), mg, y+3);
+      pdf.setFontSize(6); pdf.setTextColor(...cinza);
+      pdf.text(p.funcao||"", mg, y+6.5);
+      pdf.setTextColor(0,0,0);
+      // Marcações de presença por dia
+      dias.forEach((dia, i)=>{
+        const cx = mg+80+i*22;
+        const presente = (p.diasPresente||[]).some(dt=>{
+          try{ return new Date(dt+"T12:00:00").getDay()===i+1; }catch(_){return false;}
+        });
+        if(presente){
+          pdf.setFillColor(16,185,129); pdf.circle(cx, y+3, 2.5, "F");
+          pdf.setTextColor(...branco); pdf.setFontSize(6); pdf.setFont("helvetica","bold");
+          pdf.text("✓", cx, y+4.5, {align:"center"});
+        } else {
+          pdf.setDrawColor(200,200,200); pdf.circle(cx, y+3, 2.5, "D");
+        }
+        pdf.setTextColor(0,0,0); pdf.setFont("helvetica","normal");
+      });
+      y += 9;
+    });
+    y += 5;
+
+    // ── OBSERVAÇÕES ──
+    if(d.obs){
+      if(y > 255){ pdf.addPage(); y = mg; }
+      pdf.setFontSize(8); pdf.setFont("helvetica","bold"); pdf.setTextColor(...azul);
+      pdf.text("OBSERVAÇÕES", mg, y); y+=4;
+      pdf.setFont("helvetica","normal"); pdf.setTextColor(...cinza); pdf.setFontSize(7.5);
+      const obsLines = pdf.splitTextToSize(d.obs, W-mg*2);
+      pdf.text(obsLines, mg, y); y += obsLines.length*4.5+4;
+    }
+
+    // ── RODAPÉ ──
+    const totalPags = pdf.internal.getNumberOfPages();
+    for(let i=1;i<=totalPags;i++){
+      pdf.setPage(i);
+      pdf.setFillColor(...azul); pdf.rect(0,285,W,12,"F");
+      pdf.setTextColor(...branco); pdf.setFontSize(7);
+      pdf.text(`GO — Gestão de Obras  ·  DDS — Diálogo Diário de Segurança  ·  ${semLabel}`, mg, 291);
+      pdf.text(`Pág. ${i}/${totalPags}`, mr, 291, {align:"right"});
+      if(empNome) pdf.text(empNome+(empCnpj?" · CNPJ: "+empCnpj:""), W/2, 295, {align:"center"});
+    }
+
+    return pdf;
+  }
+
+  // ── Enviar DDS por e-mail (manual) ───────────────────────
+  async function ddsEnviarEmailAgora(){
+    if(!_ddsObraId || !_ddsSemana){ toast("Selecione obra e semana.", false); return; }
+    const btn = $("btnDdsEnviarEmail");
+    if(btn){ btn.disabled=true; btn.textContent="⏳ Gerando PDF..."; }
+    setMsg("ddsEmailMsg","⏳ Gerando PDF e preparando envio...");
+    try{
+      // Buscar e-mails configurados
+      const cfgSnap = await getDoc(doc(db,"obras",_ddsObraId,"dds","_emailConfig"));
+      const emails  = cfgSnap.exists() ? (cfgSnap.data().destinatarios||[]) : [];
+      if(!emails.length){ setMsg("ddsEmailMsg","⚠️ Nenhum e-mail configurado. Adicione os destinatários acima."); return; }
+
+      const pdf = await _ddsGerarPDF(_ddsSemana, _ddsObraId);
+      await _ddsEnviarComPDF(pdf, emails, _ddsSemana, _ddsObraNome);
+      setMsg("ddsEmailMsg","✅ DDS enviado para "+emails.length+" destinatário(s)!", true);
+      toast("✅ DDS enviado com sucesso!");
+    }catch(e){
+      console.error(e);
+      setMsg("ddsEmailMsg","❌ Erro: "+e.message);
+    }finally{
+      if(btn){ btn.disabled=false; btn.textContent="📨 Enviar agora"; }
+    }
+  }
+
+  // ── Envio com PDF via Apps Script (igual ao padrão do sistema) ─
+  async function _ddsEnviarComPDF(pdf, emails, semana, obraNome){
+    const [ano, semN] = semana.split("-W").map(Number);
+    const jan4   = new Date(ano, 0, 4);
+    const inicio = new Date(jan4);
+    inicio.setDate(jan4.getDate() - (jan4.getDay()||7) + 1 + (semN-1)*7);
+    const fim    = new Date(inicio); fim.setDate(inicio.getDate()+4);
+    const fmtD   = dt => dt.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"});
+    const semLabel = `${fmtD(inicio)} a ${fmtD(fim)}`;
+    const dataEnvio = new Date().toLocaleDateString("pt-BR");
+    const nomeArq = `DDS_${obraNome.replace(/[^a-zA-Z0-9]/g,"_")}_${semana}.pdf`;
+    const pdfB64  = pdf.output("datauristring").split(",")[1];
+
+    const htmlBody = `
+<div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto">
+  <div style="background:#0f3460;color:white;padding:24px;border-radius:8px 8px 0 0">
+    <h2 style="margin:0;font-size:18px">🦺 Diálogo Diário de Segurança — DDS</h2>
+    <p style="margin:8px 0 0;opacity:.85;font-size:13px">Obra: <strong>${obraNome}</strong> · Semana: ${semLabel}</p>
+  </div>
+  <div style="padding:24px;border:1px solid #e0e0e0;border-top:none;background:#fff">
+    <p style="font-size:14px;color:#333;margin-bottom:16px">Prezado(a) responsável pela segurança do trabalho,</p>
+    <p style="font-size:13px;color:#555;line-height:1.7">
+      Encaminhamos em anexo o <strong>Diálogo Diário de Segurança (DDS)</strong> referente à semana de
+      <strong>${semLabel}</strong>, realizado na obra <strong>${obraNome}</strong>.
+    </p>
+    <p style="font-size:13px;color:#555;line-height:1.7;margin-top:12px">
+      O documento contém os temas abordados em cada dia da semana, a lista de participantes com registro
+      de presença e as observações gerais da equipe de campo. As assinaturas são confirmadas pelas
+      fotografias registradas no ponto eletrônico de cada colaborador.
+    </p>
+    <div style="background:#f0f4ff;border-left:4px solid #0f3460;border-radius:4px;padding:12px 16px;margin:16px 0;font-size:13px;color:#1e40af">
+      <strong>📋 Documento:</strong> ${nomeArq}<br>
+      <strong>📅 Data de emissão:</strong> ${dataEnvio}<br>
+      <strong>🏗️ Obra:</strong> ${obraNome}
+    </div>
+    <p style="font-size:13px;color:#555;line-height:1.7">
+      Este envio é realizado automaticamente pelo sistema <strong>GO — Gestão de Obras</strong>
+      como parte do programa de controle e registros de segurança do trabalho.
+      Em caso de dúvidas ou necessidade de informações adicionais, entre em contato com o
+      responsável técnico da obra.
+    </p>
+    <p style="font-size:12px;color:#888;margin-top:20px;border-top:1px solid #eee;padding-top:12px">
+      GO — Gestão de Obras &nbsp;·&nbsp; Sistema de gestão de obras e segurança do trabalho<br>
+      Este e-mail foi gerado automaticamente. Por favor, não responda diretamente.
+    </p>
+  </div>
+</div>`;
+
+    const payload = {
+      emails,
+      assunto: `DDS — ${obraNome} — Semana ${semLabel}`,
+      corpo:   htmlBody,
+      pdf:     pdfB64,
+      nomeArquivo: nomeArq,
+    };
+
+    const iframeName = "ddsFrame_"+Date.now();
+    const iframe = document.createElement("iframe");
+    iframe.name = iframeName; iframe.style.display = "none";
+    document.body.appendChild(iframe);
+    const form  = document.createElement("form");
+    form.method = "POST"; form.action = APPS_SCRIPT_URL;
+    form.target = iframeName; form.style.display = "none";
+    const input = document.createElement("input");
+    input.type = "hidden"; input.name = "payload";
+    input.value = JSON.stringify(payload);
+    form.appendChild(input); document.body.appendChild(form);
+    form.submit(); document.body.removeChild(form);
+    await new Promise(r=>setTimeout(r,4000));
+    document.body.removeChild(iframe);
+
+    // Registrar envio no Firestore
+    try{
+      await setDoc(doc(db,"obras",_ddsObraId,"dds","_ultimoEnvio"),{
+        semana, obraNome, enviadoEm:serverTimestamp(),
+        enviadoPor:currentUser?.uid||null, destinatarios:emails
+      },{merge:true});
+    }catch(_){}
+  }
+
+  // ── Verificação automática sexta-feira ───────────────────
+  async function _ddsVerificarEnvioSexta(){
+    if(currentRole !== "ADMIN") return;
+    try{
+      const hoje = new Date();
+      if(hoje.getDay() !== 5) return; // 5 = sexta-feira
+      const chaveLocal = "dds_sexta_"+hoje.toISOString().split("T")[0];
+      if(localStorage.getItem(chaveLocal)) return; // já enviou hoje
+
+      // Buscar todas as obras ativas
+      const obrasSnap = await getDocs(collection(db,"obras"));
+      for(const obraDoc of obrasSnap.docs){
+        if(obraDoc.data().ativa === false) continue;
+        const obraId   = obraDoc.id;
+        const obraNome = obraDoc.data().nome || obraId;
+
+        // Verificar se tem e-mails configurados e envio automático ativo
+        try{
+          const cfgSnap = await getDoc(doc(db,"obras",obraId,"dds","_emailConfig"));
+          if(!cfgSnap.exists()) continue;
+          const cfg = cfgSnap.data();
+          if(cfg.envioAutomatico === false) continue;
+          if(!(cfg.destinatarios||[]).length) continue;
+
+          // Calcular semana atual
+          const semAtual = _ddsSemanaAtual();
+
+          // Verificar se o DDS da semana existe e tem temas
+          const ddsSnap = await getDoc(doc(db,"obras",obraId,"dds",semAtual));
+          if(!ddsSnap.exists()) continue;
+          if(!(ddsSnap.data().temas||[]).length) continue;
+
+          const pdf = await _ddsGerarPDF(semAtual, obraId);
+          await _ddsEnviarComPDF(pdf, cfg.destinatarios, semAtual, obraNome);
+          toast(`📧 DDS enviado automaticamente — ${obraNome}`);
+        }catch(e){ console.warn(`DDS sexta ${obraId}:`, e); }
+      }
+      localStorage.setItem(chaveLocal, "1");
+    }catch(e){ console.error("_ddsVerificarEnvioSexta:", e); }
+  }
+
   // ── Render temas ─────────────────────────────────────────
   function _ddsRenderTemas(){
     const el = $("ddsTemasLista"); if(!el) return;
@@ -11172,6 +11560,7 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
     evolAbrirGaleria, evolFiltrarGaleria, evolVerFotoAmp, evolGerarRelatorio,
     ddsInicializar, ddsSalvarSemana, ddsCarregarSemana, ddsTrocarObra,
     ddsGerarTemas, ddsAtualizarCondutor, ddsSincronizarParticipantes,
+    ddsAddEmail, ddsSetEnvioAuto, ddsSalvarEmailConfig, ddsEnviarEmailAgora,
     visitanteInicializar, vFiltrarGaleria, vVerFotoAmp, vVerClimaAmp, vFiltrarGrupo,
     vApagarFoto, vTrocarFoto,
     evolAbrirDiario, evolSalvarDiario, evolCarregarDiarioData, evolAtualizarCamposDiario,
