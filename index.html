@@ -1304,7 +1304,7 @@
           <div style="background:var(--brand2);border-radius:12px;padding:14px 16px;border:1px solid rgba(255,255,255,.08)">
             <div style="font-size:.65rem;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px">Dias decorridos</div>
             <div style="font-family:'Syne',sans-serif;font-size:1.8rem;font-weight:800;color:#fff;line-height:1" id="evolKpiDias">—</div>
-            <div style="font-size:.7rem;color:rgba(255,255,255,.35);margin-top:3px">desde o início</div>
+            <div style="font-size:.7rem;color:rgba(255,255,255,.35);margin-top:3px" id="evolLblDias">desde o início</div>
           </div>
         </div>
 
@@ -2885,12 +2885,26 @@
       $("btnEvolGaleria").style.display="";
       $("btnEvolRelatorio").style.display="";
     }
-    const [cS,kS]=await Promise.all([
+    const [cS,kS,obraS]=await Promise.all([
       getDoc(doc(db,"obras",id,"evolConfig","main")).catch(()=>null),
-      getDoc(doc(db,"obras",id,"evolContrato","main")).catch(()=>null)
+      getDoc(doc(db,"obras",id,"evolContrato","main")).catch(()=>null),
+      getDoc(doc(db,"obras",id)).catch(()=>null)
     ]);
     _eCfg  = cS?.exists()  ? cS.data()  : null;
     _eCont = kS?.exists()  ? kS.data()  : null;
+    // Se não conseguiu ler o contrato (colaborador sem permissão), usar dados duplicados no doc da obra
+    if(!_eCont && obraS?.exists()) {
+      const obraData = obraS.data();
+      if(obraData.contratoInicio || obraData.contratoPrazo) {
+        _eCont = {
+          inicio:  obraData.contratoInicio  || null,
+          prazo:   obraData.contratoPrazo   || null,
+          cliente: obraData.contratoCliente || null,
+          valor:   obraData.contratoValor   || 0,
+          marcos:  []
+        };
+      }
+    }
     if(!_eCfg?.unidades?.length||!_eCfg?.servicos?.length){
       $("evolSemConfig").style.display=""; return;
     }
@@ -2971,9 +2985,21 @@
     // dias
     if(_eCont?.inicio){
       const dias=Math.floor((new Date()-new Date(_eCont.inicio+"T12:00:00"))/86400000);
-      const prazo=Number(_eCont.prazo)||50;
+      const prazo=Number(_eCont.prazo)||0;
       $("evolKpiDias").textContent=dias+"d";
-      $("evolKpiDias").style.color=dias>prazo*1.4?"var(--danger)":dias>prazo*1.1?"var(--accent2)":"var(--success)";
+      if(prazo>0){
+        const restante = prazo - dias;
+        $("evolKpiDias").style.color = dias>prazo*1.4?"var(--danger)":dias>prazo*1.1?"var(--accent2)":"var(--success)";
+        // Mostrar label dinâmico abaixo do KPI
+        const lblDias = $("evolLblDias");
+        if(lblDias){
+          if(restante>0) lblDias.textContent=restante+"d restantes";
+          else           lblDias.textContent=Math.abs(restante)+"d de atraso";
+          lblDias.style.color = restante>0?"rgba(255,255,255,.35)":"var(--danger)";
+        }
+      } else {
+        $("evolKpiDias").style.color="var(--success)";
+      }
     } else { $("evolKpiDias").textContent="—"; }
 
     // filtro grupos
@@ -3989,6 +4015,13 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
       const payload={cliente:$("evolContCliente").value.trim(),valor:parseFloat($("evolContValor").value)||0,inicio:$("evolContInicio").value,prazo:parseInt($("evolContPrazo").value)||50,marcos,arquivoUrl:url,arquivoNome:url?nome:"",atualizadoEm:serverTimestamp()};
       await setDoc(doc(db,"obras",_eObraId,"evolContrato","main"),payload,{merge:true});
       _eCont=payload;
+      // Duplicar inicio e prazo no doc principal (acessível a todos os usuários autenticados)
+      await updateDoc(doc(db,"obras",_eObraId),{
+        contratoInicio: payload.inicio || null,
+        contratoPrazo:  payload.prazo  || null,
+        contratoCliente: payload.cliente || null,
+        contratoValor:  payload.valor  || 0
+      }).catch(()=>{});
       closeModal("modalEvolContrato"); toast("✅ Contrato salvo!");
       _eRenderPainel();
     }catch(e){ setMsg("evolContMsg","❌ "+e.message,"err"); }
