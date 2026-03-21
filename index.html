@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <!--
   ╔══════════════════════════════════════════════════════════════════════╗
@@ -1492,7 +1491,7 @@
        TAB: DDS — DIÁLOGO DIÁRIO DE SEGURANÇA
        ══════════════════════════════════════════════════════════ -->
   <div class="tab-panel" id="tab-dds">
-    <div style="max-width:720px;margin:0 auto">
+    <div style="max-width:980px;margin:0 auto">
 
       <!-- ── HEADER ── -->
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:20px">
@@ -1572,7 +1571,6 @@
             <span class="dds-acc-arrow">▾</span>
           </div>
           <div class="dds-acc-body" id="ddsAccBody2">
-            <!-- Declaração -->
             <div style="background:#f0f7ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:10px 14px;margin-bottom:12px">
               <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
                 <div style="font-size:.74rem;color:#1e40af;line-height:1.6;flex:1" id="ddsDeclaracaoTexto">DECLARO QUE RECEBI TREINAMENTO E INFORMAÇÕES DE SEGURANÇA DO TRABALHO, HIGIENE DO TRABALHO E MEIO AMBIENTE, CONFORME PROCEDIMENTOS REALIZADOS NESTA DATA.</div>
@@ -1633,9 +1631,12 @@
           </div>
           <div class="dds-acc-body" id="ddsAccBody3">
             <button class="btn btn-outline sm full" onclick="App.ddsSincronizarParticipantes()" id="btnDdsSincronizar" style="margin-bottom:12px">🔄 Sincronizar participantes do ponto</button>
-            <div style="display:flex;gap:6px;margin-bottom:10px">
-              <input type="text" id="ddsEquipeManualNome" placeholder="Nome (visitante ou externo)" style="flex:1;margin:0;font-size:.83rem">
-              <input type="text" id="ddsEquipeManualFuncao" placeholder="Cargo" style="width:120px;margin:0;font-size:.83rem">
+            <div style="display:flex;gap:6px;margin-bottom:10px;position:relative">
+              <div style="flex:1;position:relative">
+                <input type="text" id="ddsEquipeManualNome" placeholder="Nome — ou buscar colaborador do sistema" style="width:100%;margin:0;font-size:.83rem" oninput="App._ddsBuscarColab(this.value)" autocomplete="off">
+                <div id="ddsColabSugest" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid var(--brand);border-radius:0 0 10px 10px;box-shadow:0 6px 18px rgba(0,0,0,.12);z-index:200;max-height:180px;overflow-y:auto"></div>
+              </div>
+              <input type="text" id="ddsEquipeManualFuncao" placeholder="Cargo" style="width:130px;margin:0;font-size:.83rem">
               <button class="btn btn-outline sm" onclick="App._ddsAddManual()" style="margin:0;white-space:nowrap">+ Adicionar</button>
             </div>
             <div id="ddsPartLista" style="display:flex;flex-direction:column;gap:5px;max-height:280px;overflow-y:auto">
@@ -1685,24 +1686,7 @@
 
       </div><!-- /ddsPainel -->
     </div>
-  
-  <!-- ═══ MODAL: Preview DDS ═══ -->
-  <div class="modal-overlay hidden" id="modalDdsPreview" style="align-items:stretch;padding:0">
-    <div style="width:100%;height:100%;display:flex;flex-direction:column;background:#e5e7eb">
-      <!-- Toolbar -->
-      <div style="background:#0f3460;padding:10px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0">
-        <span style="color:#fff;font-family:'Syne',sans-serif;font-weight:700;font-size:.95rem;flex:1">👁️ Preview — DDS</span>
-        <button onclick="App._ddsImprimirPreview()" style="background:#e94560;border:none;color:#fff;padding:7px 16px;border-radius:8px;font-size:.83rem;font-weight:600;cursor:pointer">🖨️ Imprimir / Salvar PDF</button>
-        <button onclick="App.closeModal('modalDdsPreview')" style="background:rgba(255,255,255,.15);border:none;color:#fff;padding:7px 14px;border-radius:8px;font-size:.83rem;cursor:pointer">✕ Fechar</button>
-      </div>
-      <!-- Iframe com o HTML da ficha -->
-      <div style="flex:1;overflow:auto;padding:16px;display:flex;justify-content:center">
-        <iframe id="ddsPreviewFrame" style="width:297mm;min-height:210mm;border:none;border-radius:4px;box-shadow:0 4px 24px rgba(0,0,0,.2);background:#fff" scrolling="yes"></iframe>
-      </div>
-    </div>
-  </div>
-
-</div><!-- fim tab-dds -->
+  </div><!-- fim tab-dds -->
 
 
 
@@ -11267,326 +11251,150 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
 
   // ── Gerar PDF do DDS ──────────────────────────────────────
   async function _ddsGerarPDF(semana, obraId){
+    // Carregar dados salvos
     const snap = await getDoc(doc(db,"obras",obraId,"dds",semana));
     if(!snap.exists()) throw new Error("DDS não encontrado para a semana "+semana);
     const d = snap.data();
 
-    // Dados empresa
-    let empNome="",empCnpj="",empLogoUrl="";
+    // Dados da empresa contratada
+    let empNome = ""; let empCnpj = ""; let empLogoUrl = "";
     try{
-      const eSnap=await getDoc(doc(db,"configuracoes","empresa"));
-      if(eSnap.exists()){ empNome=eSnap.data().nome||""; empCnpj=eSnap.data().cnpj||""; empLogoUrl=eSnap.data().logoUrl||""; }
+      const empSnap = await getDoc(doc(db,"configuracoes","empresa"));
+      if(empSnap.exists()){ empNome = empSnap.data().nome||""; empCnpj = empSnap.data().cnpj||""; empLogoUrl = empSnap.data().logoUrl||""; }
     }catch(_){}
 
-    // Calcular datas da semana
-    const [ano,semN]=semana.split("-W").map(Number);
-    const jan4=new Date(ano,0,4);
-    const seg=new Date(jan4); seg.setDate(jan4.getDate()-(jan4.getDay()||7)+1+(semN-1)*7);
-    const DIAS_SEMANA=[];
-    const DIAS_LABEL=["SEG","TER","QUA","QUI","SEX"];
-    for(let i=0;i<5;i++){ const d2=new Date(seg); d2.setDate(seg.getDate()+i); DIAS_SEMANA.push(d2.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"})); }
-    const semLabel=`${DIAS_SEMANA[0].slice(0,5)} a ${DIAS_SEMANA[4]}`;
-
     const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF({orientation:"landscape",unit:"mm",format:"a4"});
-    const W=297, H=210, mg=8;
+    const pdf = new jsPDF({orientation:"portrait", unit:"mm", format:"a4"});
+    const W=210, mg=14, mr=196;
 
-    const azul=[15,52,96], branco=[255,255,255], preto=[0,0,0],
-          cinzaL=[240,242,247], cinzaM=[180,185,195], cinzaT=[90,95,105];
+    // Formatar semana legível
+    const [ano, semN] = semana.split("-W").map(Number);
+    const jan4   = new Date(ano, 0, 4);
+    const inicio = new Date(jan4);
+    inicio.setDate(jan4.getDate() - (jan4.getDay()||7) + 1 + (semN-1)*7);
+    const fim    = new Date(inicio); fim.setDate(inicio.getDate()+4);
+    const fmtD   = dt => dt.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"});
+    const semLabel = `${fmtD(inicio)} a ${fmtD(fim)}`;
 
-    // ── Helper: linha horizontal ──────────────────────────────
-    const hLine=(y,x1=mg,x2=W-mg,lw=0.3,col=cinzaM)=>{
-      pdf.setDrawColor(...col); pdf.setLineWidth(lw); pdf.line(x1,y,x2,y);
-    };
-    const vLine=(x,y1,y2,lw=0.3,col=cinzaM)=>{
-      pdf.setDrawColor(...col); pdf.setLineWidth(lw); pdf.line(x,y1,x,y2);
-    };
-    const rect=(x,y,w,h,fill,stroke)=>{
-      if(fill){ pdf.setFillColor(...fill); pdf.rect(x,y,w,h,stroke?"FD":"F"); }
-      else if(stroke){ pdf.setDrawColor(...stroke); pdf.setLineWidth(0.3); pdf.rect(x,y,w,h,"S"); }
-    };
+    const azul   = [15,52,96];
+    const branco = [255,255,255];
+    const cinza  = [107,114,128];
+    const lv     = [240,242,247];
 
-    // ── CABEÇALHO ─────────────────────────────────────────────
-    // Borda externa
-    pdf.setDrawColor(...azul); pdf.setLineWidth(0.5);
-    pdf.rect(mg,mg,W-mg*2,H-mg*2,"S");
+    // ── CABEÇALHO ──────────────────────────────────────────
+    pdf.setFillColor(...azul); pdf.rect(0,0,W,32,"F");
+    pdf.setTextColor(...branco);
+    pdf.setFontSize(16); pdf.setFont("helvetica","bold");
+    pdf.text("DDS — DIÁLOGO DIÁRIO DE SEGURANÇA", W/2, 12, {align:"center"});
+    pdf.setFontSize(9);  pdf.setFont("helvetica","normal");
+    pdf.text(`Obra: ${d.obraNome||"—"}  ·  Semana: ${semLabel}`, W/2, 19, {align:"center"});
+    pdf.setFontSize(8);
+    pdf.text(`Condutor: ${d.condutor?.nome||"—"}  ·  ${d.condutor?.cargo||""}`, W/2, 25, {align:"center"});
+    pdf.setTextColor(0,0,0);
 
-    // Célula logo (esquerda)
-    const logoBoxW=40, logoBoxH=22, logoX=mg, logoY=mg;
-    rect(logoX,logoY,logoBoxW,logoBoxH,branco);
-    pdf.setDrawColor(...cinzaM); pdf.setLineWidth(0.3);
-    pdf.rect(logoX,logoY,logoBoxW,logoBoxH,"S");
+    let y = 37;
 
-    // Carregar logo se existir
-    if(empLogoUrl){
-      try{
-        await new Promise((res)=>{
-          const img=new Image(); img.crossOrigin="anonymous";
-          img.onload=()=>{
-            try{
-              const c=document.createElement("canvas");
-              c.width=img.width; c.height=img.height;
-              c.getContext("2d").drawImage(img,0,0);
-              const b64=c.toDataURL("image/png");
-              const iW=logoBoxW-6, iH=logoBoxH-4;
-              const scale=Math.min(iW/img.width,iH/img.height);
-              const dw=img.width*scale, dh=img.height*scale;
-              pdf.addImage(b64,"PNG",logoX+(logoBoxW-dw)/2,logoY+(logoBoxH-dh)/2,dw,dh);
-            }catch(_){}
-            res();
-          };
-          img.onerror=()=>res();
-          img.src=empLogoUrl;
-          setTimeout(res,4000);
+    // ── ATIVIDADE / LOCAL ──
+    pdf.setFillColor(...lv); pdf.roundedRect(mg, y, W-mg*2, 14, 2, 2, "F");
+    pdf.setFontSize(8); pdf.setFont("helvetica","bold"); pdf.setTextColor(...cinza);
+    pdf.text("ATIVIDADE PRINCIPAL", mg+3, y+5);
+    pdf.text("ÁREA / LOCAL", mg+100, y+5);
+    pdf.setFont("helvetica","normal"); pdf.setTextColor(0,0,0); pdf.setFontSize(9);
+    pdf.text((d.atividade||"—").slice(0,50), mg+3, y+11);
+    pdf.text((d.local||"—").slice(0,30), mg+100, y+11);
+    y += 18;
+
+    // ── 5 TEMAS ──
+    pdf.setFontSize(10); pdf.setFont("helvetica","bold"); pdf.setTextColor(...azul);
+    pdf.text("TEMAS DA SEMANA", mg, y); y+=5;
+    pdf.setDrawColor(200,200,200); pdf.setLineWidth(0.3); pdf.line(mg, y, mr, y); y+=3;
+
+    const temas = d.temas || [];
+    const EMOJIS_DIA = ["Seg","Ter","Qua","Qui","Sex"];
+    temas.forEach((t, i)=>{
+      if(y > 240){ pdf.addPage(); y = mg; }
+      pdf.setFillColor(i%2===0?248:255, i%2===0?249:255, i%2===0?252:255);
+      const conteudoLines = pdf.splitTextToSize(t.conteudo||"", W-mg*2-22);
+      const hBox = 8 + conteudoLines.length * 4.5;
+      pdf.roundedRect(mg, y, W-mg*2, hBox, 2, 2, "F");
+      // Marcador do dia
+      pdf.setFillColor(...azul);
+      pdf.roundedRect(mg+2, y+3, 18, 6, 1, 1, "F");
+      pdf.setTextColor(...branco); pdf.setFontSize(7); pdf.setFont("helvetica","bold");
+      pdf.text(EMOJIS_DIA[i]||"", mg+11, y+7.2, {align:"center"});
+      pdf.setTextColor(0,0,0);
+      // Título
+      pdf.setFontSize(8.5); pdf.setFont("helvetica","bold");
+      pdf.text((t.titulo||"").slice(0,70), mg+23, y+6);
+      // Conteúdo
+      pdf.setFontSize(7.8); pdf.setFont("helvetica","normal"); pdf.setTextColor(...cinza);
+      pdf.text(conteudoLines, mg+23, y+11);
+      pdf.setTextColor(0,0,0);
+      y += hBox + 3;
+    });
+    y += 3;
+
+    // ── PARTICIPANTES E ASSINATURAS ──
+    if(y > 220){ pdf.addPage(); y = mg; }
+    pdf.setFontSize(10); pdf.setFont("helvetica","bold"); pdf.setTextColor(...azul);
+    pdf.text("PARTICIPANTES E ASSINATURAS", mg, y); y+=5;
+    pdf.setDrawColor(200,200,200); pdf.line(mg, y, mr, y); y+=4;
+
+    // Cabeçalho tabela
+    const dias = ["Segunda","Terça","Quarta","Quinta","Sexta"];
+    pdf.setFontSize(7.5); pdf.setFont("helvetica","bold"); pdf.setTextColor(...cinza);
+    pdf.text("Nome / Função", mg, y);
+    dias.forEach((dia, i)=> pdf.text(dia, mg+80+i*22, y, {align:"center"}));
+    y+=3; pdf.setDrawColor(200,200,200); pdf.line(mg, y, mr, y); y+=3;
+
+    const parts = d.participantes || [];
+    parts.forEach((p, pi)=>{
+      if(y > 270){ pdf.addPage(); y = mg; }
+      pdf.setFontSize(7); pdf.setFont("helvetica","normal"); pdf.setTextColor(0,0,0);
+      if(pi%2===0){ pdf.setFillColor(248,249,252); pdf.rect(mg, y-2, W-mg*2, 7, "F"); }
+      pdf.text((p.nome||"—").slice(0,25), mg, y+3);
+      pdf.setFontSize(6); pdf.setTextColor(...cinza);
+      pdf.text(p.funcao||"", mg, y+6.5);
+      pdf.setTextColor(0,0,0);
+      // Marcações de presença por dia
+      dias.forEach((dia, i)=>{
+        const cx = mg+80+i*22;
+        const presente = (p.diasPresente||[]).some(dt=>{
+          try{ return new Date(dt+"T12:00:00").getDay()===i+1; }catch(_){return false;}
         });
-      }catch(_){}
-    }
-
-    // Título central
-    const titleX=logoX+logoBoxW, titleW=W-mg*2-logoBoxW;
-    rect(titleX,logoY,titleW,logoBoxH,cinzaL);
-    pdf.setDrawColor(...cinzaM); pdf.rect(titleX,logoY,titleW,logoBoxH,"S");
-    pdf.setFont("helvetica","bold"); pdf.setFontSize(13); pdf.setTextColor(...azul);
-    pdf.text("REGISTRO DO DIÁLOGO DIÁRIO DE SEGURANÇA - DDS", titleX+titleW/2, logoY+8, {align:"center"});
-    pdf.setFontSize(8); pdf.setFont("helvetica","normal"); pdf.setTextColor(...cinzaT);
-    if(empNome) pdf.text(empNome+(empCnpj?" · CNPJ: "+empCnpj:""), titleX+titleW/2, logoY+14, {align:"center"});
-    pdf.text(`Semana: ${semLabel}`, titleX+titleW/2, logoY+19, {align:"center"});
-
-    let y = logoY + logoBoxH; // y atual
-
-    // ── LINHA 2: Responsável | Dias da semana ─────────────────
-    const linH=28; // altura das células de info
-    const colDia=(W-mg*2-70)/5; // largura de cada coluna de dia
-    const infoX=mg, infoW=70;
-
-    // Box responsável + equipe + área
-    rect(infoX,y,infoW,linH,branco);
-    pdf.setDrawColor(...cinzaM); pdf.rect(infoX,y,infoW,linH,"S");
-    pdf.setFont("helvetica","bold"); pdf.setFontSize(7.5); pdf.setTextColor(...preto);
-    pdf.text(`RESPONSÁVEL: ${(d.condutor?.nome||"—").slice(0,28)}`, infoX+2, y+5);
-    pdf.setFont("helvetica","normal"); pdf.setFontSize(7);
-    pdf.text(`Cargo: ${(d.condutor?.cargo||"—").slice(0,30)}`, infoX+2, y+10);
-
-    // Equipe
-    const partic = d.participantes||[];
-    const equipeNomes = partic.slice(0,3).map(p=>(p.nome||"").split(" ").slice(0,2).join(" "));
-    pdf.setFont("helvetica","bold"); pdf.setFontSize(7); pdf.text("EQUIPE:", infoX+2, y+15);
-    pdf.setFont("helvetica","normal");
-    equipeNomes.forEach((n,i)=> pdf.text((i===equipeNomes.length-1&&partic.length>3?`${n} +${partic.length-3} outros`:n), infoX+2, y+19+i*3.5));
-    if(d.local){ pdf.setFont("helvetica","bold"); pdf.text(`ÁREA: ${(d.local).slice(0,30)}`, infoX+2, y+linH-3); }
-
-    // Colunas dos dias
-    const temas = d.temas||[];
-    DIAS_LABEL.forEach((dia,i)=>{
-      const cx = infoX+infoW+i*colDia;
-      rect(cx,y,colDia,8,azul);
-      pdf.setDrawColor(...cinzaM); pdf.rect(cx,y,colDia,linH,"S");
-      pdf.setFont("helvetica","bold"); pdf.setFontSize(8); pdf.setTextColor(...branco);
-      pdf.text(dia, cx+colDia/2, y+5.5, {align:"center"});
-      pdf.setFontSize(7); pdf.setTextColor(...cinzaT);
-      pdf.text(DIAS_SEMANA[i], cx+colDia/2, y+11, {align:"center"});
-      // Tema do dia
-      const tema = temas[i]?.titulo||"";
-      pdf.setTextColor(...preto); pdf.setFont("helvetica","normal"); pdf.setFontSize(6.5);
-      const temaLines = pdf.splitTextToSize(tema, colDia-3);
-      pdf.text(temaLines.slice(0,3), cx+colDia/2, y+16, {align:"center"});
-    });
-    pdf.setTextColor(...preto);
-    y += linH;
-
-    // ── DECLARAÇÃO ──────────────────────────────────────────
-    const decl = $("ddsDeclaracaoTexto")?.textContent ||
-      "DECLARO QUE RECEBI TREINAMENTO E INFORMAÇÕES DE SEGURANÇA DO TRABALHO, HIGIENE DO TRABALHO E MEIO AMBIENTE, CONFORME PROCEDIMENTOS REALIZADOS NESTA DATA.";
-    rect(mg,y,W-mg*2,8,cinzaL);
-    pdf.setDrawColor(...cinzaM); pdf.rect(mg,y,W-mg*2,8,"S");
-    pdf.setFont("helvetica","bold"); pdf.setFontSize(6.8); pdf.setTextColor(...azul);
-    pdf.text(decl, (W)/2, y+5, {align:"center",maxWidth:W-mg*2-4});
-    pdf.setTextColor(...preto);
-    y += 8;
-
-    // ── CABEÇALHO DA TABELA DE PARTICIPANTES ─────────────────
-    // Definir larguras das colunas
-    const cNum=8, cNome=52, cCargo=28, cAssin=22;
-    const cDiaW=(W-mg*2-cNum-cNome-cCargo-cAssin)/5;
-    const cols=[cNum,cNome,cCargo,...Array(5).fill(cDiaW),cAssin];
-    const colX=[mg];
-    for(let i=0;i<cols.length-1;i++) colX.push(colX[i]+cols[i]);
-
-    const thH=10;
-    rect(mg,y,W-mg*2,thH,azul);
-    pdf.setFont("helvetica","bold"); pdf.setFontSize(6.5); pdf.setTextColor(...branco);
-    const headers=["#","NOME:","CARGO",...DIAS_LABEL,"Assinatura"];
-    headers.forEach((h2,i)=>{
-      pdf.text(h2, colX[i]+cols[i]/2, y+4, {align:"center"});
-      pdf.text(i>=3&&i<=7?DIAS_SEMANA[i-3]:"", colX[i]+cols[i]/2, y+8, {align:"center"});
-    });
-    pdf.setTextColor(...preto);
-    y += thH;
-
-    // Linha abaixo do cabeçalho com temas
-    const thH2=8;
-    rect(mg,y,W-mg*2,thH2,cinzaL);
-    pdf.setFont("helvetica","normal"); pdf.setFontSize(6); pdf.setTextColor(...cinzaT);
-    DIAS_LABEL.forEach((_,i)=>{
-      const tema=temas[i]?.titulo||"";
-      pdf.text(pdf.splitTextToSize(tema,cDiaW-2)[0]||"", colX[3+i]+cDiaW/2, y+5, {align:"center"});
-    });
-    pdf.setTextColor(...preto);
-    y += thH2;
-
-    // ── LINHAS DOS PARTICIPANTES ──────────────────────────────
-    const rowH=14; // altura de cada linha (para caber foto pequena)
-    const MAX_ROWS_PAGE1=Math.floor((H-mg-y)/rowH);
-
-    const renderRow = async (pdf2,py,p,idx2) => {
-      const bg = idx2%2===0 ? branco : [248,249,252];
-      rect(mg,py,W-mg*2,rowH,bg);
-      // Bordas internas
-      colX.forEach((cx,ci)=>{ if(ci>0) vLine(cx,py,py+rowH); });
-      hLine(py+rowH,mg,W-mg);
-
-      pdf2.setFont("helvetica","normal"); pdf2.setFontSize(7); pdf2.setTextColor(...preto);
-      pdf2.text(String(idx2+1), colX[0]+cNum/2, py+5, {align:"center"});
-      pdf2.text((p.nome||"—").slice(0,22), colX[1]+2, py+5);
-      pdf2.setFontSize(6.5); pdf2.setTextColor(...cinzaT);
-      pdf2.text((p.funcao||"").slice(0,14), colX[1]+2, py+9);
-      pdf2.setFontSize(6.5); pdf2.setTextColor(...preto);
-      pdf2.text((p.funcao||"—").slice(0,13), colX[2]+2, py+5);
-
-      // Fotos do ponto por dia
-      for(let di=0;di<5;di++){
-        const cx2=colX[3+di];
-        const dataStr=DIAS_SEMANA[di];
-        // Encontrar data ISO a partir da data BR
-        const [dd,mm,yyyy]=dataStr.split("/");
-        const isoDate=`${yyyy}-${mm}-${dd}`;
-        const fotoUrl=(p.fotosPonto||{})[isoDate]||(p.diasPresente||[]).includes(isoDate)?p.fotoUrl||"":"";
-        const presente=(p.diasPresente||[]).includes(isoDate);
-        if(fotoUrl && presente){
-          try{
-            await new Promise(res=>{
-              const img=new Image(); img.crossOrigin="anonymous";
-              img.onload=()=>{
-                try{
-                  const c=document.createElement("canvas"); c.width=img.width; c.height=img.height;
-                  c.getContext("2d").drawImage(img,0,0);
-                  const b64=c.toDataURL("image/png");
-                  const fw=cDiaW-2, fh=rowH-2;
-                  const sc=Math.min(fw/img.width,fh/img.height);
-                  const dw=img.width*sc,dh=img.height*sc;
-                  pdf2.addImage(b64,"PNG",cx2+(cDiaW-dw)/2,py+(rowH-dh)/2,dw,dh);
-                }catch(_){}
-                res();
-              };
-              img.onerror=()=>res();
-              img.src=fotoUrl;
-              setTimeout(res,3000);
-            });
-          }catch(_){}
-        } else if(presente){
-          // Presente sem foto — check mark
-          pdf2.setFillColor(16,185,129); pdf2.circle(cx2+cDiaW/2,py+rowH/2,2.5,"F");
-          pdf2.setFont("helvetica","bold"); pdf2.setFontSize(8); pdf2.setTextColor(...branco);
-          pdf2.text("✓",cx2+cDiaW/2,py+rowH/2+1,{align:"center"});
-          pdf2.setTextColor(...preto);
+        if(presente){
+          pdf.setFillColor(16,185,129); pdf.circle(cx, y+3, 2.5, "F");
+          pdf.setTextColor(...branco); pdf.setFontSize(6); pdf.setFont("helvetica","bold");
+          pdf.text("✓", cx, y+4.5, {align:"center"});
         } else {
-          // Ausente
-          pdf2.setDrawColor(...cinzaM); pdf2.circle(cx2+cDiaW/2,py+rowH/2,2.5,"S");
+          pdf.setDrawColor(200,200,200); pdf.circle(cx, y+3, 2.5, "D");
         }
-      }
+        pdf.setTextColor(0,0,0); pdf.setFont("helvetica","normal");
+      });
+      y += 9;
+    });
+    y += 5;
 
-      // Assinatura = última foto do último dia presente
-      const assinX=colX[colX.length-1];
-      const diasPresentes=(p.diasPresente||[]).sort();
-      const ultimoDia=diasPresentes[diasPresentes.length-1]||"";
-      const fotoAssin=(p.fotosPonto||{})[ultimoDia]||p.fotoUrl||"";
-      if(fotoAssin){
-        try{
-          await new Promise(res=>{
-            const img=new Image(); img.crossOrigin="anonymous";
-            img.onload=()=>{
-              try{
-                const c=document.createElement("canvas"); c.width=img.width; c.height=img.height;
-                c.getContext("2d").drawImage(img,0,0);
-                const b64=c.toDataURL("image/png");
-                const fw=cAssin-2, fh=rowH-2;
-                const sc=Math.min(fw/img.width,fh/img.height);
-                const dw=img.width*sc,dh=img.height*sc;
-                pdf2.addImage(b64,"PNG",assinX+(cAssin-dw)/2,py+(rowH-dh)/2,dw,dh);
-              }catch(_){}
-              res();
-            };
-            img.onerror=()=>res();
-            img.src=fotoAssin;
-            setTimeout(res,3000);
-          });
-        }catch(_){}
-      }
-    };
-
-    // Renderizar participantes (com paginação automática)
-    let rowCount=0;
-    for(let pi=0;pi<partic.length;pi++){
-      if(y+rowH > H-mg-16){
-        // Nova página
-        pdf.addPage([W,H],"landscape");
-        y=mg+10;
-        // Repetir cabeçalho da tabela
-        rect(mg,y,W-mg*2,thH,azul);
-        pdf.setFont("helvetica","bold"); pdf.setFontSize(6.5); pdf.setTextColor(...branco);
-        headers.forEach((h2,i)=>{ pdf.text(h2,colX[i]+cols[i]/2,y+4,{align:"center"}); });
-        pdf.setTextColor(...preto);
-        y+=thH;
-      }
-      await renderRow(pdf,y,partic[pi],rowCount);
-      y+=rowH; rowCount++;
+    // ── OBSERVAÇÕES ──
+    if(d.obs){
+      if(y > 255){ pdf.addPage(); y = mg; }
+      pdf.setFontSize(8); pdf.setFont("helvetica","bold"); pdf.setTextColor(...azul);
+      pdf.text("OBSERVAÇÕES", mg, y); y+=4;
+      pdf.setFont("helvetica","normal"); pdf.setTextColor(...cinza); pdf.setFontSize(7.5);
+      const obsLines = pdf.splitTextToSize(d.obs, W-mg*2);
+      pdf.text(obsLines, mg, y); y += obsLines.length*4.5+4;
     }
 
-    // Linhas em branco até completar pelo menos 10 linhas
-    while(rowCount<10 && y+rowH<=H-mg-16){
-      const bg=rowCount%2===0?branco:[248,249,252];
-      rect(mg,y,W-mg*2,rowH,bg);
-      colX.forEach((cx,ci)=>{ if(ci>0) vLine(cx,y,y+rowH); });
-      hLine(y+rowH,mg,W-mg);
-      pdf.setFont("helvetica","normal"); pdf.setFontSize(7);
-      pdf.text(String(rowCount+1),colX[0]+cNum/2,y+5,{align:"center"});
-      y+=rowH; rowCount++;
+    // ── RODAPÉ ──
+    const totalPags = pdf.internal.getNumberOfPages();
+    for(let i=1;i<=totalPags;i++){
+      pdf.setPage(i);
+      pdf.setFillColor(...azul); pdf.rect(0,285,W,12,"F");
+      pdf.setTextColor(...branco); pdf.setFontSize(7);
+      pdf.text(`GO — Gestão de Obras  ·  DDS — Diálogo Diário de Segurança  ·  ${semLabel}`, mg, 291);
+      pdf.text(`Pág. ${i}/${totalPags}`, mr, 291, {align:"right"});
+      if(empNome) pdf.text(empNome+(empCnpj?" · CNPJ: "+empCnpj:""), W/2, 295, {align:"center"});
     }
-
-    // ── RODAPÉ: Assinatura do responsável ──────────────────
-    const rodY=H-mg-16;
-    rect(mg,rodY,W-mg*2,16,cinzaL);
-    pdf.setDrawColor(...cinzaM); pdf.rect(mg,rodY,W-mg*2,16,"S");
-    vLine(mg+(W-mg*2)/2,rodY,rodY+16);
-
-    pdf.setFont("helvetica","bold"); pdf.setFontSize(7); pdf.setTextColor(...preto);
-    pdf.text("ASSINATURA DO RESPONSÁVEL: _______________________________", mg+4, rodY+5);
-    pdf.setFont("helvetica","normal"); pdf.setFontSize(6.5); pdf.setTextColor(...cinzaT);
-    pdf.text(`${d.condutor?.nome||"—"} · ${d.condutor?.cargo||""}`, mg+4, rodY+11);
-
-    // Foto do responsável (se disponível)
-    const respFoto = partic.find(p=>p.nome===d.condutor?.nome)?.fotoUrl || "";
-    if(respFoto){
-      try{
-        await new Promise(res=>{
-          const img=new Image(); img.crossOrigin="anonymous";
-          img.onload=()=>{
-            try{
-              const c=document.createElement("canvas"); c.width=img.width; c.height=img.height;
-              c.getContext("2d").drawImage(img,0,0);
-              pdf.addImage(c.toDataURL("image/png"),"PNG",mg+(W-mg*2)/2-16,rodY+1,12,12);
-            }catch(_){}
-            res();
-          };
-          img.onerror=()=>res();
-          img.src=respFoto;
-          setTimeout(res,3000);
-        });
-      }catch(_){}
-    }
-
-    pdf.setTextColor(...cinzaT); pdf.setFontSize(6);
-    pdf.text(`GO — Gestão de Obras · DDS · ${semLabel} · Gerado em ${new Date().toLocaleDateString("pt-BR")}`, W/2, rodY+14, {align:"center"});
 
     return pdf;
   }
@@ -11736,262 +11544,6 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
     }catch(e){ console.error("_ddsVerificarEnvioSexta:", e); }
   }
 
-
-  // ── Preview e impressão do DDS ────────────────────────────
-  async function ddsAbrirPreview(){
-    if(!_ddsObraId || !_ddsSemana){ toast("Salve o DDS antes de visualizar.", false); return; }
-    const btn = $("btnDdsPreview");
-    if(btn){ btn.disabled=true; btn.textContent="⏳ Gerando..."; }
-    try{
-      // Gerar o HTML da ficha para o iframe
-      const htmlFicha = await _ddsGerarHtmlFicha(_ddsSemana, _ddsObraId);
-      const frame = $("ddsPreviewFrame");
-      if(frame){
-        frame.srcdoc = htmlFicha;
-      }
-      $("modalDdsPreview").classList.remove("hidden");
-    }catch(e){
-      console.error(e); toast("Erro ao gerar preview: "+e.message, false);
-    }finally{
-      if(btn){ btn.disabled=false; btn.textContent="👁️ Preview / Imprimir"; }
-    }
-  }
-
-  function _ddsImprimirPreview(){
-    const frame = $("ddsPreviewFrame");
-    if(frame?.contentWindow) frame.contentWindow.print();
-  }
-
-  // ── Gerar HTML da ficha DDS para preview ──────────────────
-  async function _ddsGerarHtmlFicha(semana, obraId){
-    const snap = await getDoc(doc(db,"obras",obraId,"dds",semana));
-    if(!snap.exists()) throw new Error("DDS não salvo. Salve antes de visualizar.");
-    const d = snap.data();
-
-    let empNome="",empCnpj="",empLogoUrl="";
-    try{
-      const eSnap=await getDoc(doc(db,"configuracoes","empresa"));
-      if(eSnap.exists()){ empNome=eSnap.data().nome||""; empCnpj=eSnap.data().cnpj||""; empLogoUrl=eSnap.data().logoUrl||""; }
-    }catch(_){}
-
-    // Calcular datas da semana
-    const [ano,semN]=semana.split("-W").map(Number);
-    const jan4=new Date(ano,0,4);
-    const seg=new Date(jan4); seg.setDate(jan4.getDate()-(jan4.getDay()||7)+1+(semN-1)*7);
-    const DIAS_SEMANA=[], DIAS_LABEL=["SEG","TER","QUA","QUI","SEX"];
-    for(let i=0;i<5;i++){ const d2=new Date(seg); d2.setDate(seg.getDate()+i); DIAS_SEMANA.push(d2.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"})); }
-    const semLabel=`${DIAS_SEMANA[0].slice(0,5)} a ${DIAS_SEMANA[4]}`;
-
-    const temas=d.temas||[];
-    const partic=d.participantes||[];
-    const decl=$("ddsDeclaracaoTexto")?.textContent||"DECLARO QUE RECEBI TREINAMENTO E INFORMAÇÕES DE SEGURANÇA DO TRABALHO, HIGIENE DO TRABALHO E MEIO AMBIENTE, CONFORME PROCEDIMENTOS REALIZADOS NESTA DATA.";
-
-    // Cabeçalho dos dias
-    const thDias = DIAS_LABEL.map((dia,i)=>`
-      <th style="width:11%;text-align:center;padding:3px 2px">
-        <div style="font-size:9px;font-weight:700;color:#fff">${dia}</div>
-        <div style="font-size:8px;color:rgba(255,255,255,.75)">${DIAS_SEMANA[i]}</div>
-        <div style="font-size:7.5px;color:#dbeafe;margin-top:2px;line-height:1.2">${(temas[i]?.titulo||"").slice(0,25)}</div>
-      </th>`).join("");
-
-    // Linhas dos participantes
-    let participantesHTML = partic.map((p,idx)=>{
-      const bg = idx%2===0 ? "#fff" : "#f8f9fc";
-      const diasCols = DIAS_LABEL.map((_,di)=>{
-        const [dd,mm,yyyy]=DIAS_SEMANA[di].split("/");
-        const isoDate=`${yyyy}-${mm}-${dd}`;
-        const presente=(p.diasPresente||[]).includes(isoDate);
-        const foto=(p.fotosPonto||{})[isoDate]||"";
-        if(foto && presente) return `<td style="text-align:center;padding:1px;width:11%"><img src="${foto}" style="width:28px;height:28px;object-fit:cover;border-radius:3px;border:1px solid #e5e7eb" onerror="this.style.display='none'"></td>`;
-        if(presente) return `<td style="text-align:center;width:11%"><span style="color:#10b981;font-size:14px">✓</span></td>`;
-        return `<td style="text-align:center;width:11%"><span style="color:#d1d5db;font-size:10px">—</span></td>`;
-      }).join("");
-
-      // Assinatura = última foto
-      const diasPresentes=(p.diasPresente||[]).sort();
-      const ultimoDia=diasPresentes[diasPresentes.length-1]||"";
-      const fotoAssin=(p.fotosPonto||{})[ultimoDia]||p.fotoUrl||"";
-      const assinCol = fotoAssin
-        ? `<img src="${fotoAssin}" style="width:28px;height:28px;object-fit:cover;border-radius:3px;border:1px solid #e5e7eb" onerror="this.style.display='none'">`
-        : `<span style="font-size:7px;color:#9ca3af">—</span>`;
-
-      return `<tr style="background:${bg}">
-        <td style="text-align:center;font-size:8px;padding:2px;width:4%">${idx+1}</td>
-        <td style="font-size:8px;padding:2px 4px;width:20%">
-          <div style="font-weight:600">${(p.nome||"—").slice(0,28)}</div>
-        </td>
-        <td style="font-size:7.5px;padding:2px 4px;width:10%;color:#6b7280">${(p.funcao||"—").slice(0,16)}</td>
-        ${diasCols}
-        <td style="text-align:center;padding:1px;width:8%">${assinCol}</td>
-      </tr>`;
-    }).join("");
-
-    // Completar até 10 linhas mínimo
-    for(let i=partic.length;i<10;i++){
-      const bg=i%2===0?"#fff":"#f8f9fc";
-      const cells=`<td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>`;
-      participantesHTML+=`<tr style="background:${bg};height:22px"><td style="text-align:center;font-size:8px;padding:2px;color:#d1d5db">${i+1}</td>${cells}</tr>`;
-    }
-
-    // Equipe resumida para o cabeçalho
-    const equipeText = partic.slice(0,5).map(p=>(p.nome||"").split(" ").slice(0,2).join(" ")).join(", ")+(partic.length>5?` +${partic.length-5}`:"");
-
-    return `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<style>
-  @page { size: A4 landscape; margin: 8mm; }
-  @media print {
-    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .no-print { display: none !important; }
-  }
-  * { box-sizing: border-box; font-family: Arial, sans-serif; margin: 0; padding: 0; }
-  body { background: #fff; font-size: 8px; }
-  table { border-collapse: collapse; width: 100%; }
-  td, th { border: 0.5px solid #d1d5db; }
-  .header-azul { background: #0f3460; color: #fff; }
-  .cinza-l { background: #f0f2f7; }
-<\/style>
-<\/head>
-<body>
-
-<!-- Botão imprimir (some na impressão) -->
-<div class="no-print" style="background:#0f3460;padding:8px 12px;display:flex;gap:8px;align-items:center;margin-bottom:8px">
-  <span style="color:#fff;font-size:11px;flex:1">GO — Gestão de Obras · Preview DDS</span>
-  <button onclick="window.print()" style="background:#e94560;border:none;color:#fff;padding:6px 14px;border-radius:6px;font-size:11px;cursor:pointer">🖨️ Imprimir / Salvar PDF</button>
-</div>
-
-<table style="border:1.5px solid #0f3460;margin-bottom:0">
-  <!-- CABEÇALHO -->
-  <tr>
-    <td rowspan="2" style="width:13%;padding:4px;text-align:center;border-right:1px solid #0f3460">
-      ${empLogoUrl ? `<img src="${empLogoUrl}" style="max-width:90px;max-height:30px;object-fit:contain">` : `<div style="font-size:9px;color:#6b7280;font-weight:700">${empNome||"EMPRESA"}</div>`}
-    </td>
-    <td colspan="7" class="cinza-l" style="text-align:center;padding:6px;border-bottom:0.5px solid #d1d5db">
-      <div style="font-size:13px;font-weight:700;color:#0f3460">REGISTRO DO DIÁLOGO DIÁRIO DE SEGURANÇA - DDS</div>
-      ${empNome?`<div style="font-size:8px;color:#6b7280;margin-top:2px">${empNome}${empCnpj?" · CNPJ: "+empCnpj:""}</div>`:""}
-    </td>
-  </tr>
-  <tr>
-    <td colspan="7" class="cinza-l" style="text-align:center;padding:3px;font-size:8px;color:#6b7280">
-      Semana: <strong style="color:#0f3460">${semLabel}</strong>
-    </td>
-  </tr>
-
-  <!-- INFO: responsável | colunas dos dias -->
-  <tr style="vertical-align:top">
-    <td rowspan="2" style="padding:5px 6px;width:13%;border-right:1px solid #0f3460">
-      <div style="font-size:8px"><strong>RESPONSÁVEL:</strong> ${(d.condutor?.nome||"—").slice(0,30)}</div>
-      <div style="font-size:7.5px;color:#6b7280;margin-top:2px">${(d.condutor?.cargo||"").slice(0,30)}</div>
-      <div style="margin-top:6px;font-size:8px"><strong>EQUIPE:</strong></div>
-      <div style="font-size:7.5px;color:#374151;line-height:1.6">
-        ${partic.slice(0,6).map(p=>(p.nome||"").split(" ").slice(0,3).join(" ")).join("<br>")}
-        ${partic.length>6?`<span style="color:#6b7280">+${partic.length-6} outros</span>`:""}
-      </div>
-      <div style="margin-top:6px;font-size:8px"><strong>ÁREA:</strong> ${(d.local||"—").slice(0,28)}</div>
-    </td>
-    <td colspan="5" style="vertical-align:middle;padding:0">
-      <table style="width:100%;border:none">
-        <tr>
-          ${DIAS_LABEL.map(dia=>`<td class="header-azul" style="text-align:center;padding:3px;width:20%;border:none"><strong style="font-size:9px">${dia}</strong></td>`).join("")}
-        </tr>
-        <tr>
-          ${DIAS_SEMANA.map(dt=>`<td style="text-align:center;padding:2px;font-size:7.5px;color:#6b7280;background:#f8f9fc;border:none">${dt}</td>`).join("")}
-        </tr>
-      </table>
-    </td>
-    <td rowspan="2" style="width:8%;padding:3px;text-align:center;vertical-align:middle;font-size:7.5px;color:#6b7280">Assinatura</td>
-  </tr>
-  <tr>
-    <td colspan="5" style="padding:0">
-      <table style="width:100%;border:none">
-        <tr>
-          ${temas.map(t=>`<td style="text-align:center;padding:3px 2px;vertical-align:middle;width:20%;border:none"><span style="font-size:7.5px;font-weight:600;color:#1e40af">${(t.titulo||"").slice(0,30)}</span></td>`).join("")}
-        </tr>
-      </table>
-    </td>
-  </tr>
-</table>
-
-<!-- DECLARAÇÃO -->
-<table style="border:1.5px solid #0f3460;margin-top:-1px;border-top:none">
-  <tr class="cinza-l">
-    <td style="text-align:center;padding:5px 8px;font-size:7.5px;font-weight:700;color:#1e40af;letter-spacing:.2px">
-      ${decl}
-    </td>
-  </tr>
-</table>
-
-<!-- TABELA PARTICIPANTES -->
-<table style="border:1.5px solid #0f3460;margin-top:-1px;border-top:none">
-  <thead>
-    <tr class="header-azul">
-      <th style="width:4%;text-align:center;padding:4px 2px;font-size:8px">#</th>
-      <th style="width:20%;padding:4px;font-size:8px">NOME:</th>
-      <th style="width:10%;padding:4px;font-size:8px">CARGO</th>
-      ${thDias}
-      <th style="width:8%;text-align:center;padding:4px 2px;font-size:8px">Assinatura</th>
-    </tr>
-  </thead>
-  <tbody>
-    ${participantesHTML}
-  </tbody>
-</table>
-
-<!-- RODAPÉ -->
-<table style="border:1.5px solid #0f3460;margin-top:-1px;border-top:none">
-  <tr class="cinza-l">
-    <td style="width:50%;padding:5px 8px">
-      <div style="font-size:8px;font-weight:700">ASSINATURA DO RESPONSÁVEL: ___________________________</div>
-      <div style="font-size:7.5px;color:#6b7280;margin-top:2px">${(d.condutor?.nome||"—")} &nbsp;·&nbsp; CARGO: ${(d.condutor?.cargo||"—")}</div>
-    </td>
-    <td style="width:50%;text-align:right;padding:5px 8px;font-size:7px;color:#9ca3af">
-      GO — Gestão de Obras · DDS · ${semLabel}<br>Gerado em ${new Date().toLocaleDateString("pt-BR")}
-    </td>
-  </tr>
-</table>
-
-<\/body><\/html>`;
-  }
-
-  // ── Declaração: editar / salvar / cancelar ──────────────
-  function _ddsEditarDeclaracao(){
-    const texto = $("ddsDeclaracaoTexto")?.textContent||"";
-    if($("ddsDeclaracaoEdit")){
-      $("ddsDeclaracaoEdit").value=texto;
-      $("ddsDeclaracaoEdit").style.display="";
-    }
-    if($("ddsDeclaracaoTexto")) $("ddsDeclaracaoTexto").style.display="none";
-    if($("ddsDeclaracaoEditBtns")) $("ddsDeclaracaoEditBtns").style.display="flex";
-  }
-
-  function _ddsSalvarDeclaracao(){
-    const novo = $("ddsDeclaracaoEdit")?.value.trim()||"";
-    if(novo && $("ddsDeclaracaoTexto")) $("ddsDeclaracaoTexto").textContent=novo;
-    _ddsCancelarDeclaracao();
-  }
-
-  function _ddsCancelarDeclaracao(){
-    if($("ddsDeclaracaoEdit"))     $("ddsDeclaracaoEdit").style.display="none";
-    if($("ddsDeclaracaoTexto"))    $("ddsDeclaracaoTexto").style.display="";
-    if($("ddsDeclaracaoEditBtns")) $("ddsDeclaracaoEditBtns").style.display="none";
-  }
-
-  // ── Adicionar participante manualmente ──────────────────
-  function _ddsAddManual(){
-    const nome  = $("ddsEquipeManualNome")?.value.trim()||"";
-    const funcao= $("ddsEquipeManualFuncao")?.value.trim()||"";
-    if(!nome){ toast("Informe o nome.", false); return; }
-    const jaExiste = _ddsPartic.some(p=>p.nome===nome);
-    if(jaExiste){ toast("Participante já está na lista.", false); return; }
-    _ddsPartic.push({ uid:"manual_"+Date.now(), nome, funcao, fotoUrl:"", diasPresente:[], fotosPonto:{} });
-    _ddsRenderParticipantes();
-    if($("ddsEquipeManualNome"))   $("ddsEquipeManualNome").value="";
-    if($("ddsEquipeManualFuncao")) $("ddsEquipeManualFuncao").value="";
-    toast(`✅ ${nome} adicionado à equipe.`);
-  }
-
   // ── Render temas ─────────────────────────────────────────
   function _ddsRenderTemas(){
     const el = $("ddsTemasLista"); if(!el) return;
@@ -12091,6 +11643,217 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
     el.textContent = _ddsStatus==="finalizado" ? "✅ Finalizado" : "📝 Rascunho";
   }
 
+
+  // ── Preview DDS ──────────────────────────────────────────
+  async function ddsAbrirPreview(){
+    if(!_ddsObraId||!_ddsSemana){ toast("Salve o DDS primeiro.", false); return; }
+    const btn=$("btnDdsPreview");
+    if(btn){ btn.disabled=true; btn.textContent="⏳ Gerando..."; }
+    try{
+      const frameEl=$("ddsPreviewFrame");
+      if(!frameEl){ toast("Preview não disponível.", false); return; }
+      const ficha = await _ddsGerarHtmlFicha(_ddsSemana, _ddsObraId);
+      frameEl.srcdoc = ficha;
+      $("modalDdsPreview").classList.remove("hidden");
+    }catch(e){ console.error(e); toast("Erro: "+e.message, false); }
+    finally{ if(btn){ btn.disabled=false; btn.textContent="👁️ Preview / Imprimir"; } }
+  }
+
+  function _ddsImprimirPreview(){
+    const f=$("ddsPreviewFrame");
+    if(f&&f.contentWindow) f.contentWindow.print();
+  }
+
+  async function _ddsGerarHtmlFicha(semana, obraId){
+    const snap=await getDoc(doc(db,"obras",obraId,"dds",semana));
+    if(!snap.exists()) throw new Error("DDS não salvo. Salve antes de visualizar.");
+    const d=snap.data();
+    let empNome="",empCnpj="",empLogoUrl="";
+    try{
+      const es=await getDoc(doc(db,"configuracoes","empresa"));
+      if(es.exists()){ empNome=es.data().nome||""; empCnpj=es.data().cnpj||""; empLogoUrl=es.data().logoUrl||""; }
+    }catch(_){}
+    const [ano,semN]=semana.split("-W").map(Number);
+    const jan4=new Date(ano,0,4);
+    const seg=new Date(jan4); seg.setDate(jan4.getDate()-(jan4.getDay()||7)+1+(semN-1)*7);
+    const DS=[],DL=["SEG","TER","QUA","QUI","SEX"];
+    for(let i=0;i<5;i++){ const x=new Date(seg); x.setDate(seg.getDate()+i); DS.push(x.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"})); }
+    const semLbl=DS[0].slice(0,5)+" a "+DS[4];
+    const temas=d.temas||[], partic=d.participantes||[];
+    const decl=($("ddsDeclaracaoTexto")||{textContent:""}).textContent||
+      "DECLARO QUE RECEBI TREINAMENTO E INFORMAÇÕES DE SEGURANÇA DO TRABALHO, HIGIENE DO TRABALHO E MEIO AMBIENTE, CONFORME PROCEDIMENTOS REALIZADOS NESTA DATA.";
+
+    // Construir sem template literal gigante
+    const parts=[];
+    parts.push("<!DOCTYPE html><html><head><meta charset='utf-8'>");
+    parts.push("<style>");
+    parts.push("@page{size:A4 landscape;margin:8mm}");
+    parts.push("@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.no-print{display:none!important}}");
+    parts.push("*{box-sizing:border-box;font-family:Arial,sans-serif;margin:0;padding:0}");
+    parts.push("body{background:#fff;font-size:8px}");
+    parts.push("table{border-collapse:collapse;width:100%}");
+    parts.push("td,th{border:.5px solid #d1d5db}");
+    parts.push(".az{background:#0f3460;color:#fff}.cz{background:#f0f2f7}");
+    parts.push("<" + "/style><" + "/head><body>");
+    // botão imprimir
+    parts.push("<div class='no-print' style='background:#0f3460;padding:8px 12px;display:flex;gap:8px;align-items:center;margin-bottom:8px'>");
+    parts.push("<span style='color:#fff;font-size:11px;flex:1'>GO — Gestão de Obras · Preview DDS</span>");
+    parts.push("<button onclick='window.print()' style='background:#e94560;border:none;color:#fff;padding:6px 14px;border-radius:6px;font-size:11px;cursor:pointer'>Imprimir / Salvar PDF</button>");
+    parts.push("</" + "div>");
+    // cabeçalho
+    parts.push("<table style='border:1.5px solid #0f3460;margin-bottom:0'>");
+    parts.push("<tr>");
+    parts.push("<td rowspan='2' style='width:13%;padding:4px;text-align:center;border-right:1px solid #0f3460'>");
+    if(empLogoUrl) parts.push("<img src='"+empLogoUrl+"' style='max-width:90px;max-height:30px;object-fit:contain'>");
+    else parts.push("<div style='font-size:9px;color:#6b7280;font-weight:700'>"+(empNome||"EMPRESA")+"</" + "div>");
+    parts.push("</" + "td>");
+    parts.push("<td colspan='7' class='cz' style='text-align:center;padding:6px;border-bottom:.5px solid #d1d5db'>");
+    parts.push("<div style='font-size:13px;font-weight:700;color:#0f3460'>REGISTRO DO DIÁLOGO DIÁRIO DE SEGURANÇA - DDS</" + "div>");
+    if(empNome) parts.push("<div style='font-size:8px;color:#6b7280;margin-top:2px'>"+empNome+(empCnpj?" · CNPJ: "+empCnpj:"")+"</" + "div>");
+    parts.push("</" + "td></" + "tr><tr>");
+    parts.push("<td colspan='7' class='cz' style='text-align:center;padding:3px;font-size:8px;color:#6b7280'>Semana: <strong style='color:#0f3460'>"+semLbl+"</" + "strong></" + "td>");
+    parts.push("</" + "tr>");
+    // info responsável + dias
+    parts.push("<tr style='vertical-align:top'>");
+    parts.push("<td rowspan='2' style='padding:5px 6px;width:13%;border-right:1px solid #0f3460'>");
+    parts.push("<div style='font-size:8px'><strong>RESPONSÁVEL:</strong> "+(d.condutor&&d.condutor.nome||"—").slice(0,30)+"</" + "div>");
+    parts.push("<div style='font-size:7.5px;color:#6b7280;margin-top:2px'>"+((d.condutor&&d.condutor.cargo)||"").slice(0,30)+"</" + "div>");
+    parts.push("<div style='margin-top:6px;font-size:8px'><strong>EQUIPE:</strong></" + "div>");
+    parts.push("<div style='font-size:7.5px;color:#374151;line-height:1.6'>");
+    partic.slice(0,6).forEach(p=>{ parts.push((p.nome||"").split(" ").slice(0,3).join(" ")+"<br>"); });
+    if(partic.length>6) parts.push("<span style='color:#6b7280'>+"+( partic.length-6)+" outros</" + "span>");
+    parts.push("</" + "div>");
+    parts.push("<div style='margin-top:6px;font-size:8px'><strong>ÁREA:</strong> "+(d.local||"—").slice(0,28)+"</" + "div>");
+    parts.push("</" + "td>");
+    // colunas dos dias
+    parts.push("<td colspan='5' style='vertical-align:middle;padding:0'><table style='width:100%;border:none'><tr>");
+    DL.forEach(dia=>{ parts.push("<td class='az' style='text-align:center;padding:3px;width:20%;border:none'><strong style='font-size:9px'>"+dia+"</" + "strong></" + "td>"); });
+    parts.push("</" + "tr><tr>");
+    DS.forEach(dt=>{ parts.push("<td style='text-align:center;padding:2px;font-size:7.5px;color:#6b7280;background:#f8f9fc;border:none'>"+dt+"</" + "td>"); });
+    parts.push("</" + "tr></" + "table></" + "td>");
+    parts.push("<td rowspan='2' style='width:8%;padding:3px;text-align:center;vertical-align:middle;font-size:7.5px;color:#6b7280'>Assinatura</" + "td>");
+    parts.push("</" + "tr><tr>");
+    parts.push("<td colspan='5' style='padding:0'><table style='width:100%;border:none'><tr>");
+    temas.forEach(t=>{ parts.push("<td style='text-align:center;padding:3px 2px;vertical-align:middle;width:20%;border:none'><span style='font-size:7.5px;font-weight:600;color:#1e40af'>"+((t.titulo||"").slice(0,30))+"</" + "span></" + "td>"); });
+    parts.push("</" + "tr></" + "table></" + "td></" + "tr></" + "table>");
+    // declaração
+    parts.push("<table style='border:1.5px solid #0f3460;margin-top:-1px;border-top:none'>");
+    parts.push("<tr class='cz'><td style='text-align:center;padding:5px 8px;font-size:7.5px;font-weight:700;color:#1e40af;letter-spacing:.2px'>"+decl+"</" + "td></" + "tr></" + "table>");
+    // tabela participantes cabeçalho
+    parts.push("<table style='border:1.5px solid #0f3460;margin-top:-1px;border-top:none'>");
+    parts.push("<thead><tr class='az'>");
+    parts.push("<th style='width:4%;text-align:center;padding:4px 2px;font-size:8px'>#</" + "th>");
+    parts.push("<th style='width:20%;padding:4px;font-size:8px'>NOME:</" + "th>");
+    parts.push("<th style='width:10%;padding:4px;font-size:8px'>CARGO</" + "th>");
+    DL.forEach((dia,i)=>{
+      parts.push("<th style='width:11%;text-align:center;padding:3px 2px'>");
+      parts.push("<div style='font-size:9px;font-weight:700;color:#fff'>"+dia+"</" + "div>");
+      parts.push("<div style='font-size:8px;color:rgba(255,255,255,.75)'>"+DS[i]+"</" + "div>");
+      parts.push("<div style='font-size:7.5px;color:#dbeafe;margin-top:2px'>"+((temas[i]&&temas[i].titulo||"").slice(0,25))+"</" + "div>");
+      parts.push("</" + "th>");
+    });
+    parts.push("<th style='width:8%;text-align:center;padding:4px 2px;font-size:8px'>Assinatura</" + "th>");
+    parts.push("</" + "tr></" + "thead><tbody>");
+    // linhas dos participantes
+    partic.forEach((p,idx)=>{
+      const bg=idx%2===0?"#fff":"#f8f9fc";
+      parts.push("<tr style='background:"+bg+"'>");
+      parts.push("<td style='text-align:center;font-size:8px;padding:2px;width:4%'>"+(idx+1)+"</" + "td>");
+      parts.push("<td style='font-size:8px;padding:2px 4px;width:20%'><div style='font-weight:600'>"+(p.nome||"—").slice(0,28)+"</" + "div></" + "td>");
+      parts.push("<td style='font-size:7.5px;padding:2px 4px;width:10%;color:#6b7280'>"+(p.funcao||"—").slice(0,16)+"</" + "td>");
+      DL.forEach((_,di)=>{
+        const dd=DS[di].split("/"), iso=dd[2]+"-"+dd[1]+"-"+dd[0];
+        const pres=(p.diasPresente||[]).includes(iso);
+        const foto=(p.fotosPonto||{})[iso]||"";
+        if(foto&&pres) parts.push("<td style='text-align:center;padding:1px;width:11%'><img src='"+foto+"' style='width:28px;height:28px;object-fit:cover;border-radius:3px;border:1px solid #e5e7eb'></" + "td>");
+        else if(pres) parts.push("<td style='text-align:center;width:11%'><span style='color:#10b981;font-size:14px'>✓</" + "span></" + "td>");
+        else parts.push("<td style='text-align:center;width:11%'><span style='color:#d1d5db;font-size:10px'>—</" + "span></" + "td>");
+      });
+      const ultDia=(p.diasPresente||[]).slice().sort().slice(-1)[0]||"";
+      const fAssin=(p.fotosPonto||{})[ultDia]||p.fotoUrl||"";
+      if(fAssin) parts.push("<td style='text-align:center;padding:1px;width:8%'><img src='"+fAssin+"' style='width:28px;height:28px;object-fit:cover;border-radius:3px;border:1px solid #e5e7eb'></" + "td>");
+      else parts.push("<td style='text-align:center;width:8%'><span style='font-size:7px;color:#9ca3af'>—</" + "span></" + "td>");
+      parts.push("</" + "tr>");
+    });
+    // linhas em branco
+    for(let i=partic.length;i<10;i++){
+      const bg=i%2===0?"#fff":"#f8f9fc";
+      parts.push("<tr style='background:"+bg+";height:22px'><td style='text-align:center;font-size:8px;padding:2px;color:#d1d5db'>"+(i+1)+"</" + "td><td></" + "td><td></" + "td><td></" + "td><td></" + "td><td></" + "td><td></" + "td><td></" + "td><td></" + "td></" + "tr>");
+    }
+    parts.push("</" + "tbody></" + "table>");
+    // rodapé
+    parts.push("<table style='border:1.5px solid #0f3460;margin-top:-1px;border-top:none'>");
+    parts.push("<tr class='cz'>");
+    parts.push("<td style='width:50%;padding:5px 8px'>");
+    parts.push("<div style='font-size:8px;font-weight:700'>ASSINATURA DO RESPONSÁVEL: ___________________________</" + "div>");
+    parts.push("<div style='font-size:7.5px;color:#6b7280;margin-top:2px'>"+((d.condutor&&d.condutor.nome)||"—")+" &nbsp;·&nbsp; CARGO: "+((d.condutor&&d.condutor.cargo)||"—")+"</" + "div>");
+    parts.push("</" + "td>");
+    parts.push("<td style='width:50%;text-align:right;padding:5px 8px;font-size:7px;color:#9ca3af'>");
+    parts.push("GO — Gestão de Obras · DDS · "+semLbl+"<br>Gerado em "+new Date().toLocaleDateString("pt-BR"));
+    parts.push("</" + "td></" + "tr></" + "table>");
+    parts.push("</" + "body></" + "html>");
+    return parts.join("\n");
+  }
+
+  // ── Declaração: editar ──────────────────────────────────────
+  function _ddsEditarDeclaracao(){
+    const texto=($("ddsDeclaracaoTexto")||{textContent:""}).textContent;
+    if($("ddsDeclaracaoEdit")){ $("ddsDeclaracaoEdit").value=texto; $("ddsDeclaracaoEdit").style.display=""; }
+    if($("ddsDeclaracaoTexto")) $("ddsDeclaracaoTexto").style.display="none";
+    if($("ddsDeclaracaoEditBtns")) $("ddsDeclaracaoEditBtns").style.display="flex";
+  }
+  function _ddsSalvarDeclaracao(){
+    const novo=($("ddsDeclaracaoEdit")||{value:""}).value.trim();
+    if(novo&&$("ddsDeclaracaoTexto")) $("ddsDeclaracaoTexto").textContent=novo;
+    _ddsCancelarDeclaracao();
+  }
+  function _ddsCancelarDeclaracao(){
+    if($("ddsDeclaracaoEdit"))     $("ddsDeclaracaoEdit").style.display="none";
+    if($("ddsDeclaracaoTexto"))    $("ddsDeclaracaoTexto").style.display="";
+    if($("ddsDeclaracaoEditBtns")) $("ddsDeclaracaoEditBtns").style.display="none";
+  }
+
+  // ── Participante manual + autocomplete ──────────────────────
+  function _ddsBuscarColab(q){
+    const sugest=$("ddsColabSugest"); if(!sugest) return;
+    q=(q||"").trim().toLowerCase();
+    if(q.length<2){ sugest.style.display="none"; return; }
+    const matches=(allUsers||[]).filter(u=>u.ativo!==false&&(u.nome||"").toLowerCase().includes(q)).slice(0,8);
+    if(!matches.length){ sugest.style.display="none"; return; }
+    const rows=matches.map(u=>{
+      const nm=(u.nome||"?")[0].toUpperCase();
+      const foto=u.fotoUrl?`<img src="${u.fotoUrl}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0">`
+        :`<div style="width:32px;height:32px;border-radius:50%;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:700;flex-shrink:0">${nm}</div>`;
+      const nome=(u.nome||"").replace(/'/g,"\\'");
+      const func=(u.funcao||u.cargo||"").replace(/'/g,"\\'");
+      const fUrl=(u.fotoUrl||"");
+      const uid=(u.id||u.uid||"");
+      return `<div onclick="App._ddsSelectColab('${nome}','${func}','${fUrl}','${uid}')" style="display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;border-bottom:.5px solid var(--border)" onmouseenter="this.style.background='#f0f7ff'" onmouseleave="this.style.background=''">${foto}<div><div style="font-size:.86rem;font-weight:600">${u.nome||"—"}</div><div style="font-size:.74rem;color:var(--muted)">${u.funcao||u.cargo||"Colaborador"}</div></div></div>`;
+    });
+    sugest.innerHTML=rows.join("");
+    sugest.style.display="";
+  }
+  function _ddsSelectColab(nome,funcao,fotoUrl,uid){
+    if($("ddsEquipeManualNome")){ $("ddsEquipeManualNome").value=nome; $("ddsEquipeManualNome").dataset.fotoUrl=fotoUrl; $("ddsEquipeManualNome").dataset.uid=uid; }
+    if($("ddsEquipeManualFuncao")) $("ddsEquipeManualFuncao").value=funcao;
+    if($("ddsColabSugest")) $("ddsColabSugest").style.display="none";
+  }
+  function _ddsAddManual(){
+    const nEl=$("ddsEquipeManualNome");
+    const nome=(nEl&&nEl.value||"").trim();
+    const funcao=($("ddsEquipeManualFuncao")&&$("ddsEquipeManualFuncao").value||"").trim();
+    if(!nome){ toast("Informe o nome.",false); return; }
+    if(_ddsPartic.some(p=>p.nome===nome)){ toast("Participante já está na lista.",false); return; }
+    const fotoUrl=(nEl&&nEl.dataset&&nEl.dataset.fotoUrl)||"";
+    const uidDs=(nEl&&nEl.dataset&&nEl.dataset.uid)||"manual_"+Date.now();
+    _ddsPartic.push({uid:uidDs,nome,funcao,fotoUrl,diasPresente:[],fotosPonto:{}});
+    _ddsRenderParticipantes();
+    if(nEl){ nEl.value=""; nEl.dataset.fotoUrl=""; nEl.dataset.uid=""; }
+    if($("ddsEquipeManualFuncao")) $("ddsEquipeManualFuncao").value="";
+    if($("ddsColabSugest")) $("ddsColabSugest").style.display="none";
+    toast("✅ "+nome+" adicionado à equipe.");
+  }
+
   window.App = {
     // Auth
     login, logout, togglePass, changePassword,
@@ -12168,9 +11931,10 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
     evolAbrirParaColab,
     evolAbrirGaleria, evolFiltrarGaleria, evolVerFotoAmp, evolGerarRelatorio,
     ddsInicializar, ddsSalvarSemana, ddsCarregarSemana, ddsTrocarObra,
-    ddsGerarTemas, ddsAtualizarCondutor, ddsSincronizarParticipantes, ddsAbrirPreview,
-    _ddsToggleAcc, _ddsEditarDeclaracao, _ddsSalvarDeclaracao, _ddsCancelarDeclaracao, _ddsAddManual,
-    _ddsImprimirPreview,
+    ddsGerarTemas, ddsAtualizarCondutor, ddsSincronizarParticipantes,
+    ddsAbrirPreview, _ddsImprimirPreview,
+    _ddsToggleAcc, _ddsEditarDeclaracao, _ddsSalvarDeclaracao, _ddsCancelarDeclaracao,
+    _ddsBuscarColab, _ddsSelectColab, _ddsAddManual,
     ddsAddEmail, ddsSetEnvioAuto, ddsSalvarEmailConfig, ddsEnviarEmailAgora,
     _ddsToggleAcc,
     visitanteInicializar, vFiltrarGaleria, vVerFotoAmp, vVerClimaAmp, vFiltrarGrupo,
