@@ -3630,25 +3630,67 @@
       const snap=await getDocs(query(collection(db,"obras"),orderBy("nome")));
       sel.innerHTML=`<option value="">— Selecione a obra —</option>`;
 
-      // Colaborador responsável: vê só a obra à qual está alocado
-      const profileSnap = currentUser ? await getDoc(doc(db,"usuarios",currentUser.uid)).catch(()=>null) : null;
+          // Colaborador responsável: vê todas as obras às quais está alocado
+      const profileSnap = currentUser
+        ? await getDoc(doc(db,"usuarios",currentUser.uid)).catch(()=>null)
+        : null;
+
       const profile = profileSnap?.exists() ? profileSnap.data() : null;
-      const obraFiltro = (currentRole==="USER" && canEvoluirObra(profile)) ? profile?.obra_id : null;
+
+      // Usuários antigos podem possuir apenas obra_id.
+      // Usuários atuais utilizam o array obras para múltiplas alocações.
+      const restringirObras =
+        currentRole === "USER" && canEvoluirObra(profile);
+
+      const obrasPermitidas = restringirObras
+        ? (
+            Array.isArray(profile?.obras) && profile.obras.length
+              ? profile.obras
+              : (profile?.obra_id ? [profile.obra_id] : [])
+          )
+        : null;
+
+      let primeiraObraPermitida = "";
 
       snap.forEach(d=>{
-        if(d.data().ativa!==false){
-          // Se colaborador responsável, mostrar só a obra dele
-          if(obraFiltro && d.id !== obraFiltro) return;
-          const o=document.createElement("option");
-          o.value=d.id; o.textContent=d.data().nome;
-          if(d.id===_eObraId || d.id===obraFiltro) o.selected=true;
+        if(d.data().ativa !== false){
+
+          // Colaborador: mostrar somente obras em que está efetivamente alocado
+          if(obrasPermitidas && !obrasPermitidas.includes(d.id)) return;
+
+          if(!primeiraObraPermitida) primeiraObraPermitida = d.id;
+
+          const o = document.createElement("option");
+          o.value = d.id;
+          o.textContent = d.data().nome;
+
+          // Mantém selecionada a obra que o usuário já estava consultando
+          if(d.id === _eObraId) o.selected = true;
+
           sel.appendChild(o);
         }
       });
 
-      // Auto-selecionar a obra do colaborador responsável
-      if(obraFiltro) { _eObraId = obraFiltro; evolCarregarObra(); }
-      else if(_eObraId) evolCarregarObra();
+      // Se a obra atual ainda pertence ao usuário, mantém.
+      // Caso contrário, abre a primeira obra permitida.
+      if(obrasPermitidas){
+        const atualPermitida =
+          _eObraId && obrasPermitidas.includes(_eObraId);
+
+        if(!atualPermitida){
+          _eObraId = primeiraObraPermitida || null;
+        }
+
+        if(_eObraId){
+          sel.value = _eObraId;
+          evolCarregarObra();
+        }
+
+      } else if(_eObraId){
+        // Administrador mantém o comportamento atual
+        sel.value = _eObraId;
+        evolCarregarObra();
+      }
     }catch(e){console.error(e);}
   }
 
