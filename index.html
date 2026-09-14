@@ -4142,7 +4142,13 @@
           <span style="font-family:'Syne',sans-serif;font-weight:800;font-size:.83rem;color:${corG}">${pctG.toFixed(1)}%</span>
         </div>`:"";
 
-      const svcs=_eCfg?.servicos||[];
+      const svcs = Number(_eCfg?.modeloEvolucao)===2
+    ? (_eCfg?.macros||[]).flatMap(m=>
+        Array.isArray(m?.micros)
+          ? m.micros
+          : []
+      )
+    : (_eCfg?.servicos||[]);
       const cards=ug.map(u=>{
         const pct=_ePctUnid(u.id);
         const concSvcs=svcs.filter(s=>_ePctSvc(u.id,s.id)>=100).length;
@@ -6006,17 +6012,17 @@ async function _eSnapshotHist(id,g){
       // Deixa o formulário preparado para cadastrar uma nova Macro.
       _eLimparMacroForm();
 
-      // PROTEÇÃO:
-      // o salvamento definitivo da configuração V2 continua bloqueado.
+      // A configuração V2 já possui rotina própria,
+      // validações e proteção contra sobrescrever obras V1.
       if(btnSalvar){
-        btnSalvar.disabled=true;
-        btnSalvar.textContent="🔒 Salvar V2 ainda bloqueado";
+        btnSalvar.disabled=false;
+        btnSalvar.textContent="💾 Salvar configuração V2";
       }
 
       setMsg(
         "evolCfgMsg2",
-        "ℹ️ Você pode montar e testar as Macros e Microserviços. " +
-        "Neste estágio tudo permanece apenas no rascunho local e nada é enviado ao banco.",
+        "ℹ️ Monte as Macros e Microserviços e finalize a distribuição em 100%. " +
+        "O botão Salvar configuração V2 grava a estrutura definitiva desta obra.",
         "ok"
       );
 
@@ -6643,7 +6649,569 @@ async function _eSnapshotHist(id,g){
       txt.style.color="var(--danger)";
     }
   }
+    async function evolCfgSalvarV2(){
+
+    // ─────────────────────────────────────────────
+    // SEGURANÇA — configuração estrutural
+    // somente ADMIN pode salvar
+    // ─────────────────────────────────────────────
+    if(currentRole!=="ADMIN"){
+      setMsg(
+        "evolCfgMsg2",
+        "⛔ Apenas o administrador pode alterar a configuração da evolução.",
+        "err"
+      );
+      return;
+    }
+
+    if(!_eObraId){
+      setMsg(
+        "evolCfgMsg2",
+        "⚠️ Nenhuma obra selecionada.",
+        "err"
+      );
+      return;
+    }
+
+
+    // Proteção local contra conversão acidental V1 → V2.
+    if(
+      _eCfg &&
+      Number(_eCfg?.modeloEvolucao)!==2
+    ){
+      setMsg(
+        "evolCfgMsg2",
+        "⛔ Esta obra já possui configuração V1. A conversão automática para V2 é bloqueada.",
+        "err"
+      );
+      return;
+    }
+
+
+    // ─────────────────────────────────────────────
+    // TIPO / GRUPOS / UNIDADES
+    // ─────────────────────────────────────────────
+    const tipo=
+      ($("evolCfgTipo")?.value||"").trim();
+
+    if(!tipo){
+      setMsg(
+        "evolCfgMsg2",
+        "⚠️ Informe o tipo de unidade.",
+        "err"
+      );
+      return;
+    }
+
+
+    const grupos=Array.from(
+      $("evolCfgGrupos")
+        ?.querySelectorAll(".e-grupo-row input") || []
+    )
+      .map(i=>(i.value||"").trim())
+      .filter(Boolean);
+
+
+    const unidadeRows=Array.from(
+      $("evolCfgUnidades")
+        ?.querySelectorAll(".e-unid-row") || []
+    );
+
+    const unidades=unidadeRows.map(r=>{
+
+      let id=(r.dataset.id||"").trim();
+
+      // O ID é criado apenas uma vez e fica preso à linha.
+      if(!id){
+        id=_eNovoId("u");
+        r.dataset.id=id;
+      }
+
+      return {
+        id,
+        nome:
+          (r.querySelector(".e-unid-nome")?.value||"")
+            .trim(),
+        grupo:
+          r.querySelector(".e-unid-grupo")?.value||""
+      };
+    }).filter(u=>u.nome);
+
+
+    if(!unidades.length){
+      setMsg(
+        "evolCfgMsg2",
+        "⚠️ Adicione ao menos uma unidade.",
+        "err"
+      );
+      return;
+    }
+
+
+    // IDs das unidades devem ser únicos.
+    const idsUnidades=
+      unidades.map(u=>u.id);
+
+    if(new Set(idsUnidades).size!==idsUnidades.length){
+      setMsg(
+        "evolCfgMsg2",
+        "⛔ Existem unidades com ID duplicado. O salvamento foi bloqueado.",
+        "err"
+      );
+      return;
+    }
+
+
+    // Nomes das unidades também não devem repetir.
+    const nomesUnidades=
+      unidades.map(u=>
+        u.nome.toLowerCase()
+      );
+
+    if(
+      new Set(nomesUnidades).size!==
+      nomesUnidades.length
+    ){
+      setMsg(
+        "evolCfgMsg2",
+        "⚠️ Existem unidades com o mesmo nome.",
+        "err"
+      );
+      return;
+    }
+
+
+    // Verifica referências de grupo das unidades.
+    for(const u of unidades){
+
+      if(
+        u.grupo &&
+        !grupos.includes(u.grupo)
+      ){
+        setMsg(
+          "evolCfgMsg2",
+          `⚠️ A unidade "${u.nome}" referencia um grupo que não existe.`,
+          "err"
+        );
+        return;
+      }
+    }
+
+
+    // ─────────────────────────────────────────────
+    // MACRO EM EDIÇÃO NÃO SALVA
+    // ─────────────────────────────────────────────
+    const macroEditId=
+      ($("evolMacroEditId")?.value||"").trim();
+
+    const macroNomeAberto=
+      ($("evolMacroNome")?.value||"").trim();
+
+    const microRowsAbertos=
+      $("evolCfgMicros")
+        ?.querySelectorAll(".e-micro-row")
+        ?.length || 0;
+
+    if(
+      macroEditId ||
+      macroNomeAberto ||
+      microRowsAbertos
+    ){
+      setMsg(
+        "evolCfgMsg2",
+        "⚠️ Existe uma Macro ainda aberta no formulário. Clique em “Salvar Macro” antes de salvar a configuração da obra.",
+        "err"
+      );
+      return;
+    }
+
+
+    // ─────────────────────────────────────────────
+    // MACROS / MICROS
+    // ─────────────────────────────────────────────
+    _eGarantirDraftV2();
+
+    if(!_eMacrosDraft.length){
+      setMsg(
+        "evolCfgMsg2",
+        "⚠️ Adicione pelo menos uma Macro.",
+        "err"
+      );
+      return;
+    }
+
+
+    const macros=_eMacrosDraft.map((m,idx)=>({
+
+      id:
+        String(m.id||"").trim() ||
+        _eNovoId("m"),
+
+      nome:
+        String(m.nome||"").trim(),
+
+      percentual:
+        Number(m.percentual),
+
+      ordem:
+        Number(m.ordem)||idx+1,
+
+      micros:Array.isArray(m.micros)
+        ? m.micros.map(s=>({
+
+            id:
+              String(s.id||"").trim() ||
+              _eNovoId("s"),
+
+            desc:
+              String(s.desc||"").trim(),
+
+            peso:
+              Number(s.peso),
+
+            unidade:
+              String(s.unidade||"un").trim() || "un",
+
+            qtdTotal:
+              Number(s.qtdTotal)
+
+          }))
+        : []
+
+    }));
+
+
+    // ─────────────────────────────────────────────
+    // VALIDAÇÃO COMPLETA DAS MACROS
+    // ─────────────────────────────────────────────
+
+    const nomesMacros=new Set();
+    const idsMacros=new Set();
+    const idsMicros=new Set();
+
+    let totalPercentual=0;
+
+
+    for(let i=0;i<macros.length;i++){
+
+      const macro=macros[i];
+
+      if(!macro.id){
+        setMsg(
+          "evolCfgMsg2",
+          `⛔ A Macro ${i+1} está sem ID.`,
+          "err"
+        );
+        return;
+      }
+
+
+      if(idsMacros.has(macro.id)){
+        setMsg(
+          "evolCfgMsg2",
+          "⛔ Existem Macros com ID duplicado.",
+          "err"
+        );
+        return;
+      }
+
+      idsMacros.add(macro.id);
+
+
+      if(!macro.nome){
+        setMsg(
+          "evolCfgMsg2",
+          `⚠️ A Macro ${i+1} está sem nome.`,
+          "err"
+        );
+        return;
+      }
+
+
+      const chaveNome=
+        macro.nome.toLowerCase();
+
+      if(nomesMacros.has(chaveNome)){
+        setMsg(
+          "evolCfgMsg2",
+          `⚠️ A Macro "${macro.nome}" está duplicada.`,
+          "err"
+        );
+        return;
+      }
+
+      nomesMacros.add(chaveNome);
+
+
+      if(
+        !Number.isFinite(macro.percentual) ||
+        macro.percentual<=0 ||
+        macro.percentual>100
+      ){
+        setMsg(
+          "evolCfgMsg2",
+          `⚠️ A participação da Macro "${macro.nome}" é inválida.`,
+          "err"
+        );
+        return;
+      }
+
+
+      totalPercentual+=macro.percentual;
+
+
+      if(!macro.micros.length){
+        setMsg(
+          "evolCfgMsg2",
+          `⚠️ A Macro "${macro.nome}" não possui Microserviços.`,
+          "err"
+        );
+        return;
+      }
+
+
+      const nomesMicros=new Set();
+
+
+      for(let j=0;j<macro.micros.length;j++){
+
+        const micro=macro.micros[j];
+
+
+        if(!micro.id){
+          setMsg(
+            "evolCfgMsg2",
+            `⛔ Um Microserviço da Macro "${macro.nome}" está sem ID.`,
+            "err"
+          );
+          return;
+        }
+
+
+        // IMPORTANTE:
+        // o ID do Micro é utilizado na chave
+        // unidadeId_microId do progresso.
+        if(idsMicros.has(micro.id)){
+          setMsg(
+            "evolCfgMsg2",
+            `⛔ O ID de um Microserviço está duplicado na estrutura.`,
+            "err"
+          );
+          return;
+        }
+
+        idsMicros.add(micro.id);
+
+
+        if(!micro.desc){
+          setMsg(
+            "evolCfgMsg2",
+            `⚠️ Existe um Microserviço sem descrição na Macro "${macro.nome}".`,
+            "err"
+          );
+          return;
+        }
+
+
+        const chaveMicro=
+          micro.desc.toLowerCase();
+
+        if(nomesMicros.has(chaveMicro)){
+          setMsg(
+            "evolCfgMsg2",
+            `⚠️ O Microserviço "${micro.desc}" está repetido na Macro "${macro.nome}".`,
+            "err"
+          );
+          return;
+        }
+
+        nomesMicros.add(chaveMicro);
+
+
+        if(
+          !Number.isFinite(micro.peso) ||
+          micro.peso<1 ||
+          micro.peso>10
+        ){
+          setMsg(
+            "evolCfgMsg2",
+            `⚠️ O peso de "${micro.desc}" deve estar entre 1 e 10.`,
+            "err"
+          );
+          return;
+        }
+
+
+        if(
+          !Number.isFinite(micro.qtdTotal) ||
+          micro.qtdTotal<=0
+        ){
+          setMsg(
+            "evolCfgMsg2",
+            `⚠️ A quantidade de "${micro.desc}" é inválida.`,
+            "err"
+          );
+          return;
+        }
+      }
+    }
+
+
+    // Macros obrigatoriamente totalizam 100%.
+    if(Math.abs(totalPercentual-100)>0.01){
+
+      setMsg(
+        "evolCfgMsg2",
+        `⚠️ As Macros totalizam ${totalPercentual.toFixed(2)}%. A distribuição deve ser exatamente 100%.`,
+        "err"
+      );
+
+      return;
+    }
+
+
+    // Atualiza o rascunho já normalizado,
+    // preservando os mesmos IDs usados na gravação.
+    _eMacrosDraft=macros.map(m=>({
+      ...m,
+      micros:m.micros.map(s=>({...s}))
+    }));
+
+
+    // ─────────────────────────────────────────────
+    // CONFIRMAÇÃO DO ADMINISTRADOR
+    // ─────────────────────────────────────────────
+    const confirmou=confirm(
+      `Salvar a configuração V2 desta obra?\n\n`+
+      `${unidades.length} unidade(s)\n`+
+      `${macros.length} Macro(s)\n`+
+      `Distribuição: ${totalPercentual.toFixed(2)}%\n\n`+
+      `Esta configuração será gravada no Firebase.`
+    );
+
+    if(!confirmou) return;
+
+
+    const btn=$("btnEvolSalvar");
+
+    if(btn){
+      btn.disabled=true;
+      btn.textContent="⏳ Salvando V2...";
+    }
+
+
+    try{
+
+      const configRef=
+        doc(
+          db,
+          "obras",
+          _eObraId,
+          "evolConfig",
+          "main"
+        );
+
+
+      // ─────────────────────────────────────────────
+      // TRAVA FINAL:
+      // lê novamente o Firestore imediatamente
+      // antes da gravação.
+      // ─────────────────────────────────────────────
+      const atualSnap=
+        await getDoc(configRef);
+
+      if(atualSnap.exists()){
+
+        const atual=
+          atualSnap.data();
+
+        if(Number(atual?.modeloEvolucao)!==2){
+
+          throw new Error(
+            "A obra já possui uma configuração V1. A gravação V2 foi bloqueada para proteger os dados existentes."
+          );
+        }
+      }
+
+
+      const configV2={
+
+        modeloEvolucao:2,
+
+        tipoUnidade:tipo,
+
+        grupos,
+
+        unidades,
+
+        macros,
+
+        // Preserva a configuração atual se existir.
+        permColab:
+          _eCfg?.permColab===true,
+
+        atualizadoEm:
+          serverTimestamp()
+
+      };
+
+
+      // merge:true preserva outros campos eventualmente
+      // existentes no documento V2.
+      await setDoc(
+        configRef,
+        configV2,
+        {merge:true}
+      );
+
+
+      // O rascunho agora corresponde à configuração salva.
+      _eMacrosDraftObraId=_eObraId;
+
+
+      closeModal("modalEvolConfig");
+
+      toast(
+        "✅ Configuração V2 salva com sucesso!"
+      );
+
+
+      // Recarrega do Firestore para garantir que
+      // o sistema passe a trabalhar com o dado persistido,
+      // e não apenas com o objeto local.
+      await evolCarregarObra();
+
+
+    }catch(e){
+
+      console.error(
+        "evolCfgSalvarV2:",
+        e
+      );
+
+      setMsg(
+        "evolCfgMsg2",
+        "❌ "+e.message,
+        "err"
+      );
+
+
+    }finally{
+
+      if(btn){
+        btn.disabled=false;
+        btn.textContent=
+          "💾 Salvar configuração V2";
+      }
+    }
+  }
   async function evolCfgSalvar() {
+    // Obras novas/V2 usam uma rotina própria.
+    // Obras V1 continuam no código legado abaixo.
+    if(_eUsaModeloV2()){
+      await evolCfgSalvarV2();
+      return;
+    }
     const tipo=($("evolCfgTipo")?.value||"").trim();
     const grupos=Array.from($("evolCfgGrupos").querySelectorAll(".e-grupo-row input")).map(i=>i.value.trim()).filter(Boolean);
     const unidades=Array.from($("evolCfgUnidades").querySelectorAll(".e-unid-row")).map(r=>({
@@ -12485,22 +13053,111 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
   const E_CORES_V = ["#3b82f6","#10b981","#f59e0b","#ef4444","#8b5cf6","#06b6d4","#84cc16","#f97316","#ec4899","#14b8a6","#6366f1","#d946ef","#0ea5e9","#22c55e","#eab308","#f43f5e"];
 
   function _vPctSvc(uid, sid) {
-    const k = uid+"_"+sid;
-    return _vProg[k]?.pct || 0;
+    const k=uid+"_"+sid;
+    return Number(_vProg[k]?.pct)||0;
   }
+
   function _vQtdExec(uid, sid) {
-    return _vProg[k=uid+"_"+sid]?.qtdExec || 0;
+    const k=uid+"_"+sid;
+    return Number(_vProg[k]?.qtdExec)||0;
   }
+
+
+  // Percentual de uma Macro no modelo V2.
+  // Calculado pela média ponderada dos Micros.
+  function _vPctMacro(uid,macro){
+
+    const micros=Array.isArray(macro?.micros)
+      ? macro.micros
+      : [];
+
+    if(!micros.length) return 0;
+
+    let pesoTotal=0;
+    let acumulado=0;
+
+    micros.forEach(s=>{
+
+      const peso=Number(s.peso)||1;
+
+      pesoTotal+=peso;
+      acumulado+=peso*_vPctSvc(uid,s.id);
+    });
+
+    return pesoTotal>0
+      ? acumulado/pesoTotal
+      : 0;
+  }
+
+
   function _vPctUnid(uid) {
-    const svcs = _vCfg?.servicos||[];
+
+    // ═══════════════════════════════════════
+    // MODELO V2 — MACRO / MICRO
+    // ═══════════════════════════════════════
+    if(Number(_vCfg?.modeloEvolucao)===2){
+
+      const macros=Array.isArray(_vCfg?.macros)
+        ? _vCfg.macros
+        : [];
+
+      if(!macros.length) return 0;
+
+      let pctUnidade=0;
+
+      macros.forEach(m=>{
+
+        const participacao=
+          Number(m.percentual)||0;
+
+        const pctMacro=
+          _vPctMacro(uid,m);
+
+        pctUnidade+=
+          pctMacro*(participacao/100);
+      });
+
+      return Math.max(
+        0,
+        Math.min(100,pctUnidade)
+      );
+    }
+
+
+    // ═══════════════════════════════════════
+    // MODELO V1 — LEGADO
+    // ═══════════════════════════════════════
+    const svcs=_vCfg?.servicos||[];
+
     if(!svcs.length) return 0;
-    let pT=0, pp=0;
-    svcs.forEach(s=>{ const p=Number(s.peso)||1; pT+=p; pp+=p*_vPctSvc(uid,s.id); });
-    return pT>0 ? pp/pT : 0;
+
+    let pT=0;
+    let pp=0;
+
+    svcs.forEach(s=>{
+
+      const p=Number(s.peso)||1;
+
+      pT+=p;
+      pp+=p*_vPctSvc(uid,s.id);
+    });
+
+    return pT>0
+      ? pp/pT
+      : 0;
   }
+
+
   function _vPctGlobal() {
-    const u = _vCfg?.unidades||[];
-    return u.length ? u.reduce((a,x)=>a+_vPctUnid(x.id),0)/u.length : 0;
+
+    const u=_vCfg?.unidades||[];
+
+    return u.length
+      ? u.reduce(
+          (a,x)=>a+_vPctUnid(x.id),
+          0
+        )/u.length
+      : 0;
   }
 
   async function visitanteInicializar(obraId) {
@@ -12577,7 +13234,14 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
   function _vRenderListaUnidades() {
     const el=$("vListaUnidades"); if(!el) return;
     const unids = _vCfg?.unidades||[];
-    const svcs  = _vCfg?.servicos||[];
+    const svcs =
+  Number(_vCfg?.modeloEvolucao)===2
+    ? (_vCfg?.macros||[]).flatMap(m=>
+        Array.isArray(m?.micros)
+          ? m.micros
+          : []
+      )
+    : (_vCfg?.servicos||[]);
     const grupos = _vCfg?.grupos||[];
     const tipo  = _vCfg?.tipoUnidade||"Unidade";
 
