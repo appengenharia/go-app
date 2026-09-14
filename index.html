@@ -3926,8 +3926,34 @@
     ]);
     _eCfg  = cS?.exists()  ? cS.data()  : null;
     _eCont = kS?.exists()  ? kS.data()  : null;
-    if(!_eCfg?.unidades?.length||!_eCfg?.servicos?.length){
-      $("evolSemConfig").style.display=""; return;
+        // Validação da configuração conforme o modelo da obra.
+    // V1: exige unidades + servicos[]
+    // V2: exige unidades + macros[] com micros[]
+    const modoV2 = Number(_eCfg?.modeloEvolucao) === 2;
+
+    const temUnidades =
+      Array.isArray(_eCfg?.unidades) &&
+      _eCfg.unidades.length > 0;
+
+    const temServicosV1 =
+      Array.isArray(_eCfg?.servicos) &&
+      _eCfg.servicos.length > 0;
+
+    const temMacrosV2 =
+      Array.isArray(_eCfg?.macros) &&
+      _eCfg.macros.length > 0 &&
+      _eCfg.macros.every(m =>
+        Array.isArray(m?.micros) &&
+        m.micros.length > 0
+      );
+
+    const configValida =
+      temUnidades &&
+      (modoV2 ? temMacrosV2 : temServicosV1);
+
+    if(!configValida){
+      $("evolSemConfig").style.display="";
+      return;
     }
     await _eCarregarProg(id);
     $("evolPainelPrincipal").style.display="";
@@ -3947,14 +3973,81 @@
   const _ePctSvc   = (uid,sid) => Number(_eProg[uid+"_"+sid]?.pct)||0;
   const _eQtdExec  = (uid,sid) => Number(_eProg[uid+"_"+sid]?.qtdExec)||0;
 
-  function _ePctUnid(uid) {
-    const svcs=_eCfg?.servicos||[];
-    if(!svcs.length) return 0;
-    let pT=0,pp=0;
-    svcs.forEach(s=>{ const p=Number(s.peso)||1; pT+=p; pp+=p*_ePctSvc(uid,s.id); });
-    return pT>0?pp/pT:0;
+    // Percentual de uma Macro V2:
+  // média ponderada dos Micros pertencentes à Macro.
+  function _ePctMacro(uid,macro){
+    const micros=Array.isArray(macro?.micros)
+      ? macro.micros
+      : [];
+
+    if(!micros.length) return 0;
+
+    let pesoTotal=0;
+    let acumulado=0;
+
+    micros.forEach(s=>{
+      const peso=Number(s.peso)||1;
+
+      pesoTotal+=peso;
+      acumulado+=peso*_ePctSvc(uid,s.id);
+    });
+
+    return pesoTotal>0
+      ? acumulado/pesoTotal
+      : 0;
   }
 
+  function _ePctUnid(uid) {
+
+    // ═══════════════════════════════════════
+    // MODELO V2 — MACRO / MICRO
+    // ═══════════════════════════════════════
+    if(Number(_eCfg?.modeloEvolucao)===2){
+
+      const macros=Array.isArray(_eCfg?.macros)
+        ? _eCfg.macros
+        : [];
+
+      if(!macros.length) return 0;
+
+      let pctUnidade=0;
+
+      macros.forEach(m=>{
+        const participacao=Number(m.percentual)||0;
+        const pctMacro=_ePctMacro(uid,m);
+
+        pctUnidade+=
+          pctMacro*(participacao/100);
+      });
+
+      // Proteção apenas para exibição/cálculo.
+      return Math.max(
+        0,
+        Math.min(100,pctUnidade)
+      );
+    }
+
+    // ═══════════════════════════════════════
+    // MODELO V1 — LEGADO
+    // Mantido exatamente como já funcionava
+    // ═══════════════════════════════════════
+    const svcs=_eCfg?.servicos||[];
+
+    if(!svcs.length) return 0;
+
+    let pT=0,pp=0;
+
+    svcs.forEach(s=>{
+      const p=Number(s.peso)||1;
+      pT+=p;
+      pp+=p*_ePctSvc(uid,s.id);
+    });
+
+    return pT>0
+      ? pp/pT
+      : 0;
+  }
+  
   function _ePctGlobal() {
     const u=_eCfg?.unidades||[];
     return u.length? u.reduce((a,x)=>a+_ePctUnid(x.id),0)/u.length : 0;
@@ -4592,90 +4685,521 @@ async function _eSnapshotHist(id,g){
   }
 
   // ──────────────────────────── MODAL UNIDADE ──────────────
-  function evolAbrirUnidade(uid) {
-    const u=(_eCfg?.unidades||[]).find(x=>x.id===uid); if(!u) return;
+    function evolAbrirUnidade(uid) {
+    const u=(_eCfg?.unidades||[]).find(x=>x.id===uid);
+    if(!u) return;
+
     _eUnidAtual=uid;
+
     const pct=_ePctUnid(uid);
+
     $("evolUnidNome").textContent=u.nome;
     $("evolUnidGrupoTxt").textContent=u.grupo||"";
     $("evolUnidPct").textContent=pct.toFixed(1)+"%";
-    $("evolUnidPct").style.color=pct>=100?"var(--success)":pct>0?"var(--accent2)":"var(--brand)";
-    $("evolUnidBar").style.width=pct.toFixed(1)+"%";
-    $("evolUnidBar").style.background=pct>=100?"var(--success)":pct>0?"var(--accent2)":"var(--brand)";
 
+    $("evolUnidPct").style.color=
+      pct>=100
+        ? "var(--success)"
+        : pct>0
+          ? "var(--accent2)"
+          : "var(--brand)";
+
+    $("evolUnidBar").style.width=pct.toFixed(1)+"%";
+
+    $("evolUnidBar").style.background=
+      pct>=100
+        ? "var(--success)"
+        : pct>0
+          ? "var(--accent2)"
+          : "var(--brand)";
+
+
+    // ═══════════════════════════════════════════════════════
+    // MODELO V2 — MACRO / MICRO
+    // ═══════════════════════════════════════════════════════
+    if(Number(_eCfg?.modeloEvolucao)===2){
+
+      const macros=Array.isArray(_eCfg?.macros)
+        ? _eCfg.macros
+        : [];
+
+      $("evolUnidSvcs").innerHTML=macros.map((m,idx)=>{
+
+        const pctMacro=_ePctMacro(uid,m);
+        const participacao=Number(m.percentual)||0;
+
+        const contribuicao=
+          pctMacro*(participacao/100);
+
+        const micros=Array.isArray(m.micros)
+          ? m.micros
+          : [];
+
+        const pesoTotal=micros.reduce(
+          (s,x)=>s+(Number(x.peso)||0),
+          0
+        );
+
+        const corMacro=
+          pctMacro>=100
+            ? "var(--success)"
+            : pctMacro>0
+              ? "var(--accent2)"
+              : "var(--brand)";
+
+        const microsHtml=micros.map(s=>{
+
+          const p=_ePctSvc(uid,s.id);
+          const q=_eQtdExec(uid,s.id);
+          const t=Number(s.qtdTotal)||1;
+          const peso=Number(s.peso)||1;
+
+          const participacaoMicro=
+            pesoTotal>0
+              ? (peso/pesoTotal)*100
+              : 0;
+
+          const cor=
+            p>=100
+              ? "var(--success)"
+              : p>0
+                ? "var(--accent2)"
+                : "var(--brand)";
+
+          const bord=
+            p>=100
+              ? "#a7f3d0"
+              : p>0
+                ? "#fcd34d"
+                : "var(--border)";
+
+          return `
+  <div
+    onclick="App.evolAbrirReg('${uid}','${s.id}')"
+    style="
+      background:${p>=100?"#f0fdf4":"#fff"};
+      border:1.5px solid ${bord};
+      border-radius:9px;
+      padding:9px 11px;
+      margin-top:7px;
+      cursor:pointer;
+      transition:all .15s"
+    onmouseover="this.style.borderColor='${cor}'"
+    onmouseout="this.style.borderColor='${bord}'">
+
+              <div style="
+                display:flex;
+                align-items:center;
+                justify-content:space-between;
+                gap:8px">
+
+                <div style="min-width:0;flex:1">
+                  <div style="
+                    font-weight:600;
+                    font-size:.82rem;
+                    color:var(--text)">
+                    ${_eEscV2(s.desc)}
+                  </div>
+
+                  <div style="
+                    font-size:.68rem;
+                    color:var(--muted);
+                    margin-top:2px">
+                    ${q.toLocaleString("pt-BR")}
+                    /
+                    ${t.toLocaleString("pt-BR")}
+                    ${_eEscV2(s.unidade||"un")}
+                    · Peso ${peso}
+                    · ${participacaoMicro.toFixed(1)}% da Macro
+                  </div>
+                </div>
+
+                <div style="
+                  text-align:right;
+                  flex-shrink:0">
+
+                  <div style="
+                    font-family:'Syne',sans-serif;
+                    font-weight:800;
+                    font-size:.86rem;
+                    color:${cor}">
+                    ${p.toFixed(1)}%
+                  </div>
+
+                  <div style="
+                    font-size:.65rem;
+                    color:var(--muted)">
+                   ${p>=100
+                   ? "✅ Concluído"
+                   : "▶ Registrar"}
+                  </div>
+                </div>
+              </div>
+
+              <div style="
+                background:#e5e7eb;
+                border-radius:999px;
+                height:4px;
+                overflow:hidden;
+                margin-top:6px">
+
+                <div style="
+                  height:100%;
+                  border-radius:999px;
+                  background:${cor};
+                  width:${p.toFixed(1)}%;
+                  transition:width .5s">
+                </div>
+              </div>
+
+            </div>
+          `;
+        }).join("");
+
+        return `
+          <div style="
+            border:1.5px solid #bfdbfe;
+            border-radius:12px;
+            padding:12px;
+            margin-bottom:10px;
+            background:#f8fbff">
+
+            <div style="
+              display:flex;
+              align-items:flex-start;
+              justify-content:space-between;
+              gap:10px">
+
+              <div style="
+                display:flex;
+                align-items:flex-start;
+                gap:9px;
+                min-width:0">
+
+                <div style="
+                  width:25px;
+                  height:25px;
+                  border-radius:50%;
+                  background:#eff6ff;
+                  color:var(--brand);
+                  display:flex;
+                  align-items:center;
+                  justify-content:center;
+                  font-size:.7rem;
+                  font-weight:800;
+                  flex-shrink:0">
+                  ${idx+1}
+                </div>
+
+                <div style="min-width:0">
+                  <div style="
+                    font-family:'Syne',sans-serif;
+                    font-weight:800;
+                    font-size:.86rem;
+                    color:var(--brand)">
+                    ${_eEscV2(m.nome)}
+                  </div>
+
+                  <div style="
+                    font-size:.68rem;
+                    color:var(--muted);
+                    margin-top:2px">
+                    Participação na unidade:
+                    <strong>${participacao.toLocaleString("pt-BR",{
+                      maximumFractionDigits:2
+                    })}%</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div style="
+                text-align:right;
+                flex-shrink:0">
+
+                <div style="
+                  font-family:'Syne',sans-serif;
+                  font-size:1rem;
+                  font-weight:800;
+                  color:${corMacro}">
+                  ${pctMacro.toFixed(1)}%
+                </div>
+
+                <div style="
+                  font-size:.66rem;
+                  color:var(--muted)">
+                  + ${contribuicao.toFixed(1)} p.p.
+                </div>
+              </div>
+            </div>
+
+            <div style="
+              background:#dbeafe;
+              border-radius:999px;
+              height:5px;
+              overflow:hidden;
+              margin-top:8px">
+
+              <div style="
+                height:100%;
+                border-radius:999px;
+                background:${corMacro};
+                width:${pctMacro.toFixed(1)}%;
+                transition:width .5s">
+              </div>
+            </div>
+
+            <div style="margin-top:8px">
+              ${microsHtml}
+            </div>
+
+          </div>
+        `;
+      }).join("");
+
+      $("modalEvolUnidade").classList.remove("hidden");
+      return;
+    }
+
+
+    // ═══════════════════════════════════════════════════════
+    // MODELO V1 — LEGADO
+    // Mantido como já funciona na IBITU
+    // ═══════════════════════════════════════════════════════
     const svcs=_eCfg?.servicos||[];
+
     $("evolUnidSvcs").innerHTML=svcs.map(s=>{
       const p=_ePctSvc(uid,s.id);
       const q=_eQtdExec(uid,s.id);
       const t=Number(s.qtdTotal)||1;
-      const cor=p>=100?"#10b981":p>0?"#f5a623":"#6b7280";
-      const bord=p>=100?"#a7f3d0":p>0?"#fcd34d":"var(--border)";
+
+      const cor=
+        p>=100
+          ? "var(--success)"
+          : p>0
+            ? "#f5a623"
+            : "#6b7280";
+
+      const bord=
+        p>=100
+          ? "#a7f3d0"
+          : p>0
+            ? "#fcd34d"
+            : "var(--border)";
+
       return `
       <div onclick="App.evolAbrirReg('${uid}','${s.id}')"
            style="background:${p>=100?"#f0fdf4":"#f8f9fc"};border:1.5px solid ${bord};border-radius:9px;padding:10px 13px;cursor:pointer;margin-bottom:7px;transition:all .15s"
-           onmouseover="this.style.borderColor='${cor}'" onmouseout="this.style.borderColor='${bord}'">
+           onmouseover="this.style.borderColor='${cor}'"
+           onmouseout="this.style.borderColor='${bord}'">
+
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
           <div style="min-width:0">
-            <div style="font-weight:600;font-size:.84rem;color:var(--text)">${s.desc}</div>
-            <div style="font-size:.69rem;color:var(--muted);margin-top:1px">${q.toLocaleString("pt-BR")} / ${t.toLocaleString("pt-BR")} ${s.unidade||"un"}</div>
+            <div style="font-weight:600;font-size:.84rem;color:var(--text)">
+              ${s.desc}
+            </div>
+
+            <div style="font-size:.69rem;color:var(--muted);margin-top:1px">
+              ${q.toLocaleString("pt-BR")}
+              /
+              ${t.toLocaleString("pt-BR")}
+              ${s.unidade||"un"}
+            </div>
           </div>
+
           <div style="text-align:right;flex-shrink:0">
-            <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:.88rem;color:${cor}">${p.toFixed(1)}%</div>
-            <div style="font-size:.68rem;color:${p>=100?"var(--success)":"var(--brand)"};">${p>=100?"✅":"▶ Registrar"}</div>
+            <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:.88rem;color:${cor}">
+              ${p.toFixed(1)}%
+            </div>
+
+            <div style="font-size:.68rem;color:${p>=100?"var(--success)":"var(--brand)"};">
+              ${p>=100?"✅":"▶ Registrar"}
+            </div>
           </div>
         </div>
+
         <div style="background:#e5e7eb;border-radius:999px;height:4px;overflow:hidden;margin-top:5px">
           <div style="height:100%;border-radius:999px;background:${cor};width:${p.toFixed(1)}%;transition:width .5s"></div>
         </div>
       </div>`;
     }).join("");
+
     $("modalEvolUnidade").classList.remove("hidden");
   }
 
   function evolReabrirUnidade(){ if(_eUnidAtual) evolAbrirUnidade(_eUnidAtual); }
 
   // ──────────────────────────── MODAL REGISTRO ─────────────
+    // Localiza o item de evolução conforme o modelo da obra.
+  // V1 → servicos[]
+  // V2 → macros[].micros[]
+  function _eLocalizarServicoEvol(sid){
+
+    if(Number(_eCfg?.modeloEvolucao)===2){
+
+      const macros=Array.isArray(_eCfg?.macros)
+        ? _eCfg.macros
+        : [];
+
+      for(const macro of macros){
+
+        const micro=(macro.micros||[])
+          .find(x=>x.id===sid);
+
+        if(micro){
+          return {
+            servico:micro,
+            macro,
+            modoV2:true
+          };
+        }
+      }
+
+      return {
+        servico:null,
+        macro:null,
+        modoV2:true
+      };
+    }
+
+    return {
+      servico:(_eCfg?.servicos||[])
+        .find(x=>x.id===sid) || null,
+      macro:null,
+      modoV2:false
+    };
+  }
   function evolAbrirReg(uid,sid) {
-    const u=(_eCfg?.unidades||[]).find(x=>x.id===uid);
-    const s=(_eCfg?.servicos||[]).find(x=>x.id===sid);
+
+    const u=(_eCfg?.unidades||[])
+      .find(x=>x.id===uid);
+
+    const alvo=_eLocalizarServicoEvol(sid);
+
+    const s=alvo?.servico;
+    const macro=alvo?.macro;
+    const modoV2=!!alvo?.modoV2;
+
     if(!u||!s) return;
 
-    $("evolRegUnidId").value=uid; $("evolRegSvcId").value=sid;
-    $("evolRegBread").textContent=(_eCfg?.tipoUnidade||"Unidade")+" › Serviço";
-    $("evolRegSvcTxt").textContent=`${u.nome} — ${s.desc}`;
-    $("evolRegUnidTxt").textContent=s.unidade||"un";
-    $("evolRegQtd").value=""; $("evolRegObs").value="";
-    $("evolRegPreview").textContent=""; $("evolRegPreview").style.background="transparent";
-    setMsg("evolRegMsg",""); _eFotoB64=null; _eFotoB64Depois=null;
-    // Resetar foto antes
-    if($("evolRegFotoImgAntes"))   $("evolRegFotoImgAntes").src="";
-    if($("evolRegFotoPreviewAntes"))  $("evolRegFotoPreviewAntes").style.display="none";
-    if($("evolRegFotoPlaceholderAntes")) $("evolRegFotoPlaceholderAntes").style.display="";
-    if($("evolRegRemoverAntes"))   $("evolRegRemoverAntes").style.display="none";
-    if($("evolRegFotoInputAntes")) $("evolRegFotoInputAntes").value="";
-    // Resetar foto depois
-    if($("evolRegFotoImgDepois"))  $("evolRegFotoImgDepois").src="";
-    if($("evolRegFotoPreviewDepois")) $("evolRegFotoPreviewDepois").style.display="none";
-    if($("evolRegFotoPlaceholderDepois")) $("evolRegFotoPlaceholderDepois").style.display="";
-    if($("evolRegRemoverDepois"))  $("evolRegRemoverDepois").style.display="none";
-    if($("evolRegFotoInputDepois")) $("evolRegFotoInputDepois").value="";
+    $("evolRegUnidId").value=uid;
+    $("evolRegSvcId").value=sid;
 
-    const pct=_ePctSvc(uid,sid), qe=_eQtdExec(uid,sid), qt=Number(s.qtdTotal)||1;
-    $("evolRegBarAtual").style.width=pct.toFixed(1)+"%";
-    $("evolRegPctTxt").textContent=pct.toFixed(1)+"%";
-    $("evolRegQtdTxt").textContent=`${qe.toLocaleString("pt-BR")} de ${qt.toLocaleString("pt-BR")} ${s.unidade||"un"} executados`;
+    if(modoV2){
+      $("evolRegBread").textContent=
+        (_eCfg?.tipoUnidade||"Unidade")+
+        " › "+
+        (macro?.nome||"Macro")+
+        " › Microserviço";
+    }else{
+      $("evolRegBread").textContent=
+        (_eCfg?.tipoUnidade||"Unidade")+
+        " › Serviço";
+    }
+
+    $("evolRegSvcTxt").textContent=
+      `${u.nome} — ${s.desc}`;
+
+    $("evolRegUnidTxt").textContent=
+      s.unidade||"un";
+
+    $("evolRegQtd").value="";
+    $("evolRegObs").value="";
+
+    $("evolRegPreview").textContent="";
+    $("evolRegPreview").style.background="transparent";
+
+    setMsg("evolRegMsg","");
+
+    _eFotoB64=null;
+    _eFotoB64Depois=null;
+
+
+    // Resetar foto antes
+    if($("evolRegFotoImgAntes"))
+      $("evolRegFotoImgAntes").src="";
+
+    if($("evolRegFotoPreviewAntes"))
+      $("evolRegFotoPreviewAntes").style.display="none";
+
+    if($("evolRegFotoPlaceholderAntes"))
+      $("evolRegFotoPlaceholderAntes").style.display="";
+
+    if($("evolRegRemoverAntes"))
+      $("evolRegRemoverAntes").style.display="none";
+
+    if($("evolRegFotoInputAntes"))
+      $("evolRegFotoInputAntes").value="";
+
+
+    // Resetar foto depois
+    if($("evolRegFotoImgDepois"))
+      $("evolRegFotoImgDepois").src="";
+
+    if($("evolRegFotoPreviewDepois"))
+      $("evolRegFotoPreviewDepois").style.display="none";
+
+    if($("evolRegFotoPlaceholderDepois"))
+      $("evolRegFotoPlaceholderDepois").style.display="";
+
+    if($("evolRegRemoverDepois"))
+      $("evolRegRemoverDepois").style.display="none";
+
+    if($("evolRegFotoInputDepois"))
+      $("evolRegFotoInputDepois").value="";
+
+
+    const pct=_ePctSvc(uid,sid);
+    const qe=_eQtdExec(uid,sid);
+    const qt=Number(s.qtdTotal)||1;
+
+    $("evolRegBarAtual").style.width=
+      pct.toFixed(1)+"%";
+
+    $("evolRegPctTxt").textContent=
+      pct.toFixed(1)+"%";
+
+    $("evolRegQtdTxt").textContent=
+      `${qe.toLocaleString("pt-BR")} de `+
+      `${qt.toLocaleString("pt-BR")} `+
+      `${s.unidade||"un"} executados`;
+
 
     $("evolRegQtd").oninput=()=>{
-      const qh=parseFloat($("evolRegQtd").value)||0;
-      if(qh<=0){ $("evolRegPreview").textContent=""; $("evolRegPreview").style.background="transparent"; return; }
-      const nq=Math.min(qt,qe+qh), np=(nq/qt)*100, delta=np-pct;
-      $("evolRegPreview").textContent=`→ Progresso: ${np.toFixed(1)}%  (${delta>0?"+":""}${delta.toFixed(1)}%)`;
-      $("evolRegPreview").style.background=np>=100?"#dcfce7":"#eff6ff";
-      $("evolRegPreview").style.color=np>=100?"var(--success)":"var(--brand)";
+
+      const qh=
+        parseFloat($("evolRegQtd").value)||0;
+
+      if(qh<=0){
+        $("evolRegPreview").textContent="";
+        $("evolRegPreview").style.background=
+          "transparent";
+        return;
+      }
+
+      const nq=Math.min(qt,qe+qh);
+      const np=(nq/qt)*100;
+      const delta=np-pct;
+
+      $("evolRegPreview").textContent=
+        `→ Progresso: ${np.toFixed(1)}% `+
+        `(${delta>0?"+":""}${delta.toFixed(1)}%)`;
+
+      $("evolRegPreview").style.background=
+        np>=100
+          ? "#dcfce7"
+          : "#eff6ff";
+
+      $("evolRegPreview").style.color=
+        np>=100
+          ? "var(--success)"
+          : "var(--brand)";
     };
 
-    $("modalEvolUnidade").classList.add("hidden");
-    $("modalEvolReg").classList.remove("hidden");
+    $("modalEvolUnidade")
+      .classList.add("hidden");
+
+    $("modalEvolReg")
+      .classList.remove("hidden");
   }
 
   function evolFotoSel(tipo){
@@ -4721,55 +5245,270 @@ async function _eSnapshotHist(id,g){
     }
   }
 
-  async function evolSalvarReg() {
-    const uid=$("evolRegUnidId").value, sid=$("evolRegSvcId").value;
-    const qh=parseFloat($("evolRegQtd")?.value), obs=($("evolRegObs")?.value||"").trim();
-    const s=(_eCfg?.servicos||[]).find(x=>x.id===sid);
-    const u=(_eCfg?.unidades||[]).find(x=>x.id===uid);
-    if(!s||!u||!_eObraId) return;
-    if(isNaN(qh)||qh<0){ setMsg("evolRegMsg","⚠️ Informe a quantidade.","err"); return; }
+   async function evolSalvarReg() {
 
-    const btn=$("btnEvolSalvarReg"); if(btn){ btn.disabled=true; btn.textContent="⏳..."; }
+    const uid=$("evolRegUnidId").value;
+    const sid=$("evolRegSvcId").value;
+
+    const qh=parseFloat($("evolRegQtd")?.value);
+    const obs=($("evolRegObs")?.value||"").trim();
+
+    const u=(_eCfg?.unidades||[])
+      .find(x=>x.id===uid);
+
+    const alvo=_eLocalizarServicoEvol(sid);
+
+    const s=alvo?.servico;
+    const macro=alvo?.macro;
+    const modoV2=!!alvo?.modoV2;
+
+    if(!s||!u||!_eObraId) return;
+
+    if(isNaN(qh)||qh<0){
+      setMsg(
+        "evolRegMsg",
+        "⚠️ Informe a quantidade.",
+        "err"
+      );
+      return;
+    }
+
+    const btn=$("btnEvolSalvarReg");
+
+    if(btn){
+      btn.disabled=true;
+      btn.textContent="⏳...";
+    }
+
     try{
-      const qt=Number(s.qtdTotal)||1, qe=_eQtdExec(uid,sid);
-      const nq=Math.min(qt,qe+qh), np=parseFloat(((nq/qt)*100).toFixed(2));
-      const hoje=new Date().toISOString().split("T")[0];
+
+      const qt=Number(s.qtdTotal)||1;
+      const qe=_eQtdExec(uid,sid);
+
+      const pctAntes=_ePctSvc(uid,sid);
+
+      const nq=Math.min(
+        qt,
+        qe+qh
+      );
+
+      const np=parseFloat(
+        ((nq/qt)*100).toFixed(2)
+      );
+
+      const hoje=
+        new Date()
+          .toISOString()
+          .split("T")[0];
+
+      // Mantemos a mesma chave usada pelo V1.
+      // No V2, sid corresponde ao ID do Microserviço.
       const k=uid+"_"+sid;
 
-      // Upload foto ANTES
-      let fotoUrl="", fotoUrlDepois="";
-      const _uploadFoto = async(b64)=>{
+
+      // ───────────────────────────────
+      // Upload das fotos
+      // ───────────────────────────────
+      let fotoUrl="";
+      let fotoUrlDepois="";
+
+      const _uploadFoto=async(b64)=>{
+
         if(!b64) return "";
+
         try{
-          const fd=new FormData(); fd.append("file",b64); fd.append("upload_preset",CLOUDINARY_PRESET); fd.append("folder","evolucao");
-          const res=await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`,{method:"POST",body:fd});
-          const data=await res.json(); return data.secure_url||"";
-        }catch(e){ console.warn(e); return ""; }
+
+          const fd=new FormData();
+
+          fd.append("file",b64);
+          fd.append(
+            "upload_preset",
+            CLOUDINARY_PRESET
+          );
+          fd.append(
+            "folder",
+            "evolucao"
+          );
+
+          const res=await fetch(
+            `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`,
+            {
+              method:"POST",
+              body:fd
+            }
+          );
+
+          const data=await res.json();
+
+          return data.secure_url||"";
+
+        }catch(e){
+
+          console.warn(e);
+          return "";
+        }
       };
-      fotoUrl       = await _uploadFoto(_eFotoB64);
-      fotoUrlDepois = await _uploadFoto(_eFotoB64Depois);
 
-      await setDoc(doc(db,"obras",_eObraId,"evolProgresso",k),
-        {unidId:uid,svcId:sid,pct:np,qtdExec:nq,atualizadoEm:serverTimestamp()},{merge:true});
+      fotoUrl=
+        await _uploadFoto(_eFotoB64);
 
-      await addDoc(collection(db,"obras",_eObraId,"evolRegistros"),{
-        unidId:uid,unidNome:u.nome,svcId:sid,svcDesc:s.desc,
-        data:hoje,qtdHoje:qh,qtdExec:nq,qtdTotal:qt,
-        pctAntes:_ePctSvc(uid,sid),pctDepois:np,obs,fotoUrl,
+      fotoUrlDepois=
+        await _uploadFoto(_eFotoB64Depois);
+
+
+      // ═══════════════════════════════════════
+      // PROGRESSO ACUMULADO
+      // V1 e V2 continuam na mesma coleção.
+      // ═══════════════════════════════════════
+
+      const progressoData={
+        unidId:uid,
+
+        // Campos legados mantidos para compatibilidade
+        svcId:sid,
+
+        pct:np,
+        qtdExec:nq,
+        atualizadoEm:serverTimestamp()
+      };
+
+      if(modoV2){
+
+        progressoData.modeloEvolucao=2;
+
+        progressoData.macroId=
+          macro?.id||"";
+
+        progressoData.microId=
+          sid;
+      }
+
+      await setDoc(
+        doc(
+          db,
+          "obras",
+          _eObraId,
+          "evolProgresso",
+          k
+        ),
+        progressoData,
+        {merge:true}
+      );
+
+
+      // ═══════════════════════════════════════
+      // HISTÓRICO / REGISTRO DA PRODUÇÃO
+      // ═══════════════════════════════════════
+
+      const registroData={
+
+        unidId:uid,
+        unidNome:u.nome,
+
+        // Mantidos para compatibilidade
+        // com Galeria, PDF e código legado.
+        svcId:sid,
+        svcDesc:s.desc,
+
+        data:hoje,
+
+        qtdHoje:qh,
+        qtdExec:nq,
+        qtdTotal:qt,
+
+        pctAntes,
+        pctDepois:np,
+
+        obs,
+
+        fotoUrl,
         fotoUrlDepois,
-        tipoFoto: fotoUrl&&fotoUrlDepois?"ambos":fotoUrl?"antes":fotoUrlDepois?"depois":"",
-        criadoPor:currentUser?.uid||pontoUser?.uid||"",criadoEm:serverTimestamp()
-      });
 
-      _eProg[k]={pct:np,qtdExec:nq};
+        tipoFoto:
+          fotoUrl&&fotoUrlDepois
+            ? "ambos"
+            : fotoUrl
+              ? "antes"
+              : fotoUrlDepois
+                ? "depois"
+                : "",
+
+        criadoPor:
+          currentUser?.uid||
+          pontoUser?.uid||
+          "",
+
+        criadoEm:
+          serverTimestamp()
+      };
+
+
+      // Informações adicionais exclusivas da V2.
+      if(modoV2){
+
+        registroData.modeloEvolucao=2;
+
+        registroData.macroId=
+          macro?.id||"";
+
+        registroData.macroNome=
+          macro?.nome||"";
+
+        registroData.microId=
+          sid;
+
+        registroData.microDesc=
+          s.desc||"";
+      }
+
+
+      await addDoc(
+        collection(
+          db,
+          "obras",
+          _eObraId,
+          "evolRegistros"
+        ),
+        registroData
+      );
+
+
+      // Atualiza memória local.
+      _eProg[k]={
+        pct:np,
+        qtdExec:nq
+      };
+
+
       closeModal("modalEvolReg");
-      toast(`✅ ${s.desc} — ${np.toFixed(1)}%`);
-      _eRenderPainel();
-      setTimeout(()=>evolAbrirUnidade(uid),300);
-    }catch(e){ setMsg("evolRegMsg","❌ "+e.message,"err"); }
-    finally{ if(btn){ btn.disabled=false; btn.textContent="✅ Confirmar"; } }
-  }
 
+      toast(
+        `✅ ${s.desc} — ${np.toFixed(1)}%`
+      );
+
+      _eRenderPainel();
+
+      setTimeout(
+        ()=>evolAbrirUnidade(uid),
+        300
+      );
+
+    }catch(e){
+
+      setMsg(
+        "evolRegMsg",
+        "❌ "+e.message,
+        "err"
+      );
+
+    }finally{
+
+      if(btn){
+        btn.disabled=false;
+        btn.textContent="✅ Confirmar";
+      }
+    }
+  }
   // ──────────────────────────── GALERIA DE FOTOS ──────────────
   let _eGaleriaRegistros = [];
 
