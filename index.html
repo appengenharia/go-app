@@ -5248,29 +5248,36 @@ async function _eSnapshotHist(id,g){
     // ═══════════════════════════════════════════════
     // MODELO V2 — MACRO / MICRO
     // ═══════════════════════════════════════════════
-    if(modoV2){
+        if(modoV2){
 
       if(wrapV1) wrapV1.style.display="none";
       if(wrapV2) wrapV2.style.display="";
 
-      // Proteção temporária:
-      // as funções Macro/Micro ainda serão implementadas.
+      // Habilita apenas os controles locais da configuração V2.
+      // Nenhuma destas ações grava no Firebase.
       if(wrapV2){
         wrapV2.querySelectorAll("button")
-          .forEach(btn=>btn.disabled=true);
+          .forEach(btn=>btn.disabled=false);
       }
 
-      // Impede que evolCfgSalvar() V1 grave uma obra V2
-      // antes de concluirmos o novo motor de configuração.
+      // Inicializa o rascunho da obra atual e monta a lista de Macros.
+      _eGarantirDraftV2();
+      _eRenderMacrosDraft();
+
+      // Deixa o formulário preparado para cadastrar uma nova Macro.
+      _eLimparMacroForm();
+
+      // PROTEÇÃO:
+      // o salvamento definitivo da configuração V2 continua bloqueado.
       if(btnSalvar){
         btnSalvar.disabled=true;
-        btnSalvar.textContent="🔒 Configuração V2 em preparação";
+        btnSalvar.textContent="🔒 Salvar V2 ainda bloqueado";
       }
 
       setMsg(
         "evolCfgMsg2",
-        "ℹ️ Esta obra utilizará o novo modelo Macro / Micro. " +
-        "O salvamento será habilitado após concluirmos a configuração V2.",
+        "ℹ️ Você pode montar e testar as Macros e Microserviços. " +
+        "Neste estágio tudo permanece apenas no rascunho local e nada é enviado ao banco.",
         "ok"
       );
 
@@ -5367,7 +5374,536 @@ async function _eSnapshotHist(id,g){
       <button onclick="this.closest('.e-svc-row').remove()" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:.95rem;padding:2px">✕</button>`;
     $("evolCfgSvcs").appendChild(d);
   }
+  // ═══════════════════════════════════════════════════════════
+  // EVOLUÇÃO V2 — MACRO / MICRO
+  // Rascunho local: ainda NÃO grava nada no Firebase
+  // ═══════════════════════════════════════════════════════════
 
+  let _eMacrosDraft = [];
+  let _eMacrosDraftObraId = null;
+
+  function _eNovoId(prefix){
+    return prefix+"_"+Math.random().toString(36).slice(2,9);
+  }
+
+  function _eEscV2(v=""){
+    return String(v)
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
+  }
+
+  function _eGarantirDraftV2(){
+    // Ao mudar de obra, recria o rascunho a partir da configuração da obra.
+    if(_eMacrosDraftObraId === _eObraId) return;
+
+    _eMacrosDraftObraId = _eObraId;
+
+    _eMacrosDraft = Array.isArray(_eCfg?.macros)
+      ? _eCfg.macros.map(m=>({
+          id:m.id || _eNovoId("m"),
+          nome:m.nome || "",
+          percentual:Number(m.percentual)||0,
+          ordem:Number(m.ordem)||0,
+          micros:Array.isArray(m.micros)
+            ? m.micros.map(s=>({
+                id:s.id || _eNovoId("s"),
+                desc:s.desc || s.descricao || "",
+                peso:Number(s.peso)||1,
+                unidade:s.unidade || "un",
+                qtdTotal:Number(s.qtdTotal ?? s.quantidade)||1
+              }))
+            : []
+        }))
+      : [];
+  }
+
+  function evolAddMicro(){
+    _eAddMicroEl("","1","un","1");
+  }
+
+  function _eAddMicroEl(desc="",peso="1",unid="un",qtd="1",id=""){
+    const host=$("evolCfgMicros");
+    if(!host) return;
+
+    const d=document.createElement("div");
+    d.className="e-micro-row";
+    d.dataset.id=id || "";
+
+    d.style.cssText=
+      "display:grid;grid-template-columns:minmax(120px,3fr) 52px 62px 62px 26px;"+
+      "gap:5px;align-items:center;margin-bottom:5px";
+
+    const unidades=["un","SU","m²","m","m³","%","vb"];
+
+    d.innerHTML=`
+      <input class="e-micro-desc"
+             type="text"
+             value="${_eEscV2(desc)}"
+             placeholder="Ex: Escavação"
+             style="margin:0;padding:6px 8px;font-size:.81rem">
+
+      <input class="e-micro-peso"
+             type="number"
+             value="${peso}"
+             min="1"
+             max="10"
+             step="1"
+             title="Peso de 1 a 10"
+             style="margin:0;padding:6px 4px;font-size:.81rem;text-align:center">
+
+      <select class="e-micro-unid"
+              style="margin:0;padding:6px 3px;font-size:.77rem">
+        ${unidades.map(u=>
+          `<option${u===unid?" selected":""}>${u}</option>`
+        ).join("")}
+      </select>
+
+      <input class="e-micro-qtd"
+             type="number"
+             value="${qtd}"
+             min="0.01"
+             step="0.01"
+             title="Quantidade total"
+             style="margin:0;padding:6px 4px;font-size:.81rem;text-align:center">
+
+      <button type="button"
+              class="e-micro-rem"
+              style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:.95rem;padding:2px">
+        ✕
+      </button>
+    `;
+
+    d.querySelector(".e-micro-rem").onclick=()=>{
+      d.remove();
+      _eAtualizarPesoMacro();
+    };
+
+    d.querySelector(".e-micro-peso").addEventListener(
+      "input",
+      _eAtualizarPesoMacro
+    );
+
+    host.appendChild(d);
+    _eAtualizarPesoMacro();
+  }
+
+  function _eLerMicrosForm(){
+    const rows=Array.from(
+      $("evolCfgMicros")?.querySelectorAll(".e-micro-row") || []
+    );
+
+    return rows.map(r=>({
+      id:r.dataset.id || _eNovoId("s"),
+      desc:(r.querySelector(".e-micro-desc")?.value || "").trim(),
+      peso:Number(r.querySelector(".e-micro-peso")?.value),
+      unidade:r.querySelector(".e-micro-unid")?.value || "un",
+      qtdTotal:Number(r.querySelector(".e-micro-qtd")?.value)
+    }));
+  }
+
+  function _eAtualizarPesoMacro(){
+    const resumo=$("evolMacroPesoResumo");
+    if(!resumo) return;
+
+    const micros=_eLerMicrosForm()
+      .filter(s=>s.desc || Number.isFinite(s.peso));
+
+    const pesoTotal=micros.reduce(
+      (s,x)=>s+(Number(x.peso)||0),
+      0
+    );
+
+    if(!micros.length){
+      resumo.textContent=
+        "Os pesos serão convertidos automaticamente em percentual dentro desta Macro.";
+      return;
+    }
+
+    if(pesoTotal<=0){
+      resumo.textContent="⚠️ Informe pesos válidos entre 1 e 10.";
+      resumo.style.color="var(--danger)";
+      return;
+    }
+
+    resumo.style.color="var(--muted)";
+    resumo.innerHTML=
+      `<strong>Peso total: ${pesoTotal}</strong> · `+
+      `a participação de cada serviço será calculada por `+
+      `<strong>peso ÷ ${pesoTotal}</strong>.`;
+  }
+
+  function _eLimparMacroForm(){
+    $("evolMacroEditId").value="";
+    $("evolMacroNome").value="";
+    $("evolMacroPct").value="";
+    $("evolCfgMicros").innerHTML="";
+
+    const btnCancelar=$("btnEvolCancelarMacro");
+    if(btnCancelar) btnCancelar.style.display="none";
+
+    _eAtualizarPesoMacro();
+  }
+
+  function evolCancelarMacro(){
+    _eLimparMacroForm();
+    setMsg("evolCfgMsg2","");
+  }
+
+  function evolSalvarMacroLocal(){
+    _eGarantirDraftV2();
+
+    const editId=($("evolMacroEditId")?.value || "").trim();
+    const nome=($("evolMacroNome")?.value || "").trim();
+    const percentual=Number($("evolMacroPct")?.value);
+
+    if(!nome){
+      setMsg(
+        "evolCfgMsg2",
+        "⚠️ Informe o nome da Macro.",
+        "err"
+      );
+      return;
+    }
+
+    if(!Number.isFinite(percentual) || percentual<=0 || percentual>100){
+      setMsg(
+        "evolCfgMsg2",
+        "⚠️ A participação da Macro deve ser maior que 0 e no máximo 100%.",
+        "err"
+      );
+      return;
+    }
+
+    const micros=_eLerMicrosForm();
+
+    if(!micros.length){
+      setMsg(
+        "evolCfgMsg2",
+        "⚠️ Adicione pelo menos um Microserviço à Macro.",
+        "err"
+      );
+      return;
+    }
+
+    for(let i=0;i<micros.length;i++){
+      const s=micros[i];
+
+      if(!s.desc){
+        setMsg(
+          "evolCfgMsg2",
+          `⚠️ Informe a descrição do serviço ${i+1}.`,
+          "err"
+        );
+        return;
+      }
+
+      if(
+        !Number.isFinite(s.peso) ||
+        s.peso<1 ||
+        s.peso>10
+      ){
+        setMsg(
+          "evolCfgMsg2",
+          `⚠️ O peso de "${s.desc}" deve estar entre 1 e 10.`,
+          "err"
+        );
+        return;
+      }
+
+      if(
+        !Number.isFinite(s.qtdTotal) ||
+        s.qtdTotal<=0
+      ){
+        setMsg(
+          "evolCfgMsg2",
+          `⚠️ Informe uma quantidade válida para "${s.desc}".`,
+          "err"
+        );
+        return;
+      }
+    }
+
+    // Evita duas Macros com o mesmo nome.
+    const duplicada=_eMacrosDraft.some(m=>
+      m.id!==editId &&
+      String(m.nome||"").trim().toLowerCase()===nome.toLowerCase()
+    );
+
+    if(duplicada){
+      setMsg(
+        "evolCfgMsg2",
+        "⚠️ Já existe uma Macro com esse nome.",
+        "err"
+      );
+      return;
+    }
+
+    // Verifica se o novo percentual ultrapassará 100%.
+    const totalSemAtual=_eMacrosDraft
+      .filter(m=>m.id!==editId)
+      .reduce((s,m)=>s+(Number(m.percentual)||0),0);
+
+    if(totalSemAtual + percentual > 100.0001){
+      const excede=(totalSemAtual+percentual-100).toFixed(2);
+
+      setMsg(
+        "evolCfgMsg2",
+        `⚠️ A distribuição ultrapassaria 100% em ${excede}%.`,
+        "err"
+      );
+      return;
+    }
+
+    const macro={
+      id:editId || _eNovoId("m"),
+      nome,
+      percentual,
+      ordem:editId
+        ? (_eMacrosDraft.find(m=>m.id===editId)?.ordem || 1)
+        : _eMacrosDraft.length+1,
+      micros
+    };
+
+    const idx=_eMacrosDraft.findIndex(m=>m.id===macro.id);
+
+    if(idx>=0){
+      _eMacrosDraft[idx]=macro;
+    }else{
+      _eMacrosDraft.push(macro);
+    }
+
+    _eRenderMacrosDraft();
+    _eLimparMacroForm();
+
+    setMsg(
+      "evolCfgMsg2",
+      "✅ Macro adicionada ao rascunho. Nenhum dado foi enviado ao banco.",
+      "ok"
+    );
+  }
+
+  function evolEditarMacro(id){
+    _eGarantirDraftV2();
+
+    const macro=_eMacrosDraft.find(m=>m.id===id);
+    if(!macro) return;
+
+    $("evolMacroEditId").value=macro.id;
+    $("evolMacroNome").value=macro.nome || "";
+    $("evolMacroPct").value=macro.percentual || "";
+
+    $("evolCfgMicros").innerHTML="";
+
+    (macro.micros||[]).forEach(s=>
+      _eAddMicroEl(
+        s.desc,
+        s.peso,
+        s.unidade,
+        s.qtdTotal,
+        s.id
+      )
+    );
+
+    const btnCancelar=$("btnEvolCancelarMacro");
+    if(btnCancelar) btnCancelar.style.display="";
+
+    setMsg(
+      "evolCfgMsg2",
+      "✏️ Editando Macro. As alterações continuam somente no rascunho local.",
+      "ok"
+    );
+
+    $("evolMacroNome")?.focus();
+  }
+
+  function evolRemoverMacro(id){
+    _eGarantirDraftV2();
+
+    const macro=_eMacrosDraft.find(m=>m.id===id);
+    if(!macro) return;
+
+    if(!confirm(`Remover a Macro "${macro.nome}" deste rascunho?`)){
+      return;
+    }
+
+    _eMacrosDraft=_eMacrosDraft.filter(m=>m.id!==id);
+
+    if($("evolMacroEditId")?.value===id){
+      _eLimparMacroForm();
+    }
+
+    _eRenderMacrosDraft();
+
+    setMsg(
+      "evolCfgMsg2",
+      "ℹ️ Macro removida apenas do rascunho local.",
+      "ok"
+    );
+  }
+
+  function _eRenderMacrosDraft(){
+    _eGarantirDraftV2();
+
+    const host=$("evolCfgMacrosLista");
+    if(!host) return;
+
+    host.innerHTML="";
+
+    if(!_eMacrosDraft.length){
+      host.innerHTML=`
+        <div style="
+          border:1.5px dashed var(--border);
+          border-radius:10px;
+          padding:14px;
+          text-align:center;
+          color:var(--muted);
+          font-size:.78rem">
+          Nenhuma Macro cadastrada neste rascunho.
+        </div>
+      `;
+    }else{
+      _eMacrosDraft
+        .slice()
+        .sort((a,b)=>(a.ordem||0)-(b.ordem||0))
+        .forEach((m,idx)=>{
+
+          const pesoTotal=(m.micros||[])
+            .reduce((s,x)=>s+(Number(x.peso)||0),0);
+
+          const card=document.createElement("div");
+
+          card.style.cssText=
+            "border:1.5px solid var(--border);"+
+            "border-radius:10px;padding:11px 12px;background:#fff";
+
+          card.innerHTML=`
+            <div style="display:flex;align-items:flex-start;gap:10px">
+              <div style="
+                width:26px;height:26px;border-radius:50%;
+                background:#eff6ff;color:var(--brand);
+                display:flex;align-items:center;justify-content:center;
+                font-size:.72rem;font-weight:800;flex-shrink:0">
+                ${idx+1}
+              </div>
+
+              <div style="flex:1;min-width:0">
+                <div style="
+                  display:flex;align-items:center;
+                  justify-content:space-between;gap:8px">
+                  <strong style="
+                    font-size:.84rem;color:var(--text);
+                    word-break:break-word">
+                    ${_eEscV2(m.nome)}
+                  </strong>
+
+                  <strong style="
+                    font-family:'Syne',sans-serif;
+                    color:var(--brand);
+                    white-space:nowrap">
+                    ${Number(m.percentual).toLocaleString("pt-BR",{
+                      maximumFractionDigits:2
+                    })}%
+                  </strong>
+                </div>
+
+                <div style="
+                  font-size:.71rem;color:var(--muted);
+                  margin-top:3px">
+                  ${(m.micros||[]).length} serviço(s)
+                  · peso interno ${pesoTotal}
+                </div>
+              </div>
+
+              <div style="display:flex;gap:3px;flex-shrink:0">
+                <button type="button"
+                        class="btn btn-outline sm"
+                        onclick="App.evolEditarMacro('${m.id}')"
+                        title="Editar Macro"
+                        style="padding:4px 7px">
+                  ✏️
+                </button>
+
+                <button type="button"
+                        class="btn sm"
+                        onclick="App.evolRemoverMacro('${m.id}')"
+                        title="Remover Macro"
+                        style="
+                          padding:4px 7px;
+                          background:#fef2f2;
+                          color:var(--danger);
+                          border:1px solid #fecaca">
+                  🗑️
+                </button>
+              </div>
+            </div>
+          `;
+
+          host.appendChild(card);
+        });
+    }
+
+    _eAtualizarResumoMacros();
+  }
+
+  function _eAtualizarResumoMacros(){
+    const total=_eMacrosDraft.reduce(
+      (s,m)=>s+(Number(m.percentual)||0),
+      0
+    );
+
+    const totalArred=Math.round(total*100)/100;
+    const falta=Math.max(0,100-totalArred);
+    const excede=Math.max(0,totalArred-100);
+
+    const txtTotal=$("evolMacrosTotal");
+    const pct=$("evolMacrosResumoPct");
+    const bar=$("evolMacrosResumoBar");
+    const txt=$("evolMacrosResumoTxt");
+
+    const totalFmt=totalArred.toLocaleString(
+      "pt-BR",
+      {maximumFractionDigits:2}
+    );
+
+    if(txtTotal) txtTotal.textContent=totalFmt+"%";
+    if(pct) pct.textContent=totalFmt+" / 100%";
+
+    if(bar){
+      bar.style.width=Math.min(100,Math.max(0,totalArred))+"%";
+
+      if(Math.abs(totalArred-100)<0.01){
+        bar.style.background="var(--success)";
+      }else if(totalArred>100){
+        bar.style.background="var(--danger)";
+      }else{
+        bar.style.background="var(--brand)";
+      }
+    }
+
+    if(!txt) return;
+
+    if(Math.abs(totalArred-100)<0.01){
+      txt.textContent=
+        "✅ Distribuição completa. As Macros totalizam 100%.";
+      txt.style.color="var(--success)";
+    }else if(totalArred<100){
+      txt.textContent=
+        `Faltam ${falta.toLocaleString("pt-BR",{
+          maximumFractionDigits:2
+        })}% para completar a distribuição.`;
+      txt.style.color="var(--muted)";
+    }else{
+      txt.textContent=
+        `❌ A distribuição excede 100% em ${excede.toLocaleString(
+          "pt-BR",
+          {maximumFractionDigits:2}
+        )}%.`;
+      txt.style.color="var(--danger)";
+    }
+  }
   async function evolCfgSalvar() {
     const tipo=($("evolCfgTipo")?.value||"").trim();
     const grupos=Array.from($("evolCfgGrupos").querySelectorAll(".e-grupo-row input")).map(i=>i.value.trim()).filter(Boolean);
@@ -13520,7 +14056,8 @@ async function finObterReembolsos() {
     evolInicializar, evolCarregarObra, evolFiltrarGrupo,
     evolAbrirConfig, evolCfgStep2, evolCfgStep1, evolCfgSalvar,
     evolAddGrupo, evolAddUnidade, evolMostrarSerie, evolConfirmarSerie, _eSyncGrupsSel,
-    evolAddSvc, evolAnalisarIA,
+    evolAddSvc, evolAddMicro, evolSalvarMacroLocal, evolCancelarMacro,
+    evolEditarMacro, evolRemoverMacro, evolAnalisarIA,
     evolAbrirUnidade, evolReabrirUnidade,
     evolAbrirReg, evolFotoSel, evolFotoRemover, evolSalvarReg,
     evolAbrirModalContrato, evolSalvarContrato, evolAddMarco, evolAnexarArquivo, evolTrocarArquivo, evolDeletarArquivo,
