@@ -5152,36 +5152,169 @@ async function _eSnapshotHist(id,g){
   }
 
   // ──────────────────────────── MODAL CONFIG ───────────────
+    // Define qual modelo de evolução a obra utiliza.
+  // REGRA DE SEGURANÇA:
+  // - Qualquer configuração já existente continua V1, salvo se estiver
+  //   explicitamente marcada como modeloEvolucao: 2.
+  // - Somente obra ainda sem configuração inicia no novo modelo V2.
+  function _eUsaModeloV2(){
+    if(Number(_eCfg?.modeloEvolucao) === 2) return true;
+    if(_eCfg) return false;
+    return true;
+  }
+
   function evolAbrirConfig() {
     const c=_eCfg||{};
+
     $("evolCfgTipo").value=c.tipoUnidade||"Subestação";
-    $("evolCfgS1").style.display=""; $("evolCfgS2").style.display="none";
-    setMsg("evolCfgMsg1",""); setMsg("evolCfgMsg2","");
+
+    $("evolCfgS1").style.display="";
+    $("evolCfgS2").style.display="none";
+
+    setMsg("evolCfgMsg1","");
+    setMsg("evolCfgMsg2","");
+
     $("evolCfgGrupos").innerHTML="";
     (c.grupos||[]).forEach(g=>_eAddGrupoEl(g));
+
     $("evolCfgUnidades").innerHTML="";
     (c.unidades||[]).forEach(u=>_eAddUnidEl(u.nome,u.grupo||"",u.id));
+
     $("evolPainelSerie").style.display="none";
-    $("evolCfgTipo").oninput=()=>{ $("evolCfgTipoLbl").textContent="("+$("evolCfgTipo").value+")"; };
-    $("evolCfgTipoLbl").textContent=c.tipoUnidade?"("+c.tipoUnidade+")":"";
+
+    $("evolCfgTipo").oninput=()=>{
+      $("evolCfgTipoLbl").textContent="("+$("evolCfgTipo").value+")";
+    };
+
+    $("evolCfgTipoLbl").textContent=
+      c.tipoUnidade ? "("+c.tipoUnidade+")" : "";
+
+    // Sempre abre o modal pelo Passo 1.
+    // A escolha V1/V2 ocorrerá somente ao avançar para o Passo 2.
+    const v1=$("evolCfgV1Wrap");
+    const v2=$("evolCfgV2Wrap");
+
+    if(v1) v1.style.display="";
+    if(v2) v2.style.display="none";
+
+    const btnSalvar=$("btnEvolSalvar");
+    if(btnSalvar){
+      btnSalvar.disabled=false;
+      btnSalvar.textContent="💾 Salvar configuração";
+    }
+
     $("modalEvolConfig").classList.remove("hidden");
   }
 
   function evolCfgStep2() {
     const tipo=($("evolCfgTipo")?.value||"").trim();
-    if(!tipo){ setMsg("evolCfgMsg1","⚠️ Informe o tipo de unidade.","err"); return; }
-    const rows=$("evolCfgUnidades").querySelectorAll(".e-unid-row");
-    const nomes=Array.from(rows).map(r=>r.querySelector(".e-unid-nome")?.value.trim()).filter(Boolean);
-    if(!nomes.length){ setMsg("evolCfgMsg1","⚠️ Adicione ao menos uma unidade.","err"); return; }
+
+    if(!tipo){
+      setMsg(
+        "evolCfgMsg1",
+        "⚠️ Informe o tipo de unidade.",
+        "err"
+      );
+      return;
+    }
+
+    const rows=$("evolCfgUnidades")
+      .querySelectorAll(".e-unid-row");
+
+    const nomes=Array.from(rows)
+      .map(r=>r.querySelector(".e-unid-nome")?.value.trim())
+      .filter(Boolean);
+
+    if(!nomes.length){
+      setMsg(
+        "evolCfgMsg1",
+        "⚠️ Adicione ao menos uma unidade.",
+        "err"
+      );
+      return;
+    }
+
     setMsg("evolCfgMsg1","");
-    $("evolCfgS1").style.display="none"; $("evolCfgS2").style.display="";
-    // Preencher serviços existentes ou vazio
+
+    $("evolCfgS1").style.display="none";
+    $("evolCfgS2").style.display="";
+
+    const modoV2=_eUsaModeloV2();
+
+    const wrapV1=$("evolCfgV1Wrap");
+    const wrapV2=$("evolCfgV2Wrap");
+    const btnSalvar=$("btnEvolSalvar");
+
+    // ═══════════════════════════════════════════════
+    // MODELO V2 — MACRO / MICRO
+    // ═══════════════════════════════════════════════
+    if(modoV2){
+
+      if(wrapV1) wrapV1.style.display="none";
+      if(wrapV2) wrapV2.style.display="";
+
+      // Proteção temporária:
+      // as funções Macro/Micro ainda serão implementadas.
+      if(wrapV2){
+        wrapV2.querySelectorAll("button")
+          .forEach(btn=>btn.disabled=true);
+      }
+
+      // Impede que evolCfgSalvar() V1 grave uma obra V2
+      // antes de concluirmos o novo motor de configuração.
+      if(btnSalvar){
+        btnSalvar.disabled=true;
+        btnSalvar.textContent="🔒 Configuração V2 em preparação";
+      }
+
+      setMsg(
+        "evolCfgMsg2",
+        "ℹ️ Esta obra utilizará o novo modelo Macro / Micro. " +
+        "O salvamento será habilitado após concluirmos a configuração V2.",
+        "ok"
+      );
+
+      return;
+    }
+
+    // ═══════════════════════════════════════════════
+    // MODELO V1 — LEGADO
+    // Mantém exatamente o funcionamento atual
+    // ═══════════════════════════════════════════════
+    if(wrapV1) wrapV1.style.display="";
+    if(wrapV2) wrapV2.style.display="none";
+
+    if(btnSalvar){
+      btnSalvar.disabled=false;
+      btnSalvar.textContent="💾 Salvar configuração";
+    }
+
+    setMsg("evolCfgMsg2","");
+
+    // Preencher serviços existentes do modelo V1
     $("evolCfgSvcs").innerHTML="";
+
     const svcs=_eCfg?.servicos||[];
-    svcs.forEach(s=>_eAddSvcEl(s.desc,s.peso,s.unidade,s.qtdTotal,s.id));
-    if(!svcs.length) _eAddSvcEl("","10","un","1");
+
+    svcs.forEach(s=>
+      _eAddSvcEl(
+        s.desc,
+        s.peso,
+        s.unidade,
+        s.qtdTotal,
+        s.id
+      )
+    );
+
+    if(!svcs.length){
+      _eAddSvcEl("","10","un","1");
+    }
   }
-  function evolCfgStep1(){ $("evolCfgS2").style.display="none"; $("evolCfgS1").style.display=""; }
+
+  function evolCfgStep1(){
+    $("evolCfgS2").style.display="none";
+    $("evolCfgS1").style.display="";
+  }
 
   // grupos
   function evolAddGrupo(){ _eAddGrupoEl(""); }
