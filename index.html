@@ -2156,38 +2156,233 @@
           <div style="margin-left:auto;font-size:.75rem;color:var(--muted)">Passo 2 de 2</div>
         </div>
 
-        <!-- Box da IA -->
-        <div style="background:linear-gradient(135deg,#f0f7ff,#dbeafe);border:1.5px solid #93c5fd;border-radius:12px;padding:13px;margin-bottom:14px">
-          <div style="display:flex;align-items:center;gap:7px;margin-bottom:6px">
-            <span style="font-size:1.05rem">🤖</span>
-            <span style="font-weight:700;font-size:.87rem;color:var(--brand)">Extração automática por IA</span>
-          </div>
-          <div style="font-size:.77rem;color:var(--muted);margin-bottom:9px">Faça upload do contrato (PDF ou DOCX) e a IA extrai os serviços automaticamente.</div>
-          <div id="evolIAStatusWrap" style="display:none;align-items:center;gap:7px;margin-bottom:8px">
-            <div class="spinner" style="width:13px;height:13px;border-width:2px;flex-shrink:0"></div>
-            <span id="evolIAStatusTxt" style="font-size:.77rem;color:var(--brand)">Analisando...</span>
-          </div>
-          <label class="btn btn-outline sm" style="cursor:pointer;font-size:.77rem;margin:0;display:inline-flex;align-items:center;gap:5px">
-            📎 Selecionar contrato (PDF/DOCX)
-            <input type="file" id="evolIAInput" accept=".pdf,.docx" style="display:none" onchange="App.evolAnalisarIA()">
-          </label>
-          <span id="evolIANomeArq" style="font-size:.73rem;color:var(--muted);margin-left:8px"></span>
-        </div>
+        <!-- ═══════════════════════════════════════════════════════
+     MODELO V1 — SERVIÇOS SIMPLES
+     Mantido integralmente para obras antigas, como IBITU
+     ═══════════════════════════════════════════════════════ -->
+<div id="evolCfgV1Wrap">
 
-        <!-- Serviços -->
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px">
-          <label style="margin:0;font-size:.84rem;font-weight:600;color:var(--text)">Lista de serviços</label>
-          <div style="display:flex;gap:4px">
-            <div style="font-size:.7rem;font-weight:700;color:var(--muted);padding:0 6px;border-right:1px solid var(--border)">Desc.</div>
-            <div style="font-size:.7rem;font-weight:700;color:var(--muted);width:40px;text-align:center">Peso</div>
-            <div style="font-size:.7rem;font-weight:700;color:var(--muted);width:46px;text-align:center">Unid.</div>
-            <div style="font-size:.7rem;font-weight:700;color:var(--muted);width:46px;text-align:center">Qtd.</div>
-            <div style="width:24px"></div>
+  <!-- Box da IA -->
+  <div style="background:linear-gradient(135deg,#f0f7ff,#dbeafe);border:1.5px solid #93c5fd;border-radius:12px;padding:13px;margin-bottom:14px">
+    <div style="display:flex;align-items:center;gap:7px;margin-bottom:6px">
+      <span style="font-size:1.05rem">🤖</span>
+      <span style="font-weight:700;font-size:.87rem;color:var(--brand)">Extração automática por IA</span>
+    </div>
+
+    <div style="font-size:.77rem;color:var(--muted);margin-bottom:9px">
+      Faça upload do contrato (PDF ou DOCX) e a IA extrai os serviços automaticamente.
+    </div>
+
+    <div id="evolIAStatusWrap" style="display:none;align-items:center;gap:7px;margin-bottom:8px">
+      <div class="spinner" style="width:13px;height:13px;border-width:2px;flex-shrink:0"></div>
+      <span id="evolIAStatusTxt" style="font-size:.77rem;color:var(--brand)">Analisando...</span>
+    </div>
+
+    <label class="btn btn-outline sm"
+           style="cursor:pointer;font-size:.77rem;margin:0;display:inline-flex;align-items:center;gap:5px">
+      📎 Selecionar contrato (PDF/DOCX)
+      <input type="file"
+             id="evolIAInput"
+             accept=".pdf,.docx"
+             style="display:none"
+             onchange="App.evolAnalisarIA()">
+    </label>
+
+    <span id="evolIANomeArq"
+          style="font-size:.73rem;color:var(--muted);margin-left:8px"></span>
+  </div>
+
+  <!-- Serviços V1 -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px">
+    <label style="margin:0;font-size:.84rem;font-weight:600;color:var(--text)">
+      Lista de serviços
+    </label>
+
+    <div style="display:flex;gap:4px">
+      <div style="font-size:.7rem;font-weight:700;color:var(--muted);padding:0 6px;border-right:1px solid var(--border)">Desc.</div>
+      <div style="font-size:.7rem;font-weight:700;color:var(--muted);width:40px;text-align:center">Peso</div>
+      <div style="font-size:.7rem;font-weight:700;color:var(--muted);width:46px;text-align:center">Unid.</div>
+      <div style="font-size:.7rem;font-weight:700;color:var(--muted);width:46px;text-align:center">Qtd.</div>
+      <div style="width:24px"></div>
+    </div>
+  </div>
+
+  <div id="evolCfgSvcs"
+       style="display:flex;flex-direction:column;gap:5px;margin-bottom:7px"></div>
+
+  <button class="btn btn-outline sm"
+          onclick="App.evolAddSvc()"
+          style="font-size:.77rem;width:100%">
+    + Serviço manualmente
+  </button>
+
+  <div style="font-size:.7rem;color:var(--muted);margin-top:5px">
+    O <strong>Peso</strong> define a importância de cada serviço no % de cada unidade.
+    Não precisa somar 100.
+  </div>
+
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════
+     MODELO V2 — MACRO / MICRO
+     Para novas obras
+     ═══════════════════════════════════════════════════════ -->
+<div id="evolCfgV2Wrap" style="display:none">
+
+  <div class="info-box" style="margin-bottom:14px">
+    📊 <div>
+      <strong>Plano hierárquico de serviços</strong><br>
+      Cada Macro representa uma parcela da evolução da unidade e todas as
+      Macros devem totalizar <strong>100%</strong>. Dentro de cada Macro,
+      os serviços utilizam pesos de <strong>1 a 10</strong>.
+    </div>
+  </div>
+
+  <!-- Macros já cadastradas -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+    <div>
+      <div style="font-size:.86rem;font-weight:700;color:var(--text)">
+        Macroserviços
+      </div>
+      <div style="font-size:.72rem;color:var(--muted)">
+        Estrutura principal da evolução física
+      </div>
+    </div>
+
+    <div style="text-align:right">
+      <div style="font-size:.67rem;color:var(--muted);text-transform:uppercase;font-weight:700">
+        Distribuição
+      </div>
+      <div id="evolMacrosTotal"
+           style="font-family:'Syne',sans-serif;font-size:1.05rem;font-weight:800;color:var(--brand)">
+        0%
+      </div>
+    </div>
+  </div>
+
+  <div id="evolCfgMacrosLista"
+       style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
+  </div>
+
+  <!-- Indicador dos 100% -->
+  <div id="evolMacrosResumo"
+       style="background:#f8fafc;border:1.5px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:14px">
+
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+      <span style="font-size:.78rem;font-weight:600;color:var(--text)">
+        Distribuição total das Macros
+      </span>
+
+      <strong id="evolMacrosResumoPct"
+              style="font-family:'Syne',sans-serif;color:var(--brand)">
+        0 / 100%
+      </strong>
+    </div>
+
+    <div style="background:#e5e7eb;height:6px;border-radius:999px;overflow:hidden;margin-top:7px">
+      <div id="evolMacrosResumoBar"
+           style="height:100%;width:0%;background:var(--brand);border-radius:999px;transition:width .25s">
+      </div>
+    </div>
+
+    <div id="evolMacrosResumoTxt"
+         style="font-size:.72rem;color:var(--muted);margin-top:6px">
+      Faltam 100% para completar a distribuição.
+    </div>
+  </div>
+
+  <!-- Cadastro / edição de uma Macro -->
+  <div id="evolMacroForm"
+       style="border:1.5px solid #bfdbfe;background:#f8fbff;border-radius:12px;padding:14px">
+
+    <input type="hidden" id="evolMacroEditId">
+
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px">
+      <div>
+        <div style="font-size:.86rem;font-weight:800;color:var(--brand)">
+          Nova Macro
+        </div>
+        <div style="font-size:.72rem;color:var(--muted)">
+          Cadastre o grupo e depois seus serviços.
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:minmax(0,1fr) 125px;gap:10px">
+      <div>
+        <label style="margin-top:0">Nome da Macro</label>
+        <input id="evolMacroNome"
+               type="text"
+               placeholder="Ex: Terraplenagem">
+      </div>
+
+      <div>
+        <label style="margin-top:0">Participação (%)</label>
+        <input id="evolMacroPct"
+               type="number"
+               min="0.01"
+               max="100"
+               step="0.01"
+               placeholder="0,00">
+      </div>
+    </div>
+
+    <div style="margin-top:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px">
+        <div>
+          <div style="font-size:.82rem;font-weight:700;color:var(--text)">
+            Microserviços
+          </div>
+          <div style="font-size:.7rem;color:var(--muted)">
+            Serviços que compõem esta Macro
           </div>
         </div>
-        <div id="evolCfgSvcs" style="display:flex;flex-direction:column;gap:5px;margin-bottom:7px"></div>
-        <button class="btn btn-outline sm" onclick="App.evolAddSvc()" style="font-size:.77rem;width:100%">+ Serviço manualmente</button>
-        <div style="font-size:.7rem;color:var(--muted);margin-top:5px">O <strong>Peso</strong> define a importância de cada serviço no % de cada unidade. Não precisa somar 100.</div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:minmax(120px,3fr) 52px 62px 62px 26px;gap:5px;margin-bottom:5px;padding:0 2px">
+        <div style="font-size:.67rem;font-weight:700;color:var(--muted)">Descrição</div>
+        <div style="font-size:.67rem;font-weight:700;color:var(--muted);text-align:center">Peso</div>
+        <div style="font-size:.67rem;font-weight:700;color:var(--muted);text-align:center">Unid.</div>
+        <div style="font-size:.67rem;font-weight:700;color:var(--muted);text-align:center">Qtd.</div>
+        <div></div>
+      </div>
+
+      <div id="evolCfgMicros"
+           style="display:flex;flex-direction:column;gap:5px"></div>
+
+      <button type="button"
+              class="btn btn-outline sm"
+              onclick="App.evolAddMicro()"
+              style="font-size:.77rem;width:100%;margin-top:7px">
+        + Adicionar serviço
+      </button>
+
+      <div id="evolMacroPesoResumo"
+           style="font-size:.72rem;color:var(--muted);margin-top:7px">
+        Os pesos serão convertidos automaticamente em percentual dentro desta Macro.
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap">
+      <button type="button"
+              class="btn btn-outline sm"
+              id="btnEvolCancelarMacro"
+              onclick="App.evolCancelarMacro()"
+              style="display:none">
+        Cancelar edição
+      </button>
+
+      <button type="button"
+              class="btn btn-primary sm"
+              onclick="App.evolSalvarMacroLocal()">
+        ✅ Salvar Macro
+      </button>
+    </div>
+
+  </div>
+
+</div>
 
         <div class="msg" id="evolCfgMsg2" style="margin-top:8px"></div>
         <div class="modal-footer" style="margin-top:16px">
