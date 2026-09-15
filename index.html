@@ -5547,121 +5547,614 @@ async function _eSnapshotHist(id,g){
     }
   }
 
-  function evolFiltrarGaleria(){
-    const filtroUnid = $("evolGaleriaFiltroUnid")?.value||"";
-    const filtroDias = parseInt($("evolGaleriaFiltroPeriodo")?.value)||0;
-    const corte = filtroDias>0 ? new Date(Date.now()-filtroDias*86400000) : null;
+ function evolFiltrarGaleria(){
+  const filtroUnid = $("evolGaleriaFiltroUnid")?.value||"";
+  const filtroDias = parseInt($("evolGaleriaFiltroPeriodo")?.value)||0;
+  const corte = filtroDias>0
+    ? new Date(Date.now()-filtroDias*86400000)
+    : null;
 
-    let regs = _eGaleriaRegistros.filter(r => {
-      if(filtroUnid && r.unidId!==filtroUnid) return false;
-      if(corte && r.data){
-        const d=new Date(r.data+"T12:00:00"); if(d<corte) return false;
-      }
-      return true;
-    });
+  const regs = _eGaleriaRegistros.filter(r => {
+    if(filtroUnid && r.unidId!==filtroUnid) return false;
 
-    const el=$("evolGaleriaConteudo"); if(!el) return;
-    if(!regs.length){
-      el.innerHTML=`<div class="empty" style="column-span:all"><div class="empty-icon">📷</div><p>Nenhuma foto neste período.</p></div>`;
-      $("evolGaleriaTotais").textContent="";
-      return;
+    if(corte && r.data){
+      const d=new Date(r.data+"T12:00:00");
+      if(d<corte) return false;
     }
 
-    $("evolGaleriaTotais").textContent=`${regs.length} foto${regs.length!==1?"s":""} encontrada${regs.length!==1?"s":""}`;
+    return true;
+  });
 
-    // Agrupar por data
-    const porData={};
-    regs.forEach(r=>{ const d=r.data||"?"; if(!porData[d]) porData[d]=[]; porData[d].push(r); });
+  // Cada registro pode possuir duas fotos.
+  // A galeria trabalha com cada imagem separadamente,
+  // preservando o mesmo registro histórico.
+  const fotosGaleria = regs.flatMap(r=>{
 
-    el.style.columns="1";
-    el.innerHTML=Object.entries(porData).map(([data,fotos])=>{
-      const dtFmt=new Date(data+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"short",year:"numeric"});
-       const podeEditarAdm = currentRole==="ADMIN" || canEvoluirObra(currentProfile);
-       const cards=fotos.map(r=>{
-        const unid=(_eCfg?.unidades||[]).find(u=>u.id===r.unidId);
-        const delta=r.pctDepois-r.pctAntes;
-        const tipo = r.tipoFoto||"antes";
-        const tipoCor   = tipo==="depois"?"#10b981":"#f5a623";
-        const tipoLabel = tipo==="depois"?"✅ Depois":"📸 Antes";
-        const safeId = r.id.replace(/[^a-zA-Z0-9]/g,"_");
-        return `
-        <div style="background:#f8f9fc;border:1.5px solid ${tipo==="depois"?"#bbf7d0":"#fde68a"};border-radius:10px;overflow:hidden;margin-bottom:8px">
-          <div style="display:flex;gap:12px;cursor:pointer"
-               onclick="App.evolVerFotoAmp('${r.fotoUrl||r.fotoUrlDepois||""}','${(r.unidNome||"").replace(/'/g,"&#39;")}','${(r.svcDesc||"").replace(/'/g,"&#39;")}','${data}','${delta.toFixed(1)}')">
-            <div style="position:relative;flex-shrink:0">
-              <img src="${r.fotoUrl||r.fotoUrlDepois||''}" style="width:90px;height:80px;object-fit:cover;display:block" alt="" loading="lazy">
-              <span style="position:absolute;top:4px;left:4px;background:${tipoCor};color:#fff;font-size:.58rem;font-weight:700;padding:1px 5px;border-radius:10px">${tipoLabel}</span>
-            </div>
-            <div style="padding:9px 10px;min-width:0;flex:1">
-              <div style="font-weight:700;font-size:.82rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${unid?.nome||r.unidNome||"—"}</div>
-              <div style="font-size:.75rem;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.svcDesc||"—"}</div>
-              <div style="font-size:.73rem;margin-top:5px">
-                <span style="background:${delta>0?"#dcfce7":"#f3f4f6"};color:${delta>0?"var(--success)":"var(--muted)"};padding:2px 7px;border-radius:20px;font-weight:600">${delta>0?"+":""}${delta.toFixed(1)}%</span>
-                ${r.obs?`<span style="color:var(--muted);font-size:.7rem;margin-left:6px">${r.obs.slice(0,40)}${r.obs.length>40?"…":""}</span>`:""}
+    const itens=[];
+
+    if(r.fotoUrl){
+      itens.push({
+        ...r,
+        _fotoCampo:"fotoUrl",
+        _fotoTipo:"antes",
+        _fotoUrl:r.fotoUrl
+      });
+    }
+
+    if(r.fotoUrlDepois){
+      itens.push({
+        ...r,
+        _fotoCampo:"fotoUrlDepois",
+        _fotoTipo:"depois",
+        _fotoUrl:r.fotoUrlDepois
+      });
+    }
+
+    return itens;
+  });
+
+  const el=$("evolGaleriaConteudo");
+
+  if(!el) return;
+
+  if(!fotosGaleria.length){
+
+    el.innerHTML=`
+      <div class="empty" style="column-span:all">
+        <div class="empty-icon">📷</div>
+        <p>Nenhuma foto neste período.</p>
+      </div>
+    `;
+
+    $("evolGaleriaTotais").textContent="";
+
+    return;
+  }
+
+  $("evolGaleriaTotais").textContent=
+    `${fotosGaleria.length} foto${fotosGaleria.length!==1?"s":""} `+
+    `encontrada${fotosGaleria.length!==1?"s":""}`;
+
+  // Agrupar as imagens por data.
+  const porData={};
+
+  fotosGaleria.forEach(r=>{
+
+    const d=r.data||"?";
+
+    if(!porData[d]){
+      porData[d]=[];
+    }
+
+    porData[d].push(r);
+  });
+
+
+  const podeEditarAdm =
+    currentRole==="ADMIN" ||
+    canEvoluirObra(currentProfile);
+
+
+  el.style.columns="1";
+
+
+  el.innerHTML=
+    Object.entries(porData)
+      .map(([data,fotos])=>{
+
+        const dtFmt =
+          data==="?"
+            ? "Sem data"
+            : new Date(data+"T12:00:00")
+                .toLocaleDateString(
+                  "pt-BR",
+                  {
+                    weekday:"short",
+                    day:"2-digit",
+                    month:"short",
+                    year:"numeric"
+                  }
+                );
+
+
+        const cards=
+          fotos.map(r=>{
+
+            const unid=
+              (_eCfg?.unidades||[])
+                .find(u=>u.id===r.unidId);
+
+
+            const delta=
+              (Number(r.pctDepois)||0) -
+              (Number(r.pctAntes)||0);
+
+
+            const tipo=
+              r._fotoTipo;
+
+
+            const fotoUrl=
+              r._fotoUrl;
+
+
+            const tipoCor=
+              tipo==="depois"
+                ? "#10b981"
+                : "#f5a623";
+
+
+            const tipoLabel=
+              tipo==="depois"
+                ? "✅ Depois"
+                : "📸 Antes";
+
+
+            // Um mesmo registro pode possuir foto Antes e Depois.
+            // Por isso o tipo também faz parte do ID visual.
+            const safeId=
+              r.id.replace(
+                /[^a-zA-Z0-9]/g,
+                "_"
+              )+
+              "_"+
+              tipo;
+
+
+            return `
+            <div style="
+              background:#f8f9fc;
+              border:1.5px solid ${tipo==="depois"?"#bbf7d0":"#fde68a"};
+              border-radius:10px;
+              overflow:hidden;
+              margin-bottom:8px
+            ">
+
+              <div
+                style="display:flex;gap:12px;cursor:pointer"
+
+                onclick="App.evolVerFotoAmp(
+                  '${fotoUrl}',
+                  '${(r.unidNome||"").replace(/'/g,"&#39;")}',
+                  '${(r.svcDesc||"").replace(/'/g,"&#39;")}',
+                  '${data}',
+                  '${delta.toFixed(1)}'
+                )"
+              >
+
+                <div style="
+                  position:relative;
+                  flex-shrink:0
+                ">
+
+                  <img
+                    src="${fotoUrl}"
+                    style="
+                      width:90px;
+                      height:80px;
+                      object-fit:cover;
+                      display:block
+                    "
+                    alt=""
+                    loading="lazy"
+                  >
+
+                  <span style="
+                    position:absolute;
+                    top:4px;
+                    left:4px;
+                    background:${tipoCor};
+                    color:#fff;
+                    font-size:.58rem;
+                    font-weight:700;
+                    padding:1px 5px;
+                    border-radius:10px
+                  ">
+                    ${tipoLabel}
+                  </span>
+
+                </div>
+
+
+                <div style="
+                  padding:9px 10px;
+                  min-width:0;
+                  flex:1
+                ">
+
+                  <div style="
+                    font-weight:700;
+                    font-size:.82rem;
+                    color:var(--text);
+                    white-space:nowrap;
+                    overflow:hidden;
+                    text-overflow:ellipsis
+                  ">
+                    ${unid?.nome||r.unidNome||"—"}
+                  </div>
+
+
+                  <div style="
+                    font-size:.75rem;
+                    color:var(--muted);
+                    margin-top:2px;
+                    white-space:nowrap;
+                    overflow:hidden;
+                    text-overflow:ellipsis
+                  ">
+                    ${r.svcDesc||"—"}
+                  </div>
+
+
+                  <div style="
+                    font-size:.73rem;
+                    margin-top:5px
+                  ">
+
+                    <span style="
+                      background:${delta>0?"#dcfce7":"#f3f4f6"};
+                      color:${delta>0?"var(--success)":"var(--muted)"};
+                      padding:2px 7px;
+                      border-radius:20px;
+                      font-weight:600
+                    ">
+                      ${delta>0?"+":""}${delta.toFixed(1)}%
+                    </span>
+
+                    ${
+                      r.obs
+                        ? `
+                          <span style="
+                            color:var(--muted);
+                            font-size:.7rem;
+                            margin-left:6px
+                          ">
+                            ${r.obs.slice(0,40)}
+                            ${r.obs.length>40?"…":""}
+                          </span>
+                        `
+                        : ""
+                    }
+
+                  </div>
+
+                </div>
+
               </div>
+
+
+              ${
+                podeEditarAdm
+                  ? `
+                    <div style="
+                      display:flex;
+                      gap:6px;
+                      padding:6px 10px;
+                      border-top:1px solid var(--border);
+                      background:#fff
+                    ">
+
+                      <label
+                        id="lblEvolTrocar_${safeId}"
+                        style="
+                          flex:1;
+                          margin:0;
+                          cursor:pointer;
+                          background:#f0f7ff;
+                          border:1px solid #bfdbfe;
+                          border-radius:6px;
+                          padding:4px 8px;
+                          text-align:center;
+                          font-size:.72rem;
+                          color:var(--brand);
+                          font-weight:500
+                        "
+                      >
+                        🔄 Trocar
+
+                        <input
+                          type="file"
+                          id="fileEvolTrocar_${safeId}"
+                          accept="image/*"
+                          style="display:none"
+                        >
+
+                      </label>
+
+
+                      <button
+                        id="btnEvolApagar_${safeId}"
+                        style="
+                          flex:1;
+                          background:#fef2f2;
+                          border:1px solid #fca5a5;
+                          border-radius:6px;
+                          padding:4px 8px;
+                          font-size:.72rem;
+                          color:var(--danger);
+                          cursor:pointer;
+                          font-weight:500
+                        "
+                      >
+                        🗑️ Apagar
+                      </button>
+
+                    </div>
+                  `
+                  : ""
+              }
+
             </div>
+            `;
+
+          }).join("");
+
+
+        return `
+        <div style="margin-bottom:16px">
+
+          <div style="
+            font-size:.76rem;
+            font-weight:700;
+            color:var(--muted);
+            text-transform:uppercase;
+            letter-spacing:.4px;
+            padding:4px 0;
+            border-bottom:1.5px solid var(--border);
+            margin-bottom:8px
+          ">
+            ${dtFmt} ·
+            ${fotos.length}
+            foto${fotos.length!==1?"s":""}
           </div>
-          ${podeEditarAdm?`
-          <div style="display:flex;gap:6px;padding:6px 10px;border-top:1px solid var(--border);background:#fff">
-            <label id="lblEvolTrocar_${safeId}" style="flex:1;margin:0;cursor:pointer;background:#f0f7ff;border:1px solid #bfdbfe;border-radius:6px;padding:4px 8px;text-align:center;font-size:.72rem;color:var(--brand);font-weight:500">
-              🔄 Trocar
-              <input type="file" id="fileEvolTrocar_${safeId}" accept="image/*" style="display:none">
-            </label>
-            <button id="btnEvolApagar_${safeId}" style="flex:1;background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;padding:4px 8px;font-size:.72rem;color:var(--danger);cursor:pointer;font-weight:500">
-              🗑️ Apagar
-            </button>
-          </div>`:""}
-        </div>`;
+
+          ${cards}
+
+        </div>
+        `;
+
       }).join("");
-      return `
-      <div style="margin-bottom:16px">
-        <div style="font-size:.76rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;padding:4px 0;border-bottom:1.5px solid var(--border);margin-bottom:8px">${dtFmt} · ${fotos.length} foto${fotos.length!==1?"s":""}</div>
-        ${cards}
-      </div>`;
-    }).join("");
 
-    // Listeners dos botões de edição na galeria ADM
-    if(podeEditarAdm) {
-      regs.forEach(r=>{
-        const safeId = r.id.replace(/[^a-zA-Z0-9]/g,"_");
-        const fileInput = document.getElementById("fileEvolTrocar_"+safeId);
-        const btnApagar = document.getElementById("btnEvolApagar_"+safeId);
-        if(fileInput) fileInput.addEventListener("change", ()=> _evolTrocarFotoAdm(r.id, fileInput));
-        if(btnApagar) btnApagar.addEventListener("click",  ()=> _evolApagarFotoAdm(r.id));
-      });
+
+  // Listeners de edição por imagem.
+  // Antes e Depois possuem IDs distintos.
+  if(podeEditarAdm){
+
+    fotosGaleria.forEach(r=>{
+
+      const safeId=
+        r.id.replace(
+          /[^a-zA-Z0-9]/g,
+          "_"
+        )+
+        "_"+
+        r._fotoTipo;
+
+
+      const fileInput=
+        document.getElementById(
+          "fileEvolTrocar_"+safeId
+        );
+
+
+      const btnApagar=
+        document.getElementById(
+          "btnEvolApagar_"+safeId
+        );
+
+
+      if(fileInput){
+
+        fileInput.addEventListener(
+          "change",
+          ()=>_evolTrocarFotoAdm(
+            r.id,
+            r._fotoCampo,
+            fileInput
+          )
+        );
+      }
+
+
+      if(btnApagar){
+
+        btnApagar.addEventListener(
+          "click",
+          ()=>_evolApagarFotoAdm(
+            r.id,
+            r._fotoCampo
+          )
+        );
+      }
+
+    });
+  }
+}
+
+
+
+async function _evolApagarFotoAdm(
+  regId,
+  campo
+){
+
+  if(
+    !_eObraId ||
+    !regId ||
+    ![
+      "fotoUrl",
+      "fotoUrlDepois"
+    ].includes(campo)
+  ){
+    return;
+  }
+
+
+  const label=
+    campo==="fotoUrlDepois"
+      ? "Depois"
+      : "Antes";
+
+
+  if(
+    !confirm(
+      `Remover a foto ${label} da galeria?\n\n`+
+      `O registro de evolução e os demais dados serão preservados.`
+    )
+  ){
+    return;
+  }
+
+
+  try{
+
+    await updateDoc(
+      doc(
+        db,
+        "obras",
+        _eObraId,
+        "evolRegistros",
+        regId
+      ),
+      {
+        [campo]:"",
+        atualizadoEm:
+          serverTimestamp()
+      }
+    );
+
+
+    toast(
+      `🗑️ Foto ${label} removida. Histórico preservado.`
+    );
+
+
+    await evolAbrirGaleria();
+
+
+  }catch(e){
+
+    toast(
+      "Erro: "+e.message,
+      "err"
+    );
+  }
+}
+
+async function _evolTrocarFotoAdm(
+  regId,
+  campo,
+  input
+){
+
+  if(
+    !input?.files?.[0] ||
+    !_eObraId ||
+    !regId ||
+    ![
+      "fotoUrl",
+      "fotoUrlDepois"
+    ].includes(campo)
+  ){
+    return;
+  }
+
+
+  const file=
+    input.files[0];
+
+
+  const label=
+    campo==="fotoUrlDepois"
+      ? "Depois"
+      : "Antes";
+
+
+  toast(
+    `⏳ Enviando foto ${label}...`
+  );
+
+
+  try{
+
+    const fd=
+      new FormData();
+
+
+    fd.append(
+      "file",
+      file
+    );
+
+
+    fd.append(
+      "upload_preset",
+      "cfo_uploads"
+    );
+
+
+    fd.append(
+      "folder",
+      "go"
+    );
+
+
+    const r=
+      await fetch(
+        "https://api.cloudinary.com/v1_1/dibvvm6ix/image/upload",
+        {
+          method:"POST",
+          body:fd
+        }
+      );
+
+
+    const j=
+      await r.json();
+
+
+    if(!j.secure_url){
+
+      throw new Error(
+        "Falha no upload"
+      );
     }
-  }
 
-  async function _evolApagarFotoAdm(regId) {
-    if(!_eObraId || !regId) return;
-    if(!confirm("Apagar esta foto permanentemente?")) return;
-    try {
-      await deleteDoc(doc(db,"obras",_eObraId,"evolRegistros",regId));
-      toast("🗑️ Foto apagada!");
-      await evolAbrirGaleria();
-    } catch(e) { toast("Erro: "+e.message); }
-  }
 
-  async function _evolTrocarFotoAdm(regId, input) {
-    if(!input.files[0] || !_eObraId || !regId) return;
-    const file = input.files[0];
-    toast("⏳ Enviando foto...");
-    try {
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("upload_preset", "cfo_uploads");
-      fd.append("folder", "go");
-      const r = await fetch("https://api.cloudinary.com/v1_1/dibvvm6ix/image/upload", {method:"POST", body:fd});
-      const j = await r.json();
-      if(!j.secure_url) throw new Error("Falha no upload");
-      await updateDoc(doc(db,"obras",_eObraId,"evolRegistros",regId), {
-        fotoUrl: j.secure_url,
-        atualizadoEm: serverTimestamp()
-      });
-      toast("✅ Foto atualizada!");
-      await evolAbrirGaleria();
-    } catch(e) { toast("Erro: "+e.message); }
+    await updateDoc(
+      doc(
+        db,
+        "obras",
+        _eObraId,
+        "evolRegistros",
+        regId
+      ),
+      {
+        [campo]:
+          j.secure_url,
+
+        atualizadoEm:
+          serverTimestamp()
+      }
+    );
+
+
+    toast(
+      `✅ Foto ${label} atualizada!`
+    );
+
+
+    await evolAbrirGaleria();
+
+
+  }catch(e){
+
+    toast(
+      "Erro: "+e.message,
+      "err"
+    );
   }
+}
 
   function evolVerFotoAmp(url,unid,svc,data,delta){
     $("evolFotoAmpImg").src=url;
@@ -13417,133 +13910,692 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
     }catch(e){}
   }
 
-  function vFiltrarGaleria() {
-    const filtroUnid = $("vGaleriaFiltroUnid")?.value||"";
-    const filtroDias = parseInt($("vGaleriaFiltroPeriodo")?.value)||0;
-    const corte = filtroDias>0 ? new Date(Date.now()-filtroDias*86400000) : null;
+function vFiltrarGaleria() {
+  const filtroUnid = $("vGaleriaFiltroUnid")?.value||"";
+  const filtroDias = parseInt($("vGaleriaFiltroPeriodo")?.value)||0;
+  const corte = filtroDias>0 ? new Date(Date.now()-filtroDias*86400000) : null;
 
-    const regs = _vGaleriaRegistros.filter(r=>{
-      if(filtroUnid && r.unidId!==filtroUnid) return false;
-      if(corte && r.data){ const d=new Date(r.data+"T12:00:00"); if(d<corte) return false; }
-      return true;
-    });
+  const regs = _vGaleriaRegistros.filter(r=>{
+    if(filtroUnid && r.unidId!==filtroUnid) return false;
 
-    const grid=$("vGaleriaGrid"); if(!grid) return;
-    $("vGaleriaTotais").textContent = regs.length ? `${regs.length} foto${regs.length!==1?"s":""} encontrada${regs.length!==1?"s":""}` : "";
-
-    if(!regs.length){
-      grid.innerHTML=`<div style="color:rgba(255,255,255,.35);font-size:.82rem;text-align:center;padding:24px;grid-column:1/-1">📷 Nenhuma foto neste período</div>`;
-      return;
+    if(corte && r.data){
+      const d=new Date(r.data+"T12:00:00");
+      if(d<corte) return false;
     }
 
-    // Agrupar por data e limitar 4 por dia: 2 antes + 2 depois
-    const porData = {};
-    regs.forEach(r=>{
-      const d = r.data||"sem-data";
-      if(!porData[d]) porData[d]={antes:[],depois:[]};
-      const tipo = r.tipoFoto||"antes";
-      if(tipo==="depois"){ if(porData[d].depois.length<2) porData[d].depois.push(r); }
-      else               { if(porData[d].antes.length<2)  porData[d].antes.push(r); }
-    });
-    const regsLimitadas = Object.entries(porData)
-      .sort((a,b)=>b[0].localeCompare(a[0]))
-      .flatMap(([,g])=>[...g.antes,...g.depois]);
+    return true;
+  });
 
-    grid.style.gridTemplateColumns = "repeat(2,1fr)";
-    // Verificar se usuário pode editar (ADM ou responsável pela evolução)
-    const podeEditar = currentRole==="ADMIN" || canEvoluirObra(currentProfile);
 
-    grid.innerHTML = regsLimitadas.map(r=>{
-      const dtFmt = new Date((r.data||"")+"T12:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"});
-      const unid = (_vCfg?.unidades||[]).find(u=>u.id===r.unidId);
-      const delta = r.pctDepois-r.pctAntes;
-      const tipo = r.tipoFoto||"antes";
-      const tipoCor   = tipo==="depois"?"#10b981":"#f5a623";
-      const tipoLabel = tipo==="depois"?"✅ Depois":"📸 Antes";
-      const safeId = r.id.replace(/[^a-zA-Z0-9]/g,"_");
-      const btnEditar = podeEditar ? `
-        <div style="display:flex;gap:4px;padding:5px 7px;border-top:1px solid rgba(255,255,255,.08)" onclick="event.stopPropagation()">
-          <label id="lblTrocar_${safeId}" style="flex:1;margin:0;cursor:pointer;background:rgba(255,255,255,.08);border-radius:6px;padding:3px 6px;text-align:center;font-size:.62rem;color:rgba(255,255,255,.6);transition:background .15s" onmouseover="this.style.background='rgba(255,255,255,.15)'" onmouseout="this.style.background='rgba(255,255,255,.08)'">
-            🔄 Trocar
-            <input type="file" id="fileTrocar_${safeId}" accept="image/*" style="display:none">
-          </label>
-          <button id="btnApagarFoto_${safeId}" style="flex:1;background:rgba(233,69,96,.12);border:none;border-radius:6px;padding:3px 6px;font-size:.62rem;color:#fca5a5;cursor:pointer;transition:background .15s" onmouseover="this.style.background='rgba(233,69,96,.25)'" onmouseout="this.style.background='rgba(233,69,96,.12)'">
-            🗑️ Apagar
-          </button>
-        </div>` : "";
+  // Cada registro pode possuir duas fotos:
+  // fotoUrl = Antes
+  // fotoUrlDepois = Depois
+  const fotosGaleria = regs.flatMap(r=>{
+
+    const itens=[];
+
+    if(r.fotoUrl){
+      itens.push({
+        ...r,
+        _fotoCampo:"fotoUrl",
+        _fotoTipo:"antes",
+        _fotoUrl:r.fotoUrl
+      });
+    }
+
+    if(r.fotoUrlDepois){
+      itens.push({
+        ...r,
+        _fotoCampo:"fotoUrlDepois",
+        _fotoTipo:"depois",
+        _fotoUrl:r.fotoUrlDepois
+      });
+    }
+
+    return itens;
+  });
+
+
+  const grid=$("vGaleriaGrid");
+
+  if(!grid) return;
+
+
+  if(!fotosGaleria.length){
+
+    $("vGaleriaTotais").textContent="";
+
+    grid.innerHTML=`
+      <div style="
+        color:rgba(255,255,255,.35);
+        font-size:.82rem;
+        text-align:center;
+        padding:24px;
+        grid-column:1/-1
+      ">
+        📷 Nenhuma foto neste período
+      </div>
+    `;
+
+    return;
+  }
+
+
+  // Agrupar por data e limitar a exibição:
+  // máximo 2 Antes + 2 Depois por dia.
+  const porData = {};
+
+
+  fotosGaleria.forEach(r=>{
+
+    const d=
+      r.data||
+      "sem-data";
+
+
+    if(!porData[d]){
+
+      porData[d]={
+        antes:[],
+        depois:[]
+      };
+    }
+
+
+    const grupo=
+      r._fotoTipo==="depois"
+        ? porData[d].depois
+        : porData[d].antes;
+
+
+    if(grupo.length<2){
+      grupo.push(r);
+    }
+
+  });
+
+
+  const regsLimitadas=
+    Object.entries(porData)
+      .sort(
+        (a,b)=>
+          b[0].localeCompare(a[0])
+      )
+      .flatMap(
+        ([,g])=>[
+          ...g.antes,
+          ...g.depois
+        ]
+      );
+
+
+  $("vGaleriaTotais").textContent=
+    `${regsLimitadas.length} foto${regsLimitadas.length!==1?"s":""} `+
+    `encontrada${regsLimitadas.length!==1?"s":""}`;
+
+
+  grid.style.gridTemplateColumns=
+    "repeat(2,1fr)";
+
+
+  // ADMIN ou responsável autorizado pela evolução.
+  const podeEditar=
+    currentRole==="ADMIN" ||
+    canEvoluirObra(currentProfile);
+
+
+  grid.innerHTML=
+    regsLimitadas.map(r=>{
+
+      const dtFmt=
+        r.data
+          ? new Date(
+              r.data+"T12:00:00"
+            ).toLocaleDateString(
+              "pt-BR",
+              {
+                day:"2-digit",
+                month:"2-digit"
+              }
+            )
+          : "—";
+
+
+      const unid=
+        (_vCfg?.unidades||[])
+          .find(
+            u=>u.id===r.unidId
+          );
+
+
+      const delta=
+        (Number(r.pctDepois)||0) -
+        (Number(r.pctAntes)||0);
+
+
+      const tipo=
+        r._fotoTipo;
+
+
+      const fotoUrl=
+        r._fotoUrl;
+
+
+      const tipoCor=
+        tipo==="depois"
+          ? "#10b981"
+          : "#f5a623";
+
+
+      const tipoLabel=
+        tipo==="depois"
+          ? "✅ Depois"
+          : "📸 Antes";
+
+
+      // O tipo faz parte do ID para que Antes e Depois
+      // do mesmo registro não gerem IDs duplicados.
+      const safeId=
+        r.id.replace(
+          /[^a-zA-Z0-9]/g,
+          "_"
+        )+
+        "_"+
+        tipo;
+
+
+      const btnEditar=
+        podeEditar
+          ? `
+            <div
+              style="
+                display:flex;
+                gap:4px;
+                padding:5px 7px;
+                border-top:1px solid rgba(255,255,255,.08)
+              "
+              onclick="event.stopPropagation()"
+            >
+
+              <label
+                id="lblTrocar_${safeId}"
+                style="
+                  flex:1;
+                  margin:0;
+                  cursor:pointer;
+                  background:rgba(255,255,255,.08);
+                  border-radius:6px;
+                  padding:3px 6px;
+                  text-align:center;
+                  font-size:.62rem;
+                  color:rgba(255,255,255,.6);
+                  transition:background .15s
+                "
+                onmouseover="this.style.background='rgba(255,255,255,.15)'"
+                onmouseout="this.style.background='rgba(255,255,255,.08)'"
+              >
+                🔄 Trocar
+
+                <input
+                  type="file"
+                  id="fileTrocar_${safeId}"
+                  accept="image/*"
+                  style="display:none"
+                >
+
+              </label>
+
+
+              <button
+                id="btnApagarFoto_${safeId}"
+                style="
+                  flex:1;
+                  background:rgba(233,69,96,.12);
+                  border:none;
+                  border-radius:6px;
+                  padding:3px 6px;
+                  font-size:.62rem;
+                  color:#fca5a5;
+                  cursor:pointer;
+                  transition:background .15s
+                "
+                onmouseover="this.style.background='rgba(233,69,96,.25)'"
+                onmouseout="this.style.background='rgba(233,69,96,.12)'"
+              >
+                🗑️ Apagar
+              </button>
+
+            </div>
+          `
+          : "";
+
+
       return `
-      <div style="border-radius:10px;overflow:hidden;background:rgba(255,255,255,.06);border:1.5px solid ${tipo==="depois"?"rgba(16,185,129,.3)":"rgba(245,166,35,.3)"}">
-        <div style="position:relative;cursor:zoom-in" onclick="App.vVerFotoAmp('${r.fotoUrl}','${(r.unidNome||"").replace(/'/g,"&#39;")}','${(r.svcDesc||"").replace(/'/g,"&#39;")}','${r.data||""}','${delta.toFixed(1)}','${tipo}')">
-          <img src="${r.fotoUrl||r.fotoUrlDepois||''}" style="width:100%;height:120px;object-fit:cover;display:block" loading="lazy" alt="">
-          <span style="position:absolute;top:5px;left:5px;background:${tipoCor};color:#fff;font-size:.6rem;font-weight:700;padding:2px 6px;border-radius:16px">${tipoLabel}</span>
+      <div
+        style="
+          border-radius:10px;
+          overflow:hidden;
+          background:rgba(255,255,255,.06);
+          border:1.5px solid ${
+            tipo==="depois"
+              ? "rgba(16,185,129,.3)"
+              : "rgba(245,166,35,.3)"
+          }
+        "
+      >
+
+        <div
+          style="
+            position:relative;
+            cursor:zoom-in
+          "
+          onclick="App.vVerFotoAmp(
+            '${fotoUrl}',
+            '${(r.unidNome||"").replace(/'/g,"&#39;")}',
+            '${(r.svcDesc||"").replace(/'/g,"&#39;")}',
+            '${r.data||""}',
+            '${delta.toFixed(1)}',
+            '${tipo}'
+          )"
+        >
+
+          <img
+            src="${fotoUrl}"
+            style="
+              width:100%;
+              height:120px;
+              object-fit:cover;
+              display:block
+            "
+            loading="lazy"
+            alt=""
+          >
+
+
+          <span
+            style="
+              position:absolute;
+              top:5px;
+              left:5px;
+              background:${tipoCor};
+              color:#fff;
+              font-size:.6rem;
+              font-weight:700;
+              padding:2px 6px;
+              border-radius:16px
+            "
+          >
+            ${tipoLabel}
+          </span>
+
         </div>
-        <div style="padding:6px 8px">
-          <div style="font-size:.7rem;font-weight:600;color:rgba(255,255,255,.85);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${unid?.nome||r.unidNome||"—"}</div>
-          <div style="font-size:.63rem;color:rgba(255,255,255,.4);margin-top:1px">${dtFmt} · <span style="color:#10b981">+${delta.toFixed(1)}%</span></div>
+
+
+        <div
+          style="
+            padding:6px 8px
+          "
+        >
+
+          <div
+            style="
+              font-size:.7rem;
+              font-weight:600;
+              color:rgba(255,255,255,.85);
+              white-space:nowrap;
+              overflow:hidden;
+              text-overflow:ellipsis
+            "
+          >
+            ${unid?.nome||r.unidNome||"—"}
+          </div>
+
+
+          <div
+            style="
+              font-size:.63rem;
+              color:rgba(255,255,255,.4);
+              margin-top:1px
+            "
+          >
+            ${dtFmt} ·
+
+            <span
+              style="color:#10b981"
+            >
+              ${delta>0?"+":""}${delta.toFixed(1)}%
+            </span>
+
+          </div>
+
         </div>
+
+
         ${btnEditar}
-      </div>`;
+
+      </div>
+      `;
+
     }).join("");
 
-    // Adicionar listeners após render (evita problema de onclick em módulo ES)
-    if(podeEditar) {
-      regsLimitadas.forEach(r=>{
-        const safeId = r.id.replace(/[^a-zA-Z0-9]/g,"_");
-        const fileInput = document.getElementById("fileTrocar_"+safeId);
-        const btnApagar = document.getElementById("btnApagarFoto_"+safeId);
-        if(fileInput) fileInput.addEventListener("change", ()=> vTrocarFoto(r.id, fileInput));
-        if(btnApagar) btnApagar.addEventListener("click",  ()=> vApagarFoto(r.id));
-      });
+
+  // Listeners por imagem.
+  // Antes e Depois possuem IDs distintos.
+  if(podeEditar){
+
+    regsLimitadas.forEach(r=>{
+
+      const safeId=
+        r.id.replace(
+          /[^a-zA-Z0-9]/g,
+          "_"
+        )+
+        "_"+
+        r._fotoTipo;
+
+
+      const fileInput=
+        document.getElementById(
+          "fileTrocar_"+safeId
+        );
+
+
+      const btnApagar=
+        document.getElementById(
+          "btnApagarFoto_"+safeId
+        );
+
+
+      if(fileInput){
+
+        fileInput.addEventListener(
+          "change",
+          ()=>vTrocarFoto(
+            r.id,
+            r._fotoCampo,
+            fileInput
+          )
+        );
+      }
+
+
+      if(btnApagar){
+
+        btnApagar.addEventListener(
+          "click",
+          ()=>vApagarFoto(
+            r.id,
+            r._fotoCampo
+          )
+        );
+      }
+
+    });
+  }
+}
+
+
+
+function vVerFotoAmp(
+  url,
+  unid,
+  svc,
+  data,
+  delta,
+  tipo
+) {
+
+  $("vFotoAmpImg").src=
+    url;
+
+
+  const dtFmt=
+    data
+      ? new Date(
+          data+"T12:00:00"
+        ).toLocaleDateString(
+          "pt-BR",
+          {
+            day:"2-digit",
+            month:"2-digit",
+            year:"numeric"
+          }
+        )
+      : "";
+
+
+  const tipoLabel=
+    tipo==="depois"
+      ? `
+        <span
+          style="
+            background:#10b981;
+            color:#fff;
+            padding:1px 8px;
+            border-radius:12px;
+            font-size:.75rem
+          "
+        >
+          ✅ Depois
+        </span>
+      `
+      : `
+        <span
+          style="
+            background:#f5a623;
+            color:#fff;
+            padding:1px 8px;
+            border-radius:12px;
+            font-size:.75rem
+          "
+        >
+          📸 Antes
+        </span>
+      `;
+
+
+  $("vFotoAmpInfo").innerHTML=
+    `${tipoLabel} `+
+    `<strong>${unid}</strong> · `+
+    `${svc} · `+
+    `${dtFmt} · `+
+    `<span style="color:#86efac">`+
+    `${Number(delta)>0?"+":""}${delta}%`+
+    `</span>`;
+
+
+  $("vModalFotoAmp")
+    .classList
+    .remove("hidden");
+}
+
+
+
+async function vApagarFoto(
+  regId,
+  campo
+) {
+
+  if(
+    !_vObraId ||
+    !regId ||
+    ![
+      "fotoUrl",
+      "fotoUrlDepois"
+    ].includes(campo)
+  ){
+    return;
+  }
+
+
+  const label=
+    campo==="fotoUrlDepois"
+      ? "Depois"
+      : "Antes";
+
+
+  if(
+    !confirm(
+      `Remover a foto ${label} da galeria?\n\n`+
+      `O registro de evolução e os demais dados serão preservados.`
+    )
+  ){
+    return;
+  }
+
+
+  try {
+
+    await updateDoc(
+      doc(
+        db,
+        "obras",
+        _vObraId,
+        "evolRegistros",
+        regId
+      ),
+      {
+        [campo]:"",
+        atualizadoEm:
+          serverTimestamp()
+      }
+    );
+
+
+    toast(
+      `🗑️ Foto ${label} removida. Histórico preservado.`
+    );
+
+
+    await _vCarregarGaleria();
+
+
+  } catch(e) {
+
+    toast(
+      "Erro: "+e.message,
+      "err"
+    );
+  }
+}
+
+
+
+async function vTrocarFoto(
+  regId,
+  campo,
+  input
+) {
+
+  if(
+    !input?.files?.[0] ||
+    !_vObraId ||
+    !regId ||
+    ![
+      "fotoUrl",
+      "fotoUrlDepois"
+    ].includes(campo)
+  ){
+    return;
+  }
+
+
+  const file=
+    input.files[0];
+
+
+  const label=
+    campo==="fotoUrlDepois"
+      ? "Depois"
+      : "Antes";
+
+
+  toast(
+    `⏳ Enviando foto ${label}...`
+  );
+
+
+  try {
+
+    const fd=
+      new FormData();
+
+
+    fd.append(
+      "file",
+      file
+    );
+
+
+    fd.append(
+      "upload_preset",
+      "cfo_uploads"
+    );
+
+
+    fd.append(
+      "folder",
+      "go"
+    );
+
+
+    const r=
+      await fetch(
+        "https://api.cloudinary.com/v1_1/dibvvm6ix/image/upload",
+        {
+          method:"POST",
+          body:fd
+        }
+      );
+
+
+    const j=
+      await r.json();
+
+
+    if(!j.secure_url){
+
+      throw new Error(
+        "Falha no upload"
+      );
     }
+
+
+    await updateDoc(
+      doc(
+        db,
+        "obras",
+        _vObraId,
+        "evolRegistros",
+        regId
+      ),
+      {
+        [campo]:
+          j.secure_url,
+
+        atualizadoEm:
+          serverTimestamp()
+      }
+    );
+
+
+    toast(
+      `✅ Foto ${label} atualizada!`
+    );
+
+
+    await _vCarregarGaleria();
+
+
+  } catch(e) {
+
+    toast(
+      "Erro: "+e.message,
+      "err"
+    );
   }
-
-  function vVerFotoAmp(url, unid, svc, data, delta, tipo) {
-    $("vFotoAmpImg").src = url;
-    const dtFmt = data ? new Date(data+"T12:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"}) : "";
-    const tipoLabel = tipo==="depois"
-      ? `<span style="background:#10b981;color:#fff;padding:1px 8px;border-radius:12px;font-size:.75rem">✅ Depois</span>`
-      : `<span style="background:#f5a623;color:#fff;padding:1px 8px;border-radius:12px;font-size:.75rem">📸 Antes</span>`;
-    $("vFotoAmpInfo").innerHTML = `${tipoLabel} <strong>${unid}</strong> · ${svc} · ${dtFmt} · <span style="color:#86efac">+${delta}%</span>`;
-    $("vModalFotoAmp").classList.remove("hidden");
-  }
-
-
-
-
-  async function vApagarFoto(regId) {
-    if(!_vObraId || !regId) return;
-    if(!confirm("Apagar esta foto permanentemente?")) return;
-    try {
-      await deleteDoc(doc(db,"obras",_vObraId,"evolRegistros",regId));
-      toast("🗑️ Foto apagada!");
-      await _vCarregarGaleria();
-    } catch(e) { toast("Erro: "+e.message); }
-  }
-
-  async function vTrocarFoto(regId, input) {
-    if(!input.files[0] || !_vObraId || !regId) return;
-    const file = input.files[0];
-    toast("⏳ Enviando foto...");
-    try {
-      // Upload via Cloudinary
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("upload_preset", "cfo_uploads");
-      fd.append("folder", "go");
-      const r = await fetch(`https://api.cloudinary.com/v1_1/dibvvm6ix/image/upload`, {method:"POST", body:fd});
-      const j = await r.json();
-      if(!j.secure_url) throw new Error("Falha no upload");
-      await updateDoc(doc(db,"obras",_vObraId,"evolRegistros",regId), {
-        fotoUrl: j.secure_url,
-        atualizadoEm: serverTimestamp()
-      });
-      toast("✅ Foto atualizada!");
-      await _vCarregarGaleria();
-    } catch(e) { toast("Erro: "+e.message); }
-  }
-
-  // ── fim módulo visitante ──
-
+}
+// ── fim módulo visitante ──
   
   // ════════════════════════════════════════════════════════
   // MÓDULO DDS — DIÁLOGO DIÁRIO DE SEGURANÇA (v15)
