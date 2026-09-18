@@ -19,6 +19,39 @@ service cloud.firestore {
         request.auth.uid == uid;
     }
 
+    function isOperacional() {
+      return isAuth() && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.get("role", "") in ["ADMIN", "USER"];
+    }
+
+    function servicoAtivo(obraId, svcId) {
+      return get(/databases/$(database)/documents/obras/$(obraId)/evolConfig/main).data.itensPorId[svcId].get("ativo", true) == true;
+    }
+
+    function auditoriaConfigVinculada(obraId, anterior) {
+      let c = request.resource.data;
+      let id = "r" + string(c.revisaoConfig);
+      let path = /databases/$(database)/documents/obras/$(obraId)/evolConfig/main/auditoria/$(id);
+      let a = getAfter(path).data;
+      return !exists(path) && a.dadosAnteriores == anterior && a.dadosNovos == c &&
+        a.revisao == c.revisaoConfig && a.alteradoPor == request.auth.uid && a.alteradoEm == request.time;
+    }
+
+    function obraPerfil() {
+      let value = get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.get("obra_id", "");
+      return value == null ? "" : value;
+    }
+
+    match /acessos/{id} {
+      allow create: if isAuth() &&
+        request.resource.data.keys().hasOnly(["uid", "role", "obraId", "evento", "criadoEm"]) &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.evento == "login" && request.resource.data.criadoEm == request.time &&
+        request.resource.data.role == get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.role &&
+        request.resource.data.obraId == obraPerfil();
+      allow read: if isAdmin();
+      allow update, delete: if false;
+    }
+
     function canEvoluirObraAuth(obraId) {
       let u = get(
         /databases/$(database)/documents/usuarios/$(request.auth.uid)
@@ -45,6 +78,46 @@ service cloud.firestore {
         canEvoluirObraAuth(obraId);
     }
 
+    function evolPercentual(obraId) {
+      let path = /databases/$(database)/documents/obras/$(obraId)/evolConfig/main;
+      return exists(path) && get(path).data.get("modoCalculo", "") == "fisico_percentual";
+    }
+
+    function registroPercentualValido(obraId, r) {
+      let cfg = get(/databases/$(database)/documents/obras/$(obraId)/evolConfig/main).data;
+      let item = cfg.itensPorId[r.svcId];
+      return r.keys().hasOnly([
+          "modeloEvolucao", "modoCalculo", "revisaoConfig", "unidId", "unidNome",
+          "svcId", "svcDesc", "microId", "microDesc", "macroId", "macroNome", "unidade",
+          "qtdHoje", "qtdTotal", "obs", "fotoUrl", "fotoUrlDepois", "tipoFoto", "data",
+          "criadoPor", "criadoEm", "atualizadoEm", "revisao", "cancelado",
+          "corrigidoPor", "corrigidoEm", "motivoCorrecao", "canceladoPor", "canceladoEm", "motivoCancelamento"
+        ]) &&
+        r.modeloEvolucao == 2 && r.modoCalculo == "fisico_percentual" &&
+        r.revisaoConfig == cfg.revisaoConfig &&
+        r.revisao is int && r.revisao > 0 && r.cancelado is bool &&
+        r.microId == r.svcId && r.macroId == item.macroId && r.unidade == item.unidade &&
+        r.unidId is string && item.metasPorLocal[r.unidId] > 0 &&
+        r.qtdTotal == item.metasPorLocal[r.unidId] &&
+        r.qtdHoje is number && r.qtdHoje >= 0 && r.qtdHoje <= 9007199254740991 &&
+        r.unidNome is string && r.svcDesc is string && r.microDesc is string && r.macroNome is string &&
+        r.obs is string && r.obs.size() <= 10000 &&
+        r.fotoUrl is string && r.fotoUrlDepois is string &&
+        r.fotoUrl.size() <= 4000 && r.fotoUrlDepois.size() <= 4000 &&
+        r.tipoFoto in ["", "antes", "depois", "ambos"] &&
+        r.data is string && r.data.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+        r.atualizadoEm == request.time;
+    }
+
+    function auditoriaVinculada(obraId, registroId, anterior) {
+      let r = request.resource.data;
+      let auditId = "r" + string(r.revisao);
+      let a = getAfter(/databases/$(database)/documents/obras/$(obraId)/evolRegistros/$(registroId)/auditoria/$(auditId)).data;
+      return a.dadosAnteriores == anterior && a.dadosNovos == r &&
+        a.corrigidoPor == request.auth.uid && a.corrigidoEm == request.time &&
+        a.revisao == r.revisao;
+    }
+
     match /financeiro_obras/{docId} {
       allow read: if isAuth();
       allow write: if isAdmin();
@@ -61,7 +134,38 @@ service cloud.firestore {
 
       match /evolConfig/{docId} {
         allow read: if isAuth();
-        allow write: if isAdmin();
+        allow create: if isAdmin() &&
+          (request.resource.data.get("modoCalculo", "") != "fisico_percentual" ||
+            (request.resource.data.modeloEvolucao == 2 && request.resource.data.revisaoConfig == 1 &&
+             request.resource.data.itensPorId is map && docId == "main" &&
+             auditoriaConfigVinculada(obraId, null)));
+        allow update: if isAdmin() &&
+          request.resource.data.get("modoCalculo", "") == resource.data.get("modoCalculo", "") &&
+          (resource.data.get("modoCalculo", "") != "fisico_percentual" ||
+            (request.resource.data.modeloEvolucao == 2 &&
+             request.resource.data.revisaoConfig == resource.data.revisaoConfig + 1 &&
+             request.resource.data.itensPorId.keys().hasAll(resource.data.itensPorId.keys()) && docId == "main" &&
+             auditoriaConfigVinculada(obraId, resource.data)));
+        allow delete: if isAdmin() && resource.data.get("modoCalculo", "") != "fisico_percentual";
+
+        match /auditoria/{auditId} {
+          allow read: if isAdmin();
+          allow create: if isAdmin() && docId == "main" &&
+            request.resource.data.keys().hasOnly(["revisao", "alteradoPor", "alteradoEm", "operacao", "motivo", "dadosAnteriores", "dadosNovos"]) &&
+            request.resource.data.alteradoPor == request.auth.uid && request.resource.data.alteradoEm == request.time &&
+            request.resource.data.motivo is string && request.resource.data.motivo.size() > 0 && request.resource.data.motivo.size() <= 2000 &&
+            auditId == "r" + string(request.resource.data.revisao) &&
+            request.resource.data.dadosNovos == getAfter(/databases/$(database)/documents/obras/$(obraId)/evolConfig/main).data &&
+            request.resource.data.dadosNovos.modoCalculo == "fisico_percentual" &&
+            request.resource.data.dadosNovos.revisaoConfig == request.resource.data.revisao &&
+            ((!exists(/databases/$(database)/documents/obras/$(obraId)/evolConfig/main) &&
+               request.resource.data.revisao == 1 && request.resource.data.operacao == "criacao" && request.resource.data.dadosAnteriores == null) ||
+             (exists(/databases/$(database)/documents/obras/$(obraId)/evolConfig/main) &&
+               request.resource.data.revisao == get(/databases/$(database)/documents/obras/$(obraId)/evolConfig/main).data.revisaoConfig + 1 &&
+               request.resource.data.operacao == "alteracao" &&
+               request.resource.data.dadosAnteriores == get(/databases/$(database)/documents/obras/$(obraId)/evolConfig/main).data));
+          allow update, delete: if false;
+        }
       }
 
       match /evolContrato/{docId} {
@@ -71,7 +175,8 @@ service cloud.firestore {
 
       match /evolProgresso/{docId} {
         allow read: if isAuth();
-        allow create, update: if canEvoluirObra(obraId);
+        // No modo percentual o acumulado é derivado dos registros, nunca editado pelo cliente.
+        allow create, update: if canEvoluirObra(obraId) && !evolPercentual(obraId);
         allow delete: if isAdmin();
       }
 
@@ -85,10 +190,17 @@ service cloud.firestore {
         allow read: if isAuth();
 
         allow create:
-          if canEvoluirObra(obraId);
+          if canEvoluirObra(obraId) &&
+          (!evolPercentual(obraId) ||
+            (registroPercentualValido(obraId, request.resource.data) &&
+             servicoAtivo(obraId, request.resource.data.svcId) &&
+             request.resource.data.revisao == 1 && request.resource.data.cancelado == false &&
+             request.resource.data.criadoPor == request.auth.uid && request.resource.data.criadoEm == request.time &&
+             !request.resource.data.keys().hasAny(["corrigidoPor", "corrigidoEm", "motivoCorrecao", "canceladoPor", "canceladoEm", "motivoCancelamento"]) &&
+             auditoriaVinculada(obraId, docId, null)));
 
         allow update:
-          if isAdmin() ||
+          if (!evolPercentual(obraId) && (isAdmin() ||
           (
             canEvoluirObra(obraId) &&
             request.resource.data
@@ -99,19 +211,61 @@ service cloud.firestore {
                 "fotoUrlDepois",
                 "atualizadoEm"
               ])
-          );
+          ))) ||
+          (evolPercentual(obraId) && canEvoluirObra(obraId) &&
+            (servicoAtivo(obraId, resource.data.svcId) || (isAdmin() &&
+              request.resource.data.svcId == resource.data.svcId &&
+              request.resource.data.microId == resource.data.microId &&
+              request.resource.data.macroId == resource.data.macroId)) &&
+            (servicoAtivo(obraId, request.resource.data.svcId) || (isAdmin() && request.resource.data.svcId == resource.data.svcId)) &&
+            resource.data.cancelado == false &&
+            registroPercentualValido(obraId, request.resource.data) &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              "revisaoConfig", "unidId", "unidNome", "svcId", "svcDesc", "microId", "microDesc",
+              "macroId", "macroNome", "unidade", "qtdHoje", "qtdTotal", "obs", "fotoUrl", "fotoUrlDepois",
+              "tipoFoto", "atualizadoEm", "revisao", "cancelado", "corrigidoPor", "corrigidoEm",
+              "motivoCorrecao", "canceladoPor", "canceladoEm", "motivoCancelamento"
+            ]) &&
+            request.resource.data.revisao == resource.data.revisao + 1 &&
+            request.resource.data.corrigidoPor == request.auth.uid && request.resource.data.corrigidoEm == request.time &&
+            request.resource.data.motivoCorrecao is string &&
+            request.resource.data.motivoCorrecao.size() > 0 && request.resource.data.motivoCorrecao.size() <= 2000 &&
+            (!request.resource.data.cancelado ||
+              (request.resource.data.canceladoPor == request.auth.uid && request.resource.data.canceladoEm == request.time &&
+               request.resource.data.motivoCancelamento == request.resource.data.motivoCorrecao)) &&
+            auditoriaVinculada(obraId, docId, resource.data));
 
         allow delete:
-          if isAdmin();
+          if isAdmin() && !evolPercentual(obraId);
+
+        match /auditoria/{auditId} {
+          allow read: if isAuth();
+          allow create: if canEvoluirObra(obraId) && evolPercentual(obraId) &&
+            request.resource.data.keys().hasOnly(["operacao", "revisao", "corrigidoPor", "corrigidoEm", "motivoCorrecao", "dadosAnteriores", "dadosNovos", "operacaoId"]) &&
+            request.resource.data.operacaoId is string && request.resource.data.operacaoId.size() > 0 &&
+            request.resource.data.corrigidoPor == request.auth.uid && request.resource.data.corrigidoEm == request.time &&
+            request.resource.data.motivoCorrecao is string && request.resource.data.motivoCorrecao.size() > 0 &&
+            auditId == "r" + string(request.resource.data.revisao) &&
+            request.resource.data.dadosNovos == getAfter(/databases/$(database)/documents/obras/$(obraId)/evolRegistros/$(docId)).data &&
+            (( !exists(/databases/$(database)/documents/obras/$(obraId)/evolRegistros/$(docId)) &&
+               request.resource.data.operacao == "criacao" && request.resource.data.revisao == 1 && request.resource.data.dadosAnteriores == null) ||
+             ( exists(/databases/$(database)/documents/obras/$(obraId)/evolRegistros/$(docId)) &&
+               request.resource.data.revisao == get(/databases/$(database)/documents/obras/$(obraId)/evolRegistros/$(docId)).data.revisao + 1 &&
+               request.resource.data.dadosAnteriores == get(/databases/$(database)/documents/obras/$(obraId)/evolRegistros/$(docId)).data &&
+               request.resource.data.operacao == (request.resource.data.dadosNovos.cancelado ? "cancelamento" : "correcao") &&
+               request.resource.data.motivoCorrecao == request.resource.data.dadosNovos.motivoCorrecao));
+          allow update, delete: if false;
+        }
       }
 
       match /mensagens/{msgId} {
-        allow read, write: if isAuth();
+        allow read: if isAuth();
+        allow write: if isOperacional();
       }
 
       match /dds/{docId} {
         allow read: if isAuth();
-        allow write: if isAuth();
+        allow write: if isOperacional();
       }
     }
 
@@ -139,24 +293,24 @@ service cloud.firestore {
 
     match /lancamentos/{lancId} {
       allow read: if isAuth();
-      allow create: if isAuth();
+      allow create: if isOperacional();
 
       allow update, delete:
         if isAdmin() ||
         (
-          isAuth() &&
+          isOperacional() &&
           resource.data.colaborador_uid == request.auth.uid
         );
     }
 
     match /pontos/{pontoId} {
       allow read: if isAuth();
-      allow create: if isAuth();
+      allow create: if isOperacional();
 
       allow update:
         if isAdmin() ||
         (
-          isAuth() &&
+          isOperacional() &&
           resource.data.uid == request.auth.uid
         );
 
