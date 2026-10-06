@@ -13,9 +13,13 @@ test('JavaScript principal continua sintaticamente válido',()=>{
   const result=spawnSync(process.execPath,['--check','--input-type=module'],{input:script,encoding:'utf8'});
   assert.equal(result.status,0,result.stderr);
 });
-test('corpo de salvamento V1/V2 legado e editor V2 preservados',()=>{
+test('salvamento legado preserva progresso e timestamp técnico, e editor V2 segue compatível',()=>{
+  const saveBlock=block(source,'    const uid=$("evolRegUnidId").value;','  // ──────────────────────────── GALERIA DE FOTOS');
+  assert.ok(saveBlock.includes('data:hoje')); assert.ok(saveBlock.includes('criadoEm:\n          serverTimestamp()'));
+  assert.ok(saveBlock.includes('await setDoc(')); assert.ok(saveBlock.includes('const savedRef=await addDoc('));
+  assert.ok(saveBlock.includes('getDoc(savedRef)')); assert.ok(saveBlock.includes('evolPrepararInformeSalvo(obraSalva,savedRegistro.data)'));
+  assert.ok(!saveBlock.includes('abrirInformeWhatsApp('));
   for(const [start,end] of [
-    ['    const uid=$("evolRegUnidId").value;', '  // ──────────────────────────── GALERIA DE FOTOS'],
     ['  function _eGarantirDraftV2(){','    async function evolCfgSalvarV2(){'],
     ['    // ─────────────────────────────────────────────\n    // SEGURANÇA — configuração estrutural','  async function evolAnalisarIA()'],
   ]) assert.equal(block(source,start,end),block(baseline,start,end));
@@ -44,6 +48,7 @@ test('API App antiga preservada e galeria continua sem deleteDoc',()=>{
 const { JSDOM } = await import('jsdom');
 const { parametrizada } = await import('../evolucao-parametrizada.mjs');
 const { config } = await import('./fixture.mjs');
+const {dataReferenciaRegistro,formatarDataReferencia,dataCorteLocal}=await import('../evolucao-fotos.mjs');
 const photoBlocks = [
   ['function evolFiltrarGaleria()', 'async function _evolApagarFotoAdm('],
   ['function evolVerFotoAmp(', '// ──────────────────────────── RELATÓRIO PDF'],
@@ -62,7 +67,7 @@ for(const mode of ['V1','V2 relativo','parametrizado quantidade','parametrizado 
       const ids=['evolGaleriaConteudo','evolGaleriaTotais','vGaleriaGrid','vGaleriaTotais','evolFotoAmpInfo','vFotoAmpInfo','evolFotoAmpImg','vFotoAmpImg','modalEvolFotoAmp','vModalFotoAmp'];
       const dom=new JSDOM(ids.map(id=>`<div id="${id}" class="hidden"></div>`).join(''));
       const $=id=>dom.window.document.getElementById(id);
-      const ctx=vm.createContext({document:dom.window.document,$,_eCfg:cfg,_vCfg:cfg,_eGaleriaRegistros:[r],_vGaleriaRegistros:[r],_eObraId:'obra',_vObraId:'obra',currentRole:role,currentProfile:{role},canEvoluirObra:()=>role==='USER',_epModo:parametrizada,_epPermissao:()=>role!=='VISITANTE',_epContext:()=>({profile:{role}})});
+      const ctx=vm.createContext({dataReferenciaRegistro,formatarDataReferencia,dataCorteLocal,document:dom.window.document,$,_eCfg:cfg,_vCfg:cfg,_eGaleriaRegistros:[r],_vGaleriaRegistros:[r],_eObraId:'obra',_vObraId:'obra',currentRole:role,currentProfile:{role},canEvoluirObra:()=>role==='USER',_epModo:parametrizada,_epPermissao:()=>role!=='VISITANTE',_epContext:()=>({profile:{role}})});
       vm.runInContext(photoSource+'\nevolFiltrarGaleria();vFiltrarGaleria();',ctx);
       for(const id of ['evolGaleriaConteudo','vGaleriaGrid']) {
         const el=$(id), text=el.textContent;
@@ -87,9 +92,48 @@ for(const mode of ['V1','V2 relativo','parametrizado quantidade','parametrizado 
   }
 }
 
-test('correção pontual preserva PDF, Firebase, autenticação, cálculos e persistência do PROD',()=>{
-  const prod=execFileSync('git',['show','3de799416e7d1108896692dd68eb71c4d295e8b0:index.html'],{encoding:'utf8',maxBuffer:5e6}).replace(/\r\n/g,'\n');
-  const withoutPhotos=text=>photoBlocks.reduce((value,[a,b])=>value.replace(block(value,a,b),''),text);
-  assert.equal(withoutPhotos(source),withoutPhotos(prod));
-  assert.equal(block(source,'async function evolGerarRelatorio()', '// ──────────────────────────── MODAL CONFIG'),block(prod,'async function evolGerarRelatorio()', '// ──────────────────────────── MODAL CONFIG'));
+test('preparação consolidada está disponível no Evolução e consulta apenas dados salvos da obra/data escolhidas',()=>{
+  const sharing=fs.readFileSync(new URL('../evolucao-compartilhamento.mjs',import.meta.url),'utf8');
+  assert.match(source,/id="btnEvolInformeDia"/);
+  assert.match(source,/App\.evolAbrirPrepararInformeDia\(\)/);
+  assert.match(source,/id="evolInformeObra"/);
+  assert.match(source,/id="evolInformeData"/);
+  assert.match(sharing,/doc\(db, 'obras', obraId, 'evolHistorico', referencia\)/);
+  assert.match(sharing,/collection\(db, 'obras', obraId, 'evolRegistros'\)/);
+  assert.match(sharing,/getDocFromServer\(obraRef\), getDocFromServer\(diarioRef\), getDocsFromServer\(registrosRef\)/);
+  assert.match(source,/diarioDoDiaExiste\(salvo\.diario\)/);
+  assert.match(source,/montarInformeDia\(\{data,local:\{cidade:salvo\.obra\.cidade,estado:salvo\.obra\.estado\},responsavel:evolNomeResponsavelInforme\(\),diario\}\)/);
+});
+
+test('compartilhamento prepara arquivos reais, exibe falhas, e mantém WhatsApp via link como alternativa só de texto',()=>{
+  const ui=fs.readFileSync(new URL('../evolucao-compartilhamento-ui.mjs',import.meta.url),'utf8');
+  assert.match(ui,/navigatorObject\.canShare\(\{ files \}\)/);
+  assert.match(ui,/navigatorObject\.share\(\{ text: textarea\.value, files \}\)/);
+  assert.match(ui,/Abrir WhatsApp \(somente texto\)/);
+  assert.match(ui,/Baixar fotos organizadas \(\.zip\)/);
+  assert.match(ui,/photo\.error/);
+  assert.match(source,/evolPrepararInformeSalvo\(context\.obraId, registro\.data\)/);
+});
+
+test('configuração e arquivos exclusivos de produção permanecem preservados',()=>{
+  const prod=execFileSync('git',['show','8202e6f:index.html'],{encoding:'utf8',maxBuffer:5e6}).replace(/\r\n/g,'\n');
+  assert.equal(block(source,'  const firebaseConfig = {','  const firebaseMain'),block(prod,'  const firebaseConfig = {','  const firebaseMain'));
+  assert.ok(!source.includes('go-app-dev-bc1be'));
+  for(const name of ['.firebaserc','firebase.json','firestore.rules','sw.js','acessos.mjs','package-lock.json']) {
+    assert.equal(fs.readFileSync(new URL('../'+name,import.meta.url),'utf8').replace(/\r\n/g,'\n'),execFileSync('git',['show','8202e6f:'+name],{encoding:'utf8',maxBuffer:5e6}).replace(/\r\n/g,'\n'),name);
+  }
+});
+
+test('imports locais do HTML e módulos publicados resolvem sem dependência DEV', async()=>{
+  const root=new URL('../',import.meta.url), visited=new Set();
+  async function visit(name){
+    if(visited.has(name))return;visited.add(name);
+    const content=fs.readFileSync(new URL(name,root),'utf8');
+    for(const match of content.matchAll(/from\s+['"]\.\/([^'"]+)['"]/g)){
+      assert.ok(fs.existsSync(new URL(match[1],root)),match[1]);
+      await import(new URL(match[1],root));await visit(match[1]);
+    }
+  }
+  await visit('index.html');
+  for(const name of ['despesas.mjs','evolucao-fotos.mjs','evolucao-compartilhamento.mjs','evolucao-compartilhamento-ui.mjs'])assert.ok(visited.has(name));
 });
