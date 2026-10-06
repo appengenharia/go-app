@@ -5740,11 +5740,6 @@ async function _eSnapshotHist(id,g){
                 .find(u=>u.id===r.unidId);
 
 
-            const delta=
-              (Number(r.pctDepois)||0) -
-              (Number(r.pctAntes)||0);
-
-
             const tipo=
               r._fotoTipo;
 
@@ -5792,8 +5787,7 @@ async function _eSnapshotHist(id,g){
                   '${fotoUrl}',
                   '${(r.unidNome||"").replace(/'/g,"&#39;")}',
                   '${(r.svcDesc||"").replace(/'/g,"&#39;")}',
-                  '${data}',
-                  '${delta.toFixed(1)}'
+                  '${data}'
                 )"
               >
 
@@ -5866,15 +5860,7 @@ async function _eSnapshotHist(id,g){
                     margin-top:5px
                   ">
 
-                    <span style="
-                      background:${delta>0?"#dcfce7":"#f3f4f6"};
-                      color:${delta>0?"var(--success)":"var(--muted)"};
-                      padding:2px 7px;
-                      border-radius:20px;
-                      font-weight:600
-                    ">
-                      ${_epModo(_eCfg) ? (r.cancelado ? "Cancelado" : `${Number(r.qtdHoje)||0} ${_eEscV2(r.unidade||"")}`) : `${delta>0?"+":""}${delta.toFixed(1)}%`}
-                    </span>
+                    ${_epModo(_eCfg) && r.cancelado ? "<span>Cancelado</span>" : ""}
 
                     ${
                       r.obs
@@ -6233,10 +6219,10 @@ async function _evolTrocarFotoAdm(
   }
 }
 
-  function evolVerFotoAmp(url,unid,svc,data,delta){
+  function evolVerFotoAmp(url,unid,svc,data){
     $("evolFotoAmpImg").src=url;
     const dtFmt=new Date(data+"T12:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"});
-    $("evolFotoAmpInfo").innerHTML=`<strong>${unid}</strong> · ${svc} · ${dtFmt} · <span style="color:#86efac">+${delta}%</span>`;
+    $("evolFotoAmpInfo").innerHTML=`<strong>${unid}</strong> · ${svc} · ${dtFmt}`;
     $("modalEvolFotoAmp").classList.remove("hidden");
   }
 
@@ -14172,11 +14158,6 @@ function vFiltrarGaleria() {
           );
 
 
-      const delta=
-        (Number(r.pctDepois)||0) -
-        (Number(r.pctAntes)||0);
-
-
       const tipo=
         r._fotoTipo;
 
@@ -14298,7 +14279,6 @@ function vFiltrarGaleria() {
             '${(r.unidNome||"").replace(/'/g,"&#39;")}',
             '${(r.svcDesc||"").replace(/'/g,"&#39;")}',
             '${r.data||""}',
-            '${delta.toFixed(1)}',
             '${tipo}'
           )"
         >
@@ -14362,13 +14342,8 @@ function vFiltrarGaleria() {
               margin-top:1px
             "
           >
-            ${dtFmt} ·
-
-            <span
-              style="color:#10b981"
-            >
-              ${_epModo(_vCfg) ? (r.cancelado ? "Cancelado" : `${Number(r.qtdHoje)||0} ${_eEscV2(r.unidade||"")}`) : `${delta>0?"+":""}${delta.toFixed(1)}%`}
-            </span>
+            ${dtFmt} · ${r.svcDesc||"—"}
+            ${_epModo(_vCfg) && r.cancelado ? " · Cancelado" : ""}
 
           </div>
 
@@ -14445,7 +14420,6 @@ function vVerFotoAmp(
   unid,
   svc,
   data,
-  delta,
   tipo
 ) {
 
@@ -14502,10 +14476,7 @@ function vVerFotoAmp(
     `${tipoLabel} `+
     `<strong>${unid}</strong> · `+
     `${svc} · `+
-    `${dtFmt} · `+
-    `<span style="color:#86efac">`+
-    `${Number(delta)>0?"+":""}${delta}%`+
-    `</span>`;
+    `${dtFmt}`;
 
 
   $("vModalFotoAmp")
