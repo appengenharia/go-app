@@ -8,7 +8,7 @@ import { config, autorizado, registro } from './fixture.mjs';
 function setup(profile=autorizado, cfg=config(), registros=[], onSaved=null) {
   const dom=new JSDOM('<!doctype html><body><div id="summary"></div></body>',{url:'http://127.0.0.1/'});
   globalThis.document=dom.window.document;
-  let i=0, offline=false, state=cfg?calcular(cfg,registros):null, refreshed=0;
+  let i=0, offline=false, state=cfg?calcular(cfg,registros):null, refreshed=0, refreshError=null, transactionError=null, uploadError=null, transactionCalls=0;
   const db={}, docs=new Map([['usuarios/autor',profile],['obras/obra/evolConfig/main',cfg]]);
   const snapshot=(path)=>({exists:()=>docs.get(path)!=null,data:()=>docs.get(path)});
   const sdk={
@@ -20,6 +20,8 @@ function setup(profile=autorizado, cfg=config(), registros=[], onSaved=null) {
       return {docs:[...docs].filter(([k])=>k.startsWith(ref.path+'/')&&k.split('/').length===ref.path.split('/').length+1).map(([k,v])=>({id:k.split('/').at(-1),data:()=>v}))};
     },
     runTransaction:async (_,fn)=>{
+      transactionCalls++;
+      if(transactionError) throw transactionError;
       if(offline) throw new Error('Sem rede');
       const writes=[];
       const result=await fn({get:async ref=>snapshot(ref.path),set:(ref,value)=>writes.push([ref.path,value])});
@@ -30,13 +32,14 @@ function setup(profile=autorizado, cfg=config(), registros=[], onSaved=null) {
   const context={db,obraId:'obra',cfg,user:{uid:'autor'},profile};
   const ui=criarInterface({sdk,getContext:()=>context,getState:()=>state,refresh:async()=>{
     refreshed++; context.cfg=docs.get('obras/obra/evolConfig/main');
+    if(refreshError) throw refreshError;
     state=calcular(context.cfg,await ui.carregarRegistros(db,'obra'));
-  },uploadPhoto:async()=>{if(offline)throw new Error('Falha no upload');return 'https://example.test/foto';},onSaved});
+  },uploadPhoto:async()=>{if(uploadError)throw uploadError;if(offline)throw new Error('Falha no upload');return 'https://example.test/foto';},onSaved});
   const el=s=>document.querySelector(s);
   const input=(selector,value)=>{const e=el(selector); e.value=value; e.dispatchEvent(new dom.window.Event('input',{bubbles:true}));};
   const change=(selector,value)=>{const e=el(selector); e.value=value; e.dispatchEvent(new dom.window.Event('change',{bubbles:true}));};
   const settle=async()=>{for(let n=0;n<20;n++)await new Promise(r=>setImmediate(r));};
-  return {ui,el,input,change,settle,docs,dom,context,get refreshed(){return refreshed;},setOffline:v=>{offline=v;}};
+  return {ui,el,input,change,settle,docs,dom,context,get refreshed(){return refreshed;},get transactionCalls(){return transactionCalls;},setOffline:v=>{offline=v;},setRefreshError:e=>{refreshError=e;},setTransactionError:e=>{transactionError=e;},setUploadError:e=>{uploadError=e;}};
 }
 test('formulário só oferece Micros aplicáveis; grava quantidade sem percentual manual',async()=>{
   const t=setup(); t.ui.openRecord({unidId:'u1',svcId:'s1'});
@@ -57,6 +60,52 @@ test('erros de rede mantêm formulário e não apresentam gravação parcial',as
   assert.equal(t.el('[data-quantity]').value,'1'); assert.equal(t.el('[data-save]').disabled,false);
   assert.equal([...t.docs.keys()].filter(p=>p.includes('evolRegistros')).length,0);
   t.setOffline(false); t.el('[data-save]').click(); await t.settle(); assert.equal(t.refreshed,1);
+});
+test('transação salva e refresh com quota mantém o lançamento marcado como salvo',async()=>{
+  const t=setup(); t.ui.openRecord({unidId:'u1',svcId:'s1'}); t.input('[data-quantity]','2');
+  t.setRefreshError(Object.assign(new Error('resource exhausted'),{code:'resource-exhausted'}));
+  const oldError=console.error, logs=[]; console.error=(...args)=>logs.push(args);
+  try { t.el('[data-save]').click(); await t.settle(); } finally { console.error=oldError; }
+  assert.equal(t.docs.get('obras/obra/evolRegistros/id1').qtdHoje,2);
+  assert.match(t.el('[data-body]').textContent,/Lançamento salvo\. Não foi possível atualizar a tela\./);
+  assert.equal(t.el('[data-save]'),null); assert.equal(t.transactionCalls,1);
+  assert.equal(logs[0][1].etapa,'refresh'); assert.equal(logs[0][1].code,'resource-exhausted');
+  assert.doesNotMatch(JSON.stringify(logs),/C:\\Users\\josim|file:\/\/\/C:|private\.jpg/);
+  t.setRefreshError(null);
+  t.el('[data-close]').click();
+  t.ui.openRecord({unidId:'u1',svcId:'s1'}); t.input('[data-quantity]','2');
+  t.el('[data-save]').click(); await t.settle();
+  assert.equal(t.transactionCalls,1);
+  assert.equal([...t.docs.keys()].filter(k=>/^obras\/obra\/evolRegistros\/[^/]+$/.test(k)).length,1);
+});
+test('transação recusada preserva campos e fotos e permite tentar novamente',async()=>{
+  const t=setup(); t.ui.openRecord({unidId:'u1',svcId:'s1'}); t.input('[data-quantity]','4'); t.input('[data-obs]','observação de teste');
+  const file=new t.dom.window.File(['foto'], 'privada.jpg', {type:'image/jpeg'});
+  Object.defineProperty(t.el('[data-photo="fotoUrl"]'),'files',{configurable:true,value:[file]});
+  t.setTransactionError(Object.assign(new Error('permission denied'),{code:'permission-denied'}));
+  t.el('[data-save]').click(); await t.settle();
+  assert.equal(t.el('[data-quantity]').value,'4'); assert.equal(t.el('[data-obs]').value,'observação de teste');
+  assert.equal(t.el('[data-photo="fotoUrl"]').value,'');
+  assert.ok(t.el('[data-save]')); assert.equal(t.refreshed,0);
+  t.setTransactionError(null); t.el('[data-save]').click(); await t.settle();
+  assert.equal(t.docs.get('obras/obra/evolRegistros/id1').fotoUrl,'https://example.test/foto');
+  assert.equal(t.refreshed,1);
+});
+test('falha de upload não inicia transação nem apaga dados do formulário',async()=>{
+  const t=setup(); t.ui.openRecord({unidId:'u1',svcId:'s1'}); t.input('[data-quantity]','5');
+  const file=new t.dom.window.File(['foto'], 'privada.jpg', {type:'image/jpeg'});
+  Object.defineProperty(t.el('[data-photo="fotoUrl"]'),'files',{configurable:true,value:[file]});
+  t.setUploadError(new Error('Falha ao enviar foto.'));
+  t.el('[data-save]').click(); await t.settle();
+  assert.equal(t.transactionCalls,0); assert.equal(t.el('[data-quantity]').value,'5');
+  assert.equal(t.el('[data-photo="fotoUrl"]').files.length,1); assert.equal(t.refreshed,0);
+});
+test('repetir a mesma operação não duplica lançamento nem auditoria',async()=>{
+  const t=setup(); const payload={id:'repetido',operacaoId:'operacao-repetida',entrada:{unidId:'u1',svcId:'s1',qtdHoje:2,obs:'',fotoUrl:'',fotoUrlDepois:''}};
+  const first=await t.ui.salvarRegistro(t.context,payload);
+  const second=await t.ui.salvarRegistro(t.context,payload);
+  assert.equal(second.id,first.id); assert.equal(t.docs.get('obras/obra/evolRegistros/repetido').qtdHoje,2);
+  assert.equal([...t.docs.keys()].filter(k=>k.startsWith('obras/obra/evolRegistros/repetido/auditoria/')).length,1);
 });
 test('data retroativa persistida alimenta prévia de compartilhamento; correção prepara versão atualizada',async()=>{
   const shared=[]; const t=setup(autorizado,config(),[],(...args)=>shared.push(args));

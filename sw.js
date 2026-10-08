@@ -26,16 +26,11 @@ self.addEventListener("activate", e => {
 self.addEventListener("fetch", e => {
   if(e.request.method !== "GET") return;
 
-  e.respondWith(
-    fetch(e.request)
-      .then(res => {
-        const clone = res.clone();
+  const networkResponse = fetch(e.request);
+  const cacheWrite = networkResponse
+    .then(res => caches.open(CACHE).then(cache => cache.put(e.request, res.clone())))
+    .catch(() => undefined);
 
-        caches.open(CACHE)
-          .then(c => c.put(e.request, clone));
-
-        return res;
-      })
-      .catch(() => caches.match(e.request))
-  );
+  e.waitUntil(cacheWrite);
+  e.respondWith(networkResponse.catch(() => caches.match(e.request)));
 });

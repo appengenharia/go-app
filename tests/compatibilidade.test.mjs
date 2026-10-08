@@ -119,8 +119,28 @@ test('configuração e arquivos exclusivos de produção permanecem preservados'
   const prod=execFileSync('git',['show','8202e6f:index.html'],{encoding:'utf8',maxBuffer:5e6}).replace(/\r\n/g,'\n');
   assert.equal(block(source,'  const firebaseConfig = {','  const firebaseMain'),block(prod,'  const firebaseConfig = {','  const firebaseMain'));
   assert.ok(!source.includes('go-app-dev-bc1be'));
-  for(const name of ['.firebaserc','firebase.json','firestore.rules','sw.js','acessos.mjs','package-lock.json']) {
+  for(const name of ['.firebaserc','firebase.json','firestore.rules','acessos.mjs','package-lock.json']) {
     assert.equal(fs.readFileSync(new URL('../'+name,import.meta.url),'utf8').replace(/\r\n/g,'\n'),execFileSync('git',['show','8202e6f:'+name],{encoding:'utf8',maxBuffer:5e6}).replace(/\r\n/g,'\n'),name);
+  }
+});
+
+test('service worker mantém Network First e não perde a resposta por falha de cache', async()=>{
+  const worker=fs.readFileSync(new URL('../sw.js',import.meta.url),'utf8');
+  assert.match(worker,/Network First/);
+  for(const failAt of ['open','put']) {
+    const listeners={};
+    const response={clone:()=>({cached:true})};
+    const cache={put:async()=>{if(failAt==='put')throw new Error('cache denied');}};
+    const context={
+      self:{addEventListener:(type,handler)=>{listeners[type]=handler;},skipWaiting:()=>{},clients:{claim:()=>{}}},
+      caches:{open:async()=>{if(failAt==='open')throw new Error('cache denied');return cache;},match:async()=>undefined},
+      fetch:async()=>response,
+    };
+    vm.runInNewContext(worker,context);
+    const event={request:{method:'GET',url:'/index.html'},waitUntil(promise){this.cachePromise=promise;},respondWith(promise){this.responsePromise=promise;}};
+    listeners.fetch(event);
+    assert.equal(await event.responsePromise,response,`network response survives cache.${failAt} rejection`);
+    await event.cachePromise;
   }
 });
 

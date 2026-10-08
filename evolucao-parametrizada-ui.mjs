@@ -6,9 +6,38 @@ const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;
 const fmt = value => Number(value || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
 const stamp = value => value?.toDate ? value.toDate().toLocaleString('pt-BR') : '';
 
+function registrarFalha(etapa, erro) {
+  const stack = String(erro?.stack || '').split('\n').slice(1, 9).map(frame => {
+    const functionName = /^\s*at\s+([A-Za-z_$][\w$.[\]<>]*)/.exec(frame)?.[1];
+    return functionName ? `at ${functionName}` : 'at [origem]';
+  }).join('\n');
+  const code = /^[a-z0-9_.-]{1,80}$/i.test(String(erro?.code || '')) ? String(erro.code) : '';
+  const name = ['Error', 'TypeError', 'RangeError', 'ReferenceError'].includes(erro?.name) ? erro.name : 'Error';
+  console.error('Falha no fluxo de evolução parametrizada', {
+    etapa,
+    name,
+    code,
+    message: code ? `Erro do serviço (${code}).` : `Falha durante ${etapa}.`,
+    stack,
+  });
+}
+
+function mensagemFalha(erro) {
+  if (String(erro?.code || '').includes('resource-exhausted')) {
+    return 'Limite de uso do Firebase atingido. Tente novamente mais tarde.';
+  }
+  return erro?.message || String(erro);
+}
+
 export function criarInterface({ sdk, getContext, getState, refresh, uploadPhoto, onSaved = null }) {
   const store = criarStore(sdk);
+  const lancamentosSalvosSemRefresh = new Set();
   let modal;
+
+  async function atualizarTela(side) {
+    await refresh(side);
+    lancamentosSalvosSemRefresh.clear();
+  }
   const usuarioCache = new Map();
   let usuariosCacheCarregado = false;
 
@@ -56,7 +85,7 @@ export function criarInterface({ sdk, getContext, getState, refresh, uploadPhoto
     finally { controls.forEach((el, i) => { el.disabled = disabled[i]; }); }
   }
 
-  function openConfig() { return abrirPlanejamento({context:getContext(), store, open, refresh}); }
+  function openConfig() { return abrirPlanejamento({context:getContext(), store, open, refresh:atualizarTela}); }
 
   function renderSummary(container, side = 'e') {
     container.replaceChildren();
@@ -69,7 +98,7 @@ export function criarInterface({ sdk, getContext, getState, refresh, uploadPhoto
     container.querySelector('[data-history]').onclick = () => openHistory(side);
     container.querySelector('[data-refresh]').onclick = async event => {
       event.target.disabled = true;
-      try { await refresh(side); } catch (e) { event.target.textContent = 'Falha ao atualizar. Tentar novamente'; }
+      try { await atualizarTela(side); } catch (e) { event.target.textContent = 'Falha ao atualizar. Tentar novamente'; }
       finally { event.target.disabled = false; }
     };
   }
@@ -114,6 +143,7 @@ export function criarInterface({ sdk, getContext, getState, refresh, uploadPhoto
       <div class="ep-row">${[['fotoUrl','Antes'],['fotoUrlDepois','Depois']].map(([field,label]) => `<label>Foto ${label}<input data-photo="${field}" type="file" accept="image/*"><img data-photo-preview="${field}" ${photo[field] ? `src="${esc(photo[field])}"` : 'hidden'} alt="Foto ${label}"><button type="button" class="btn btn-outline sm" data-remove-photo="${field}">Remover ${label}</button></label>`).join('')}</div>
       ${anterior ? '<label>Motivo da correção<textarea data-reason rows="2" maxlength="2000" required></textarea></label>' : ''}
       <p class="ep-muted">Excedentes são preservados; percentuais ficam limitados a 100%. Antes e Depois são independentes.</p>
+      <p class="ep-muted" role="status" data-save-status></p>
       <div class="modal-footer"><button class="btn btn-outline" data-back>Histórico</button><button class="btn btn-primary" data-save>Salvar lançamento</button></div>`;
     const localSel = body.querySelector('[data-local]'), macroSel = body.querySelector('[data-macro]'), microSel = body.querySelector('[data-micro]');
     localSel.value = anterior?.unidId || initial.unidId || cfg.unidades[0]?.id;
@@ -159,21 +189,53 @@ export function criarInterface({ sdk, getContext, getState, refresh, uploadPhoto
       const img = body.querySelector(`[data-photo-preview="${field}"]`); img.hidden = true; img.removeAttribute('src');
     }; });
     body.querySelector('[data-back]').onclick = () => openHistory(side);
+    let lancamentoSalvo = false;
     body.querySelector('[data-save]').onclick = () => busy(host, async () => {
+      if (lancamentoSalvo) return;
       const qtyInput = body.querySelector('[data-quantity]');
       if (!qtyInput.value.trim() || !qtyInput.validity.valid) throw new Error('Informe uma quantidade válida.');
       const motivo = body.querySelector('[data-reason]')?.value.trim() || '';
       if (anterior && !motivo) throw new Error('Informe o motivo da correção.');
       const dataReferencia = body.querySelector('[data-reference-date]').value;
       if (!/^\d{4}-\d{2}-\d{2}$/.test(dataReferencia)) throw new Error('Informe a data de referência.');
+      const status = etapa => { const el = body.querySelector('[data-save-status]'); if (el) el.textContent = etapa; };
+      const qtdHoje = quantidadeApontada(cfg,all.find(s=>s.id===microSel.value).metasPorLocal[localSel.value],Number(qtyInput.value));
+      const assinatura = JSON.stringify([context.obraId, anterior?.id || 'novo', localSel.value, microSel.value, dataReferencia, qtdHoje]);
+      if (lancamentosSalvosSemRefresh.has(assinatura)) {
+        lancamentoSalvo = true;
+        status('Lançamento já salvo. Atualizando a tela…');
+        try { await atualizarTela(side); host.remove(); }
+        catch (e) { registrarFalha('refresh', e); body.innerHTML = '<p role="status">Lançamento salvo. Não foi possível atualizar a tela.</p>'; }
+        return;
+      }
       for (const field of ['fotoUrl','fotoUrlDepois']) {
         const input = body.querySelector(`[data-photo="${field}"]`);
-        if (input.files[0]) { photo[field] = await uploadPhoto(input.files[0]); input.value = ''; }
+        if (input.files[0]) {
+          status('Enviando fotos…');
+          try { photo[field] = await uploadPhoto(input.files[0]); input.value = ''; }
+          catch (e) { registrarFalha('upload', e); throw new Error(mensagemFalha(e)); }
+        }
       }
-      const salvo = await store.salvarRegistro(context, { id, operacaoId, revisaoEsperada: anterior?.revisao || 0, motivo,
-        entrada: { unidId: localSel.value, svcId: microSel.value, data: dataReferencia, qtdHoje: quantidadeApontada(cfg,all.find(s=>s.id===microSel.value).metasPorLocal[localSel.value],Number(qtyInput.value)), obs: body.querySelector('[data-obs]').value.trim(), ...photo } });
-      body.innerHTML = '<p>Lançamento salvo. Atualizando os totais…</p>';
-      await refresh(side); host.remove();
+      status('Salvando lançamento…');
+      let salvo;
+      try {
+        salvo = await store.salvarRegistro(context, { id, operacaoId, revisaoEsperada: anterior?.revisao || 0, motivo,
+          entrada: { unidId: localSel.value, svcId: microSel.value, data: dataReferencia, qtdHoje, obs: body.querySelector('[data-obs]').value.trim(), ...photo } });
+      } catch (e) { registrarFalha('transacao', e); throw new Error(mensagemFalha(e)); }
+
+      lancamentosSalvosSemRefresh.add(assinatura);
+      lancamentoSalvo = true;
+      const saveButton = body.querySelector('[data-save]');
+      if (saveButton) saveButton.disabled = true;
+      status('Lançamento salvo. Atualizando a tela…');
+      try {
+        await atualizarTela(side);
+      } catch (e) {
+        registrarFalha('refresh', e);
+        body.innerHTML = '<p role="status">Lançamento salvo. Não foi possível atualizar a tela.</p>';
+        return;
+      }
+      host.remove();
       if (salvo) await onSaved?.(salvo, context, side, { correcao: Boolean(anterior) });
     });
   }
@@ -330,7 +392,7 @@ export function criarInterface({ sdk, getContext, getState, refresh, uploadPhoto
               cancelar: true,
               operacaoId: store.novoId(context.db)
             });
-            await refresh(side);
+            await atualizarTela(side);
             await openHistory(side, local);
           });
         }
@@ -363,7 +425,7 @@ export function criarInterface({ sdk, getContext, getState, refresh, uploadPhoto
       if (!r) throw new Error('Lançamento não encontrado.');
       const value = input?.files?.[0] ? await uploadPhoto(input.files[0]) : '';
       await store.salvarRegistro(context, { id, entrada: { ...r, [field]: value }, revisaoEsperada: r.revisao, motivo, operacaoId: store.novoId(context.db) });
-      await refresh(side); host.remove();
+      await atualizarTela(side); host.remove();
     });
   }
   return { ...store, openConfig, openUnit, openRecord, openHistory, renderSummary, changePhoto };

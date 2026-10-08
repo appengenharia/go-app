@@ -3882,8 +3882,8 @@
     getState: side => side==="v" ? _vFisico : _eFisico,
     refresh: async (side="e") => {
       if(side==="v") { await visitanteInicializar(_vObraId); return; }
-      if(!currentUser && pontoUser) { await evolAbrirParaColab(); return; }
-      await evolCarregarObra();
+      if(!currentUser && pontoUser) { await evolAbrirParaColab({strict:true}); return; }
+      await evolCarregarObra({strict:true});
       if(!$("modalEvolGaleria").classList.contains("hidden")) await evolAbrirGaleria();
     },
     uploadPhoto: async file => {
@@ -4062,7 +4062,7 @@
     }catch(e){console.error(e);}
   }
 
-  async function evolCarregarObra() {
+  async function evolCarregarObra({strict=false}={}) {
     const id=$("evolFiltroObra")?.value;
     _eObraId=id||null;
     $("evolVazio").style.display        = id?"none":"";
@@ -4074,7 +4074,7 @@
     if($("btnEvolDiarioCard"))  $("btnEvolDiarioCard").style.display  = "none";
     if($("evolClimaConsultaWrap")) $("evolClimaConsultaWrap").style.display = "none";
     if($("evolClimaCard"))      $("evolClimaCard").style.display      = "none";
-    if(!id) return;
+    if(!id) { if(strict) throw new Error("Nenhuma obra selecionada para atualizar."); return false; }
     if(currentRole==="ADMIN"){
       $("btnEvolContrato").style.display="";
       $("btnEvolGaleria").style.display="";
@@ -4093,7 +4093,10 @@
       if($("evolClimaConsultaWrap")) $("evolClimaConsultaWrap").style.display="flex";
       if($("evolClimaCard"))      $("evolClimaCard").style.display="";
     }
-    const [cS,kS]=await Promise.all([
+    const [cS,kS]=await Promise.all(strict ? [
+      getDoc(doc(db,"obras",id,"evolConfig","main")),
+      getDoc(doc(db,"obras",id,"evolContrato","main"))
+    ] : [
       getDoc(doc(db,"obras",id,"evolConfig","main")).catch(()=>null),
       getDoc(doc(db,"obras",id,"evolContrato","main")).catch(()=>null)
     ]);
@@ -4126,13 +4129,15 @@
 
     if(!configValida){
       $("evolSemConfig").style.display="";
+      if(strict) throw new Error("Não foi possível atualizar a configuração da obra.");
       return;
     }
     try { await _eCarregarProg(id); }
-    catch(e) { toast("Não foi possível carregar a produção: "+e.message,"err"); return; }
+    catch(e) { if(strict) throw e; toast("Não foi possível carregar a produção: "+e.message,"err"); return false; }
     $("evolPainelPrincipal").style.display="";
     _eRenderPainel();
-    _eCarregarHistorico(id);
+    await _eCarregarHistorico(id, strict);
+    return true;
   }
 
   async function _eCarregarProg(id) {
@@ -4448,7 +4453,7 @@
     Chart.defaults.borderColor = "rgba(0,0,0,0.1)";
   }
 
-  async function _eCarregarHistorico(obraId) {
+  async function _eCarregarHistorico(obraId, strict=false) {
     try{
       const snap=await getDocs(query(collection(db,"obras",obraId,"evolHistorico"),orderBy("data","asc")));
       const labels=[],dados=[],_histRows=[];
@@ -4494,7 +4499,7 @@
       });
       Chart.defaults.color = "#666";
       Chart.defaults.borderColor = "rgba(0,0,0,0.1)";
-    }catch(e){}
+    }catch(e){ if(strict) throw e; }
   }
 
   
@@ -8153,7 +8158,7 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
   }
 
   // ──────────────────────────── COLABORADOR (pontoPage) ────
-  async function evolAbrirParaColab(){
+  async function evolAbrirParaColab({strict=false}={}){
     if(!pontoUser?.uid||!pontoObraData?.id) return;
     _eObraId=pontoObraData.id;
     const step=$("pontoStepEvolucao"); if(!step) return;
@@ -8175,7 +8180,7 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
           <div class="evol-prog-bar" style="margin-top:5px"><div class="evol-prog-fill" style="width:${p.toFixed(1)}%;background:${cor}"></div></div>
         </div>`;
       }).join("");
-    }catch(e){ const l=$("evolColabLista"); if(l) l.innerHTML=`<div class="empty"><p>Erro ao carregar.</p></div>`; }
+    }catch(e){ if(strict) throw e; const l=$("evolColabLista"); if(l) l.innerHTML=`<div class="empty"><p>Erro ao carregar.</p></div>`; }
     step.classList.remove("hidden");
   }
 
@@ -14126,9 +14131,14 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
 
   async function _vCarregarGaleria() {
     try {
-      const snap = await getDocs(collection(db,"obras",_vObraId,"evolRegistros"));
-      _vGaleriaRegistros = [];
-      snap.forEach(d=>{ const r={id:d.id,...d.data()}; if(r.fotoUrl||r.fotoUrlDepois) _vGaleriaRegistros.push(r); });
+      if(_epModo(_vCfg)) {
+        // A leitura completa já foi feita para calcular o progresso parametrizado.
+        _vGaleriaRegistros = _vRegistrosFisicos.filter(r=>r.fotoUrl||r.fotoUrlDepois);
+      } else {
+        const snap = await getDocs(collection(db,"obras",_vObraId,"evolRegistros"));
+        _vGaleriaRegistros = [];
+        snap.forEach(d=>{ const r={id:d.id,...d.data()}; if(r.fotoUrl||r.fotoUrlDepois) _vGaleriaRegistros.push(r); });
+      }
 
       // Popular filtro de unidades
       const sel=$("vGaleriaFiltroUnid"); if(sel){
