@@ -3000,6 +3000,7 @@
   }
 
   async function logout(){
+    _vLimparHistorico();
     await signOut(auth);
     lastMainLoginPassword = "";
     currentUser = null;
@@ -3857,6 +3858,26 @@
   let _eClimaPrintFile = null;
   let _eClimaPrintUrl  = "";
   let _vClimaHist    = [];
+  let _vHistoricoObraId = null;
+  let _vHistoricoVersao = 0;
+
+  function _vLimparHistorico(){
+    _vHistoricoVersao++;
+    _vHistoricoObraId=null;
+    _vClimaHist=[];
+    _vClimaPrintUrl="";
+  }
+
+  function _vHistoricoAtual(obraId,versao){
+    return _vObraId===obraId && _vHistoricoVersao===versao;
+  }
+
+  async function _vLerHistorico(obraId){
+    const snap=await getDocs(query(collection(db,"obras",obraId,"evolHistorico"),orderBy("data","asc")));
+    const rows=[];
+    snap.forEach(d=>rows.push(d.data()||{}));
+    return rows;
+  }
   let _vClimaPrintUrl  = "";
   let _vChartClima   = null;
 
@@ -4531,10 +4552,23 @@
   }
 
   function _ePerdaDia(row){
-    if(!row||row.impactoPrazo===false) return 0;
+    if(!row) return 0;
     if(row.houveProducao==="nao") return 1;
     if(row.houveProducao==="parcial"){ const p=Math.max(0,Math.min(100,Number(row.percentualProducaoDia)||0)); return (100-p)/100; }
     return 0;
+  }
+
+  // Cada chamada recebe o histórico de uma única obra. Edições usam o mesmo
+  // documento evolHistorico/{data}; a soma também ignora datas repetidas na leitura.
+  function _eTotalPerdaDias(rows,obraId=""){
+    const porData=new Map();
+    let semData=0;
+    for(const row of (Array.isArray(rows)?rows:[])){
+      if(!row) continue;
+      if(row.data) porData.set(JSON.stringify([row.obraId||obraId,row.data]),row);
+      else semData+=_ePerdaDia(row);
+    }
+    return semData+Array.from(porData.values()).reduce((total,row)=>total+_ePerdaDia(row),0);
   }
 
   function _eRenderClimaPainel(rows){
@@ -4546,7 +4580,7 @@
     const prod=diarios.filter(r=>r.houveProducao==="sim").length;
     const parcial=diarios.filter(r=>r.houveProducao==="parcial").length;
     const clima=diarios.filter(r=>r.houveProducao==="nao"&&r.causaDia==="clima").length;
-    const perdidos=diarios.reduce((a,r)=>a+_ePerdaDia(r),0);
+    const perdidos=_eTotalPerdaDias(diarios,_eObraId);
 
     if($("evolClimaKpiProd"))    $("evolClimaKpiProd").textContent    =prod;
     if($("evolClimaKpiParcial")) $("evolClimaKpiParcial").textContent =parcial;
@@ -4794,20 +4828,12 @@
   }
 
   function _vPerdaDia(row){
-    if(!row||row.impactoPrazo===false) return 0;
-    if(row.houveProducao==="nao") return 1;
-    if(row.houveProducao==="parcial"){const p=Math.max(0,Math.min(100,Number(row.percentualProducaoDia)||0));return(100-p)/100;}
-    return 0;
+    return _ePerdaDia(row);
   }
 
-  async function _vCarregarClima(){
-    try{
-      _vPosicionarCardClima();
-      const snap=await getDocs(query(collection(db,"obras",_vObraId,"evolHistorico"),orderBy("data","asc"),limit(120)));
-      const rows=[];
-      snap.forEach(d=>rows.push(d.data()||{}));
-      _vRenderClimaPainel(rows);
-    }catch(e){console.error(e);}
+  function _vCarregarClima(){
+    _vPosicionarCardClima();
+    _vRenderClimaPainel(_vHistoricoObraId===_vObraId?_vClimaHist:[]);
   }
 
   function _vRenderClimaPainel(rows){
@@ -4818,7 +4844,7 @@
     const prod=diarios.filter(r=>r.houveProducao==="sim").length;
     const parcial=diarios.filter(r=>r.houveProducao==="parcial").length;
     const clima=diarios.filter(r=>r.houveProducao==="nao"&&r.causaDia==="clima").length;
-    const perdidos=diarios.reduce((a,r)=>a+_vPerdaDia(r),0);
+    const perdidos=_eTotalPerdaDias(diarios,_vObraId);
     if($("vClimaKpiProd"))    $("vClimaKpiProd").textContent    =prod;
     if($("vClimaKpiParcial")) $("vClimaKpiParcial").textContent =parcial;
     if($("vClimaKpiClima"))   $("vClimaKpiClima").textContent   =clima;
@@ -8631,6 +8657,7 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
       if(naPontePage) return;
       await initApp(user);
     } else {
+      _vLimparHistorico();
       // Se estiver na tela de ponto, não redirecionar para o login
       if(naPontePage) return;
       $("sideNav").classList.add("hidden");
@@ -13883,6 +13910,8 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
 
   async function visitanteInicializar(obraId) {
 
+    _vLimparHistorico();
+    const versao=_vHistoricoVersao;
     $("vLoading").style.display="";
     $("vMain").style.display="none";
     if(!obraId){ $("vLoading").innerHTML=`<div style="font-size:2rem">⚠️</div><p style="color:rgba(255,255,255,.5);margin-top:8px">Nenhuma obra vinculada à sua conta.<br>Fale com o administrador.</p>`; return; }
@@ -13891,12 +13920,14 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
     try {
       // Nome da obra
       const obraSnap = await getDoc(doc(db,"obras",obraId));
+      if(!_vHistoricoAtual(obraId,versao)) return;
       const obraNome = obraSnap.exists() ? obraSnap.data().nome : "Obra";
       $("vNomeObra").textContent = obraNome;
       document.title = obraNome+" · GO";
 
       // Config (unidades e serviços)
       const cfgSnap = await getDoc(doc(db,"obras",obraId,"evolConfig","main"));
+      if(!_vHistoricoAtual(obraId,versao)) return;
       _vCfg = cfgSnap.exists() ? cfgSnap.data() : null;
 
       if(!_vCfg || !(_vCfg.unidades||[]).length){
@@ -13908,19 +13939,28 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
       _vProg = {};
       if(_epModo(_vCfg)) {
         _vRegistrosFisicos=await _epUI.carregarRegistros(db,obraId);
+        if(!_vHistoricoAtual(obraId,versao)) return;
         _vFisico=_epCalcular(_vCfg,_vRegistrosFisicos);
         _vProg=_vFisico.progresso;
       } else {
         _vFisico=null; _vRegistrosFisicos=[];
         const progSnap = await getDocs(collection(db,"obras",obraId,"evolProgresso"));
+        if(!_vHistoricoAtual(obraId,versao)) return;
         progSnap.forEach(d=>{ _vProg[d.id] = d.data(); });
       }
 
       // Contrato (opcional)
       try{
         const contSnap = await getDoc(doc(db,"obras",obraId,"evolContrato","main"));
+        if(!_vHistoricoAtual(obraId,versao)) return;
         _vCont = contSnap.exists() ? contSnap.data() : null;
       }catch(_){}
+
+      // Uma única leitura completa por abertura/atualização, compartilhada pelos painéis.
+      const historico=await _vLerHistorico(obraId);
+      if(!_vHistoricoAtual(obraId,versao)) return;
+      _vHistoricoObraId=obraId;
+      _vClimaHist=historico;
 
       // Renderizar tudo
       $("vLoading").style.display="none";
@@ -13929,10 +13969,13 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
       _vRenderListaUnidades();
       _vRenderGrafico();
       await _vRenderHistorico();
+      if(!_vHistoricoAtual(obraId,versao)) return;
       await _vCarregarGaleria();
-      await _vCarregarClima();
+      if(!_vHistoricoAtual(obraId,versao)) return;
+      _vCarregarClima();
 
     } catch(e) {
+      if(!_vHistoricoAtual(obraId,versao)) return;
       $("vLoading").innerHTML=`<div style="font-size:2rem">❌</div><p style="color:rgba(255,255,255,.5);margin-top:8px">Erro ao carregar dados.<br><small>${e.message}</small></p>`;
     }
   }
@@ -14092,11 +14135,9 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
 
   async function _vRenderHistorico() {
     try {
-      const snap = _epModo(_vCfg) ? null : await getDocs(query(
-        collection(db,"obras",_vObraId,"evolHistorico"),
-        orderBy("data","asc"), limit(60)
-      ));
-      const rows = _epModo(_vCfg) ? _epHistorico(_vCfg,_vRegistrosFisicos) : snap.docs.map(d=>d.data());
+      // Renderizar não consulta Firestore; preserva o recorte anterior do gráfico legado.
+      const rows = _epModo(_vCfg) ? _epHistorico(_vCfg,_vRegistrosFisicos)
+        : (_vHistoricoObraId===_vObraId?_vClimaHist.slice(0,60):[]);
       if(!rows.length){ $("vCardHistorico").style.display="none"; return; }
       const labels=[], dados=[];
       rows.forEach(r=>{
@@ -14130,12 +14171,14 @@ Todos os dados preenchidos e documentos vinculados serão removidos. Esta ação
   }
 
   async function _vCarregarGaleria() {
+    const obraId=_vObraId, versao=_vHistoricoVersao;
     try {
       if(_epModo(_vCfg)) {
         // A leitura completa já foi feita para calcular o progresso parametrizado.
         _vGaleriaRegistros = _vRegistrosFisicos.filter(r=>r.fotoUrl||r.fotoUrlDepois);
       } else {
-        const snap = await getDocs(collection(db,"obras",_vObraId,"evolRegistros"));
+        const snap = await getDocs(collection(db,"obras",obraId,"evolRegistros"));
+        if(!_vHistoricoAtual(obraId,versao)) return;
         _vGaleriaRegistros = [];
         snap.forEach(d=>{ const r={id:d.id,...d.data()}; if(r.fotoUrl||r.fotoUrlDepois) _vGaleriaRegistros.push(r); });
       }
