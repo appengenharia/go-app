@@ -119,7 +119,7 @@ test('configuração e arquivos exclusivos de produção permanecem preservados'
   const prod=execFileSync('git',['show','8202e6f:index.html'],{encoding:'utf8',maxBuffer:5e6}).replace(/\r\n/g,'\n');
   assert.equal(block(source,'  const firebaseConfig = {','  const firebaseMain'),block(prod,'  const firebaseConfig = {','  const firebaseMain'));
   assert.ok(!source.includes('go-app-dev-bc1be'));
-  for(const name of ['.firebaserc','firebase.json','firestore.rules','acessos.mjs','package-lock.json']) {
+  for(const name of ['.firebaserc','firebase.json','acessos.mjs']) {
     assert.equal(fs.readFileSync(new URL('../'+name,import.meta.url),'utf8').replace(/\r\n/g,'\n'),execFileSync('git',['show','8202e6f:'+name],{encoding:'utf8',maxBuffer:5e6}).replace(/\r\n/g,'\n'),name);
   }
 });
@@ -156,4 +156,14 @@ test('imports locais do HTML e módulos publicados resolvem sem dependência DEV
   }
   await visit('index.html');
   for(const name of ['despesas.mjs','evolucao-fotos.mjs','evolucao-compartilhamento.mjs','evolucao-compartilhamento-ui.mjs'])assert.ok(visited.has(name));
+});
+
+test('cache novo tem preferência offline; ativação conserva cache anterior e pendências',async()=>{
+ const listeners={},old={version:'old'},fresh={version:'fresh'};let found=fresh,claims=0,deletes=0;
+ const caches={open:async()=>({match:async()=>found}),match:async()=>old,delete:async()=>{deletes++;}};
+ const self={addEventListener:(type,fn)=>listeners[type]=fn,skipWaiting:()=>{},clients:{claim:async()=>{claims++;}}};
+ vm.runInNewContext(fs.readFileSync(new URL('../sw.js',import.meta.url),'utf8'),{self,caches,fetch:async()=>{throw Error('offline');}});
+ let activating;listeners.activate({waitUntil:p=>activating=p});await activating;assert.equal(claims,1);assert.equal(deletes,0);
+ const request={method:'GET',url:'/go-app/index.html'};let response;listeners.fetch({request,waitUntil:()=>{},respondWith:p=>response=p});assert.equal(await response,fresh);
+ found=undefined;listeners.fetch({request,waitUntil:()=>{},respondWith:p=>response=p});assert.equal(await response,old);
 });

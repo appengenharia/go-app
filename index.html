@@ -737,9 +737,7 @@
             <input type="hidden" id="lancReemb" value="nao">
           </div>
         </div>
-        <label id="lancComprLabel">        <label id="lancComprLabel">
-          Comprovante (foto ou PDF)
-        </label></label>
+        <label id="lancComprLabel">Comprovante (JPG ou PNG)</label>
     <div class="upload-area" id="uploadArea">
   <div class="upload-icon">📎</div>
   <div class="upload-text">Anexar comprovante</div>
@@ -751,13 +749,13 @@
       📁 Escolher Arquivo
     </button>
   </div>
-  <div class="upload-sub">Máx. 10MB · JPG, PNG ou PDF</div>
+  <div class="upload-sub">Máx. 10MB · JPG ou PNG. Envio de PDF adiado nesta versão.</div>
 </div>
           <!-- Input para câmera (abre diretamente a câmera) -->
-          <input type="file" id="lancFileCamera" accept="image/*" capture="environment" style="display:none" onchange="App.onFileSelect('lancFileCamera')">
+          <input type="file" id="lancFileCamera" accept="image/jpeg,image/png" capture="environment" style="display:none" onchange="App.onFileSelect('lancFileCamera')">
 
           <!-- Input para arquivo/galeria (abre explorador de arquivos) -->
-          <input type="file" id="lancFileArquivo" accept="image/*,application/pdf" style="display:none" onchange="App.onFileSelect('lancFileArquivo')">
+          <input type="file" id="lancFileArquivo" accept="image/jpeg,image/png" style="display:none" onchange="App.onFileSelect('lancFileArquivo')">
                 <div id="filePreview" class="hidden"></div>
         <div style="display:flex;gap:10px;margin-top:20px">
           <button class="btn btn-outline hidden" id="btnCancelLanc" onclick="App.cancelLanc()">Cancelar</button>
@@ -766,6 +764,7 @@
         <div class="msg" id="lancMsg"></div>
       </div>
 
+      <div class="card"><h3>Pendências de notas</h3><p>Rascunhos locais aguardam confirmação do servidor.</p><div id="notasPendentes"></div><button class="btn btn-outline" onclick="App.syncPendingLancs()">Reenviar pendências</button></div>
       <div class="card">
         <div class="card-header" style="flex-wrap:wrap;gap:8px">
           <div><h3>Lançamentos</h3></div>
@@ -1238,6 +1237,10 @@
 
           <label>Nome da Obra</label>
           <input id="obraName" type="text" placeholder="Ex: Residencial Parque Verde">
+          <label>Status para notas e evolução</label>
+          <select id="obraStatusOperacional"><option value="ativa">Ativa</option><option value="parada">Parada</option><option value="suspensa">Suspensa</option></select>
+          <p style="font-size:.78rem;color:var(--muted)">Parada ou suspensa bloqueia gravações de notas/evolução para todos os perfis. Histórico permanece disponível.</p>
+
 
 
           <label>Descrição (opcional)</label>
@@ -2815,6 +2818,7 @@
   import { abrirPreviaInformeDia } from './evolucao-compartilhamento-ui.mjs';
   import { registrarAcesso, loginAuditado, criarPainelAcessos } from './acessos.mjs';
   import { criarInterface } from './evolucao-parametrizada-ui.mjs';
+  import { criarStoreNotas, validarAnexo, enviarAnexo, motivoPdfPendente, motivoBloqueioObra, validarPermissaoNota, rotuloNota, nomeExportacaoNota, escaparTextoNota } from "./notas.mjs";
   import { initializeApp }
     from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
   import {
@@ -3352,7 +3356,7 @@
       if(editId){
         // ── ATUALIZAR obra existente ──
         await updateDoc(doc(db,"obras",editId),{
-          nome, descricao: desc,
+          nome, descricao: desc, statusOperacional:$("obraStatusOperacional").value,
           endereco, rua, numero: num, bairro, cidade, estado,
           lat, lng, raio, travarPonto: travar,
           atualizadoEm: serverTimestamp()
@@ -3364,7 +3368,7 @@
         // ── CRIAR nova obra ──
         const id = "OBRA_"+Date.now();
         await setDoc(doc(db,"obras",id),{
-          id, nome, descricao: desc, ativa: true,
+          id, nome, descricao: desc, ativa: true, statusOperacional:$("obraStatusOperacional").value,
           endereco, rua, numero: num, bairro, cidade, estado,
           lat, lng, raio, travarPonto: travar,
           criadoPor: currentUser.uid,
@@ -3382,7 +3386,7 @@
   }
 
   function _obraLimparForm(){
-    $("obraEditId").value="";
+    $("obraEditId").value=""; $("obraStatusOperacional").value="ativa";
     ["obraName","obraDesc","obraRua","obraNum","obraBairro","obraCidade","obraLat","obraLng"].forEach(id=>{ const el=$(id); if(el) el.value=""; });
     $("obraEstado").value="SP";
     $("obraRaio").value="100";
@@ -3405,6 +3409,7 @@
       // Preencher formulário
       $("obraEditId").value   = id;
       $("obraName").value     = o.nome||"";
+      $("obraStatusOperacional").value=o.statusOperacional || "ativa";
       $("obraDesc").value     = o.descricao||"";
       $("obraRua").value      = o.rua||"";
       $("obraNum").value      = o.numero||"";
@@ -3457,7 +3462,7 @@
         div.innerHTML=`
           <div class="list-item-info" style="flex:1;min-width:0">
             <div class="list-item-name">${o.nome}</div>
-            <div class="list-item-sub">${o.descricao||"Sem descrição"}</div>
+            <div class="list-item-sub">${o.descricao||"Sem descrição"} · Notas/evolução: ${o.statusOperacional||"ativa"}</div>
             ${enderecoLine}
             <div style="margin-top:4px">${geoLabel}</div>
           </div>
@@ -3907,7 +3912,8 @@
       await evolCarregarObra({strict:true});
       if(!$("modalEvolGaleria").classList.contains("hidden")) await evolAbrirGaleria();
     },
-    uploadPhoto: async file => {
+    uploadPhoto: async (file, context = _epContext()) => {
+      await evolValidarObraGravavel(context.obraId, context.db);
       const fd=new FormData();
       fd.append("file",file); fd.append("upload_preset",CLOUDINARY_PRESET); fd.append("folder","evolucao");
       const res=await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`,{method:"POST",body:fd});
@@ -4039,7 +4045,6 @@
       let primeiraObraPermitida = "";
 
       snap.forEach(d=>{
-        if(d.data().ativa !== false){
 
           // Colaborador: mostrar somente obras em que está efetivamente alocado
           if(obrasPermitidas && !obrasPermitidas.includes(d.id)) return;
@@ -4048,13 +4053,12 @@
 
           const o = document.createElement("option");
           o.value = d.id;
-          o.textContent = d.data().nome;
+          o.textContent = d.data().nome + (motivoBloqueioObra(d.data())?" · lançamentos bloqueados":"");
 
           // Mantém selecionada a obra que o usuário já estava consultando
           if(d.id === _eObraId) o.selected = true;
 
           sel.appendChild(o);
-        }
       });
 
       const btnInforme=$("btnEvolInformeDia");
@@ -4776,6 +4780,9 @@
     const btn=$("modalEvolDiario")?.querySelector(".btn-primary");
     if(btn){btn.disabled=true;btn.textContent="⏳ Salvando...";}
     try{
+      const obraStatus=await getDocFromServer(doc(db,"obras",_eObraId));
+      const bloqueio=motivoBloqueioObra(obraStatus.data()); if(bloqueio) throw new Error(bloqueio);
+
       if(_eClimaPrintFile){
         const fd=new FormData();
         fd.append("file",_eClimaPrintFile);
@@ -5522,6 +5529,9 @@ async function _eSnapshotHist(id,g){
     }
 
     try{
+      const obraStatus=await getDocFromServer(doc(db,"obras",_eObraId));
+      const bloqueio=motivoBloqueioObra(obraStatus.data()); if(bloqueio) throw new Error(bloqueio);
+
 
       const qt=Number(s.qtdTotal)||1;
       const qe=_eQtdExec(uid,sid);
@@ -6214,6 +6224,7 @@ async function _evolApagarFotoAdm(
 
 
   try{
+    await evolValidarObraGravavel(_eObraId);
 
     await updateDoc(
       doc(
@@ -6284,6 +6295,7 @@ async function _evolTrocarFotoAdm(
 
 
   try{
+    await evolValidarObraGravavel(_eObraId);
 
     const fd=
       new FormData();
@@ -8679,10 +8691,14 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
   ];
   const CLOUDINARY_CLOUD  = "dibvvm6ix";
   const CLOUDINARY_PRESET = "cfo_uploads";
+  const CLOUDINARY_NOTAS_PROD = Object.freeze({cloud:CLOUDINARY_CLOUD,preset:CLOUDINARY_PRESET,folder:"go"});
   const GOOGLE_MAPS_KEY   = "AIzaSyD7f9zVqFr8VSV6cXptBPkRpNsm5RYSt8A";
 
   let editingLancId = null;
   let selectedFile  = null;
+  let anexoSelecaoVersao = 0;
+  const notasStore = criarStoreNotas({doc,collection,runTransaction,serverTimestamp,getDocFromServer});
+  let notasSincronizando = false;
 
   async function fillLancObras() {
     const sel  = $("lancObra");
@@ -8696,10 +8712,10 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
       const obrasDoColab = [...new Set([...(Array.isArray(prof?.obras) ? prof.obras : []), ...(prof?.obra_id ? [prof.obra_id] : [])])];
       snap.forEach(d => {
         const o = d.data();
-        if(o.ativa === false) return;
+
         if(currentRole !== "ADMIN" && !obrasDoColab.includes(d.id)) return;
         const opt1 = document.createElement("option");
-        opt1.value = d.id; opt1.textContent = o.nome;
+        opt1.value = d.id; opt1.textContent = o.nome + (motivoBloqueioObra(o)?" · bloqueada para lançamentos":"");
         sel.appendChild(opt1);
         if(filt) {
           const opt2 = document.createElement("option");
@@ -8724,52 +8740,33 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
     $("reembSim").classList.toggle("active-opt", novo === "sim");
   }
 
-  function onFileSelect(inputId) {
-  inputId = inputId || "lancFileArquivo";
-  const file = $(inputId).files[0];
+  async function onFileSelect(inputId = "lancFileArquivo") {
+    const file = $(inputId).files[0];
     if(!file) return;
-    if(file.size > 10 * 1024 * 1024) { toast("Arquivo muito grande (máx. 10MB)", false); return; }
-    if(!file.type.startsWith("image/")) { toast("Apenas imagens são aceitas (JPG, PNG)", false); return; }
-    selectedFile = file;
-    const prev = $("filePreview");
-    prev.className = "file-preview";
-    prev.innerHTML = `
-      <span style="font-size:1.4rem">🖼️</span>
-      <span class="file-name">${file.name}</span>
-      <button class="file-remove" onclick="App.removeFile()" title="Remover">✕</button>`;
-   }
-    function removeFile() {
+    removeFile(); // Seleção inválida nunca deixa um comprovante anterior ocultamente selecionado.
+    const versao=anexoSelecaoVersao;
+    try {
+      const meta = await validarAnexo(file);
+      if(versao!==anexoSelecaoVersao) return;
+      selectedFile = file;
+      const prev = $("filePreview"); prev.className = "file-preview";
+      prev.replaceChildren();
+      const icon = document.createElement("span"); icon.textContent = meta.tipo === "pdf" ? "📄" : "🖼️";
+      const name = document.createElement("span"); name.className="file-name"; name.textContent=file.name;
+      const button = document.createElement("button"); button.className="file-remove"; button.textContent="✕"; button.onclick=removeFile;
+      prev.append(icon,name,button);
+    } catch(e) { toast(e.message,false); }
+  }
+  function removeFile() {
+    anexoSelecaoVersao++;
     selectedFile = null;
-    $("lancFileCamera").value = "";
-    $("lancFileArquivo").value = "";
-    const prev = $("filePreview");
-    prev.className = "hidden";
-    prev.innerHTML = "";
+    $("lancFileCamera").value = ""; $("lancFileArquivo").value = "";
+    $("filePreview").className="hidden"; $("filePreview").replaceChildren();
   }
-
- async function uploadFile() {
-  if (!selectedFile) return null;
-  const url = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`;
-  const fd = new FormData();
-  fd.append("file", selectedFile);
-  fd.append("upload_preset", CLOUDINARY_PRESET);
-  fd.append("folder", "go");
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30000);
-
-  try {
-    const r = await fetch(url, { method: "POST", body: fd, signal: controller.signal });
-    clearTimeout(timeoutId);
-    const d = await r.json();
-    if (d.error) { console.error("Cloudinary error", d.error); return null; }
-    return { url: d.secure_url, tipo: "imagem", nome: selectedFile.name };
-  } catch(e) {
-    clearTimeout(timeoutId);
-    console.error("Upload error", e);
-    return null;
+  async function uploadFile(file = selectedFile) {
+    if(firebaseConfig.projectId !== "go-app-prod-53ab5") throw new Error("Destino PROD divergente. Pendência preservada.");
+    return file ? enviarAnexo(file,CLOUDINARY_NOTAS_PROD) : null;
   }
-}
 
   function setTodayDate() {
     const d = $("lancData");
@@ -8777,6 +8774,7 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
   }
 
   async function saveLanc() {
+    if($("btnSaveLanc").disabled) return;
     setMsg("lancMsg","");
     const obra  = $("lancObra").value;
     const data  = $("lancData").value;
@@ -8799,59 +8797,35 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
     btn.textContent = selectedFile ? "Enviando arquivo..." : "Salvando...";
 
     try {
-      const prof = await loadProfile(currentUser.uid);
-      const lancData = {
-        obra_id:          obra,
-        obra_nome:        "",
-        data,
-        categoria:        cat,
-        descricao:        desc,
-        valor,
-        reembolsavel:     reemb === "sim",
-        comprovante:      null,
-        colaborador_uid:  currentUser.uid,
-        colaborador_nome: prof?.nome || currentUser.email,
-      };
-
-      if(!navigator.onLine) {
-        await saveOffline(lancData);
-        await updatePendingCount();
-        setMsg("lancMsg","📵 Salvo localmente! Será enviado quando a internet voltar.",true);
-        toast("📵 Salvo offline!");
-        resetLancForm();
-        btn.disabled=false; btn.textContent="💾 Salvar Despesa";
-        return;
-      }
-
-      let comprovante = null;
-      if(selectedFile) {
-        comprovante = await uploadFile();
-        if(!comprovante) { setMsg("lancMsg","Erro ao enviar arquivo. Tente novamente."); btn.disabled=false; btn.textContent="💾 Salvar Despesa"; return; }
-      } else if (editingLancId) {
-        const lancExistente = allLancs.find(x => x.id === editingLancId);
-        comprovante = lancExistente?.comprovante || null;
-     }
-      const obraDoc = await getDoc(doc(db,"obras",obra));
-      lancData.obra_nome  = obraDoc.exists() ? obraDoc.data().nome : obra;
-      lancData.comprovante = comprovante;
-      lancData.criadoEm   = serverTimestamp();
-
-      if(editingLancId) {
-        await updateDoc(doc(db,"lancamentos",editingLancId), lancData);
-        toast("Despesa atualizada! ✅");
-      } else {
-        await setDoc(doc(db,"lancamentos","LANC_"+Date.now()), lancData);
-        toast("Despesa registrada! 💾");
-      }
-
+      if(!currentUser) throw new Error("Sessão expirada. Entre novamente.");
+      const prof = currentProfile;
+      const existente = editingLancId ? allLancs.find(l=>l.id===editingLancId) : null;
+      if(editingLancId && existente?.obra_id !== obra) throw new Error("A edição mantém a obra original.");
+      if(navigator.onLine) await notasPrevalidar(obra);
+      const lancData = {obra_id:obra,data,categoria:cat,descricao:desc,valor,reembolsavel:reemb==="sim",
+        comprovante:existente?.comprovante || null,colaborador_uid:currentUser.uid,colaborador_nome:prof?.nome || currentUser.email,
+        anexoLocal:selectedFile ? {blob:selectedFile,nome:selectedFile.name,mime:selectedFile.type} : null,editar:!!editingLancId,documentoId:editingLancId || notasStore.novoId(db),
+        revisaoEsperada:existente?.revisaoNota || 0,operacaoId:editingLancId ? notasStore.novoId(db) : null};
+      // Fila durável ANTES de upload/transação. Retentativa usa exatamente o mesmo documento/operacao.
+      const localId = await saveOffline(lancData);
       resetLancForm();
-      setMsg("lancMsg","✅ Despesa salva com sucesso!",true);
-      await loadLancs();
-      await updateStatTotal();
-      await finCarregarResumoColaborador();
-      if(currentRole==="ADMIN" && $("tab-financeiro")?.classList.contains("active")) await finCarregarTudo();
+      setMsg("lancMsg",navigator.onLine ? "Nota preservada na fila. Enviando..." : "📵 Rascunho e anexo salvos localmente; número será atribuído no envio.",true);
+      if(navigator.onLine) await syncPendingLancs(localId);
+      await updatePendingCount();
     } catch(e) { setMsg("lancMsg","Erro: "+e.message); }
     finally { btn.disabled=false; btn.textContent="💾 Salvar Despesa"; }
+  }
+
+  async function evolValidarObraGravavel(obraId, firestore = db) {
+    const obra=await getDocFromServer(doc(firestore,"obras",obraId));
+    const motivo=motivoBloqueioObra(obra.data());
+    if(motivo) throw new Error(motivo);
+  }
+
+  async function notasPrevalidar(obraId) {
+    if(!currentUser) throw new Error("Sessão expirada.");
+    const [perfil,obra]=await Promise.all([getDocFromServer(doc(db,"usuarios",currentUser.uid)),getDocFromServer(doc(db,"obras",obraId))]);
+    validarPermissaoNota(perfil.data(),obraId,obra.data());
   }
 
   function resetLancForm() {
@@ -8875,7 +8849,7 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
     const l = allLancs.find(x=>x.id===id);
     if(!l) return;
     editingLancId = id;
-    $("formLancTitle").textContent = "Editar Despesa";
+    $("formLancTitle").textContent = "Editar despesa";
     $("btnCancelLanc").classList.remove("hidden");
     $("lancObra").value      = l.obra_id   || "";
     $("lancData").value      = l.data      || "";
@@ -8891,28 +8865,31 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
     const prev = $("filePreview");
     if (l.comprovante?.url) {
         prev.className = "file-preview";
-        prev.innerHTML = `<span style="font-size:1.4rem">🖼️</span>
-            <span class="file-name">${l.comprovante.nome || 'Comprovante salvo'}</span>
+        prev.innerHTML = `<span style="font-size:1.4rem">${l.comprovante.tipo === "pdf" ? "📄" : "🖼️"}</span>
+            <span class="file-name">${escaparTextoNota(l.comprovante.nome || 'Comprovante salvo')}</span>
             <a href="${l.comprovante.url}" target="_blank" style="font-size:.78rem;color:var(--brand)">Ver atual</a>
             <button class="file-remove" onclick="App.removeFile()" title="Remover">✕</button>`;
     } else {
         prev.className = "hidden";
         prev.innerHTML = "";
     }
-    formLancCard.scrollIntoView({ behavior: "smooth" }); // ← linha já existia
     $("formLancCard").scrollIntoView({behavior:"smooth"});
   }
 
+  async function exportarComprovante(id) {
+    try {
+      const l=allLancs.find(x=>x.id===id); if(!l?.comprovante?.url) return;
+      const response=await fetch(l.comprovante.url); if(!response.ok) throw new Error("Comprovante indisponível no provedor.");
+      const blob=await response.blob(),url=URL.createObjectURL(blob),a=document.createElement("a");
+      a.href=url; a.download=nomeExportacaoNota(l); a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000);
+    } catch(e) {toast(e.message,false);}
+  }
   async function deleteLanc(id) {
-    showModal("Excluir despesa","Tem certeza que deseja excluir este lançamento?", async()=>{
-      try {
-        await deleteDoc(doc(db,"lancamentos",id));
-        toast("Despesa excluída.");
-        await loadLancs();
-        await updateStatTotal();
-        await finCarregarResumoColaborador();
-        if(currentRole==="ADMIN" && $("tab-financeiro")?.classList.contains("active")) await finCarregarTudo();
-      } catch(e){ toast("Erro: "+e.message,false); }
+    const nota=allLancs.find(l=>l.id===id);
+    if(!nota) return;
+    showModal("Apagar nota", "Confirma apagar esta nota? Ela será retirada das listas, relatórios e totais. O identificador, a sequência e o anexo serão preservados.", async()=>{
+      try { await notasStore.apagar({db,uid:currentUser?.uid,id}); toast("Nota apagada; histórico e anexo preservados."); await loadLancs(); await updateStatTotal(); await finCarregarResumoColaborador(); }
+      catch(e) { toast(e.message,false); }
     });
   }
 
@@ -8922,7 +8899,7 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
     // Não ordenar no Firestore: orderBy omite documentos históricos sem o campo
     // ordenado e fazia a lista divergir dos relatórios.
     const snap = await getDocs(collection(db,"lancamentos"));
-    const rows = snap.docs.map(d=>({id:d.id,...d.data()}));
+    const rows = snap.docs.map(d=>({id:d.id,...d.data()})).filter(l=>!l.cancelado && l.statusAnexo!=="finalizando");
     const profile = currentRole !== "ADMIN" ? await loadProfile(currentUser.uid) : null;
     return limitarLancamentosPorPermissao(rows,currentRole,profile);
   }
@@ -8934,7 +8911,7 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
       allLancs = ordenarLancamentosRecentes(await carregarLancamentosPermitidos());
       const filtObra = $("filterLancObra")?.value || "";
       const tipoFilt = normalizarTipoDespesa($("filterLancTipo")?.value);
-      const list = filtrarLancamentos(allLancs,{obraId:filtObra,tipo:tipoFilt});
+      const list = filtrarLancamentos(allLancs,{obraId:filtObra,tipo:tipoFilt,incluirCanceladas:false});
       const listTotals=calcularTotaisDespesas(list), listSummary=linhasResumoDespesas(listTotals,tipoFilt);
       const summaryEl=$("lancResumoTipo");
       if(summaryEl) summaryEl.innerHTML=listSummary.map(x=>`<span><strong>${x.label}:</strong> ${Number(x.value||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}</span>`).join("");
@@ -8955,18 +8932,19 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
           <div class="lanc-item-top">
             <div class="lanc-item-info">
               <div class="lanc-item-cat">${l.categoria||"—"}</div>
-              <div class="lanc-item-desc">${l.descricao||"—"}</div>
+              <div class="lanc-item-desc">${escaparTextoNota(l.descricao||"—")}</div>
               <div class="lanc-item-sub">📅 ${dataFmt} · 🏗️ ${l.obra_nome||"—"} · 👤 ${l.colaborador_nome||"—"}</div>
               <div style="margin-top:6px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
                 <span class="badge-reemb ${tipoDespesa(l)===TIPO_DESPESA.REEMBOLSAVEIS?"sim":"nao"}">${tipoDespesa(l)===TIPO_DESPESA.REEMBOLSAVEIS?"🔄 Reembolsável":"✅ Empresa"}</span>
                 ${compLink}
+                ${l.comprovante?.url?`<button class="btn btn-outline sm" onclick="App.exportarComprovante('${l.id}')">Baixar nota</button>`:""}
               </div>
             </div>
             <div class="lanc-item-valor">${brl(l.valor)}</div>
           </div>
           <div class="lanc-item-actions">
-            <button class="btn btn-outline sm" onclick="App.editLanc('${l.id}')">✏️ Editar</button>
-            <button class="btn btn-danger sm" onclick="App.deleteLanc('${l.id}')">🗑️ Excluir</button>
+            ${l.cancelado ? "" : `<button class="btn btn-outline sm" onclick="App.editLanc('${l.id}')">✏️ Editar</button>`}
+            ${l.cancelado ? "" : `<button class="btn btn-danger sm" onclick="App.deleteLanc('${l.id}')">Apagar</button>`}
           </div>`;
         el.appendChild(div);
       });
@@ -8981,7 +8959,7 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
       let total = 0, count = 0;
       snap.forEach(d=>{
         const l = d.data();
-        if(!l.data) return;
+        if(!l.data || l.cancelado || l.statusAnexo==="finalizando") return;
         const [y,m] = l.data.split("-").map(Number);
         if(y===ano && m-1===mes) { total+=Number(l.valor||0); count++; }
       });
@@ -9017,8 +8995,8 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
 
   async function saveOffline(lancData) {
     const db    = await openOfflineDB();
-    const localId = "OFFLINE_" + Date.now() + "_" + Math.random().toString(36).slice(2);
-    const record  = { ...lancData, localId, syncStatus: "pending", savedAt: new Date().toISOString() };
+    const localId = "NOTA_" + (lancData.operacaoId || lancData.documentoId);
+    const record  = { ...lancData, operacaoId:lancData.operacaoId || lancData.documentoId, ambiente:firebaseConfig.projectId, localId, syncStatus: "pending", savedAt: new Date().toISOString() };
     return new Promise((resolve, reject) => {
       const tx    = db.transaction(OFFLINE_STORE, "readwrite");
       const store = tx.objectStore(OFFLINE_STORE);
@@ -9158,45 +9136,77 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
     }
   }
 
+  async function atualizarPendente(record) {
+    const localDb=await openOfflineDB();
+    return new Promise((resolve,reject)=>{
+      const tx=localDb.transaction(OFFLINE_STORE,"readwrite"); tx.objectStore(OFFLINE_STORE).put(record);
+      tx.oncomplete=resolve; tx.onerror=()=>reject(tx.error);
+    });
+  }
+  async function anexarPendente(localId,input) {
+    try {
+      const record=(await getPendingOffline()).find(r=>r.localId===localId);
+      if(!record || record.colaborador_uid!==currentUser?.uid) throw new Error("Pendência pertence a outro usuário.");
+      if(record.ambiente!==firebaseConfig.projectId) throw new Error("Ambiente da pendência não confirmado. Não envie automaticamente.");
+      const bloqueioPdf=await motivoPdfPendente(record); if(bloqueioPdf) throw new Error(bloqueioPdf);
+      if(record.operacaoCongelada)throw new Error('Operação já iniciada. Anexo original preservado para retry.');
+      await validarAnexo(input.files[0]); record.anexoLocal={blob:input.files[0],nome:input.files[0].name,mime:input.files[0].type}; record.comprovante=null; record.uploadConfirmado=false;
+      record.syncStatus="pending"; record.motivo=""; await atualizarPendente(record); await updatePendingCount();
+    } catch(e) {toast(e.message,false);}
+  }
   async function updatePendingCount() {
     try {
-      const pending = await getPendingOffline();
-      const el = $("statPending");
-      if(el) el.textContent = pending.length || "0";
-    } catch(_){}
+      const pending=(await getPendingOffline()).filter(r=>r.colaborador_uid===currentUser?.uid);
+      const el=$("statPending"); if(el) el.textContent=pending.length || "0";
+      const host=$("notasPendentes"); if(!host) return;
+      host.replaceChildren();
+      for(const r of pending) {
+        const line=document.createElement("div"); line.className="info-box"; line.style.flexWrap="wrap";
+        const bloqueioPdf=await motivoPdfPendente(r);
+        const text=document.createElement("span"); text.style.cssText="min-width:0;overflow-wrap:anywhere"; text.textContent=`${r.descricao || "Nota"} · ${bloqueioPdf || r.motivo || "Pendente de envio; ainda sem número"}`;
+        const input=document.createElement("input"); input.type="file"; input.accept="image/jpeg,image/png"; input.disabled=!!bloqueioPdf || !!r.operacaoCongelada;
+        input.setAttribute("aria-label","Anexar comprovante à pendência"); input.onchange=()=>anexarPendente(r.localId,input);
+        line.append(text,input); host.append(line);
+      }
+    } catch(e){console.error("Falha ao listar pendências",e);}
   }
-
-  async function syncPendingLancs() {
-    if(!navigator.onLine) return;
+  async function syncPendingLancs(somenteId) {
+    if(!navigator.onLine || !currentUser || notasSincronizando) return;
+    notasSincronizando=true;
     try {
-      const pending = await getPendingOffline();
-      if(!pending.length) return;
+      const uid=currentUser.uid;
+      const pending=(await getPendingOffline()).filter(r=>r.colaborador_uid===uid && (!somenteId || r.localId===somenteId));
       $("syncBanner")?.classList.remove("hidden");
-      let synced = 0;
+      let synced=0;
       for(const record of pending) {
         try {
-          const { localId, syncStatus, savedAt, ...lancData } = record;
-          const obraDoc = await getDoc(doc(db,"obras", lancData.obra_id));
-          lancData.obra_nome = obraDoc.exists() ? obraDoc.data().nome : lancData.obra_id;
-          lancData.criadoEm  = serverTimestamp();
-          lancData.origemOffline = true;  // auditoria: indica que veio de sync offline
-          if(!lancData.dataRegistroLocal) lancData.dataRegistroLocal = new Date().toISOString();
-          await setDoc(doc(db,"lancamentos","LANC_"+Date.now()+"_"+synced), lancData);
-          await deleteOfflineRecord(localId);
-          synced++;
-        } catch(e){ console.error("Erro ao sincronizar lançamento:", e); }
+          if(record.ambiente!==firebaseConfig.projectId) throw new Error("Ambiente da pendência antiga não confirmado. Revisão manual necessária; dados preservados.");
+          if(currentUser?.uid!==uid) throw new Error("Sessão alterada. Pendência preservada.");
+          const bloqueioPdf=await motivoPdfPendente(record); if(bloqueioPdf) throw new Error(bloqueioPdf);
+          // Rules revalidam novamente no commit, inclusive suspensão após esta consulta.
+          await notasPrevalidar(record.obra_id);
+          if(record.anexoLocal && !record.uploadConfirmado) {
+            record.operacaoCongelada=true; await atualizarPendente(record);
+            const file=new File([record.anexoLocal.blob],record.anexoLocal.nome,{type:record.anexoLocal.mime});
+            record.comprovante=await uploadFile(file); record.uploadConfirmado=true;
+            await atualizarPendente(record);
+          }
+          await notasStore.salvar({db,uid,id:record.documentoId,obraId:record.obra_id,entrada:record,
+            editar:record.editar,revisaoEsperada:record.revisaoEsperada || 0,operacaoId:record.operacaoId});
+          await deleteOfflineRecord(record.localId); synced++;
+        } catch(e) {
+          record.syncStatus="blocked"; record.motivo=e.message || "Envio falhou; pendência preservada.";
+          await atualizarPendente(record);
+          if(somenteId) setMsg("lancMsg",record.motivo);
+        }
       }
-      if(synced > 0) {
-        toast(`✅ ${synced} lançamento(s) sincronizado(s)!`);
-        await loadLancs();
-        await updateStatTotal();
+      if(synced) {
+        toast(`✅ ${synced} nota(s) confirmada(s)!`); setMsg("lancMsg","✅ Nota confirmada; despesa disponível na lista.",true);
+        await loadLancs(); await updateStatTotal(); await finCarregarResumoColaborador();
+        if(currentRole==="ADMIN" && $("tab-financeiro")?.classList.contains("active")) await finCarregarTudo();
       }
-      await updatePendingCount();
-      $("syncBanner")?.classList.add("hidden");
-    } catch(e){ 
-      console.error("Erro na sincronização:", e);
-      $("syncBanner")?.classList.add("hidden");
-    }
+    } catch(e) { setMsg("lancMsg",e.message); }
+    finally {notasSincronizando=false; $("syncBanner")?.classList.add("hidden"); await updatePendingCount();}
   }
 
   window.addEventListener("online", () => {
@@ -9291,7 +9301,7 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
     const ateFilt   = $("dashAte")?.value   || "";
     try {
       let snap = await getDocs(query(collection(db,"lancamentos"), orderBy("criadoEm","desc")));
-      let lancs = snap.docs.map(d => d.data());
+      let lancs = snap.docs.map(d => d.data()).filter(l=>!l.cancelado && l.statusAnexo!=="finalizando");
       if(currentRole !== "ADMIN") {
         const prof = await loadProfile(currentUser.uid);
         const obrasDoColab = [...new Set([...(Array.isArray(prof?.obras) ? prof.obras : []), ...(prof?.obra_id ? [prof.obra_id] : [])])];
@@ -9651,7 +9661,7 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
       });
       const totais=calcularTotaisDespesas(lancs), resumo=linhasResumoDespesas(totais,tipoFiltro);
       const rows = lancs.map(l =>
-        "<tr><td>"+formatDate(l.data)+"</td><td>"+(l.categoria||"—")+"</td><td>"+(l.descricao||"—")+"</td><td>"+(l.colaborador_nome||"—")+"</td><td style='text-align:right;font-weight:600'>"+brl(l.valor)+"</td><td style='text-align:center'>"+(tipoDespesa(l)===TIPO_DESPESA.REEMBOLSAVEIS?'<span style="color:#f59e0b;font-size:.75rem;font-weight:600">REIMB.</span>':'<span style="color:#10b981;font-size:.75rem;font-weight:600">EMP.</span>')+"</td><td style='text-align:center'>"+(l.comprovante?.url?'<a href="'+l.comprovante.url+'" target="_blank" style="color:var(--brand);font-size:.78rem">📎</a>':"—")+"</td></tr>"
+        "<tr><td>"+formatDate(l.data)+"</td><td>"+(l.categoria||"—")+"</td><td>"+escaparTextoNota(l.descricao||"—")+"</td><td>"+(l.colaborador_nome||"—")+"</td><td style='text-align:right;font-weight:600'>"+brl(l.valor)+"</td><td style='text-align:center'>"+(tipoDespesa(l)===TIPO_DESPESA.REEMBOLSAVEIS?'<span style="color:#f59e0b;font-size:.75rem;font-weight:600">REIMB.</span>':'<span style="color:#10b981;font-size:.75rem;font-weight:600">EMP.</span>')+"</td><td style='text-align:center'>"+(l.comprovante?.url?'<a href="'+l.comprovante.url+'" target="_blank" style="color:var(--brand);font-size:.78rem">📎</a>':"—")+"</td></tr>"
       ).join("");
       const catRows = cats.map(c =>
         "<tr><td><span style='display:inline-block;width:8px;height:8px;border-radius:50%;background:"+CATEGORIAS_CORES[c]+";margin-right:6px'></span>"+c+"</td><td style='text-align:right;font-weight:600'>"+brl(totCat[c])+"</td></tr>"
@@ -9661,6 +9671,19 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
         '<div style="overflow-x:auto;margin-bottom:24px"><table class="dash-table" style="font-size:.82rem"><thead><tr><th>Data</th><th>Categoria</th><th>Descrição</th><th>Colaborador</th><th style="text-align:right">Valor</th><th style="text-align:center">Tipo</th><th style="text-align:center">Nota</th></tr></thead><tbody>'+rows+'</tbody><tr class="total-row"><td colspan="4">'+resumo.at(-1).label+'</td><td style="text-align:right">'+brl(resumo.at(-1).value)+'</td><td colspan="2"></td></tr></table></div>' +
       (tipoFiltro===TIPO_DESPESA.TODAS ? '<div style="max-width:360px"><table class="dash-table"><thead><tr><th>Monitoramento por Categoria</th><th style="text-align:right">Total Acumulado</th></tr></thead><tbody>'+catRows+'<tr class="total-row"><td>'+resumo.at(-1).label+'</td><td style="text-align:right">'+brl(resumo.at(-1).value)+'</td></tr></tbody></table></div>' : '');
     } catch(e){ cont.innerHTML='<p style="color:var(--danger)">Erro ao gerar preview.</p>'; }
+  }
+
+  function notasIndiceAnexos(pdf,lancs) {
+    const anexos=lancs.filter(l=>l.comprovante?.url); if(!anexos.length) return;
+    pdf.addPage(); let y=20;
+    pdf.setFontSize(12); pdf.text("Comprovantes — links para os arquivos originais",14,y); y+=10;
+    pdf.setFontSize(9);
+    for(const l of anexos) {
+      if(y>265){pdf.addPage();y=20;}
+      const linhas=pdf.splitTextToSize(`${l.descricao || "Comprovante"}`,180);
+      for(const linha of linhas){if(y>265){pdf.addPage();y=20;} pdf.textWithLink(linha,14,y,{url:l.comprovante.url});y+=5;}
+      y+=3;
+    }
   }
 
   async function gerarPDF() {
@@ -9699,7 +9722,7 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
         docPdf.setTextColor(15,52,96);
         docPdf.text("Colaborador: " + colaborador, 14, startY);
         startY += 5;
-        const rows = lancColab.map(l => [formatDate(l.data),l.categoria||"—",(l.descricao||"—").substring(0,35),brl(l.valor),tipoDespesa(l)===TIPO_DESPESA.REEMBOLSAVEIS?"✓ REIMB.":"EMPRESA"]);
+        const rows = lancColab.map(l => [formatDate(l.data),l.categoria||"—",(l.descricao||"—"),brl(l.valor),tipoDespesa(l)===TIPO_DESPESA.REEMBOLSAVEIS?"✓ REIMB.":"EMPRESA"]);
         const totalColab = lancColab.reduce((s,l)=>s+Number(l.valor||0),0);
         rows.push(["","TOTAL","", brl(totalColab), ""]);
         docPdf.autoTable({
@@ -9738,6 +9761,7 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
       const catRows = cats.map(c=>[c,brl(totCat[c])]);
       resumo.forEach(item=>catRows.push([item.label,brl(item.value)]));
       docPdf.autoTable({startY:finalY+4,head:[["Categoria","Total Acumulado"]],body:catRows,styles:{fontSize:9,cellPadding:2},headStyles:{fillColor:[15,52,96],textColor:255,fontStyle:"bold"},columnStyles:{1:{halign:"right"}},didParseCell:(d)=>{if(d.row.index===catRows.length-1){d.cell.styles.fontStyle="bold";d.cell.styles.textColor=[233,69,96];}},margin:{left:14,right:14}});
+      notasIndiceAnexos(docPdf,lancs);
       const pg = docPdf.internal.getNumberOfPages();
       for(let i=1;i<=pg;i++){
         docPdf.setPage(i); docPdf.setFontSize(7); docPdf.setTextColor(150,150,150);
@@ -9871,13 +9895,14 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
         doc2.setTextColor(15,52,96);
         doc2.text("Colaborador: "+colaborador, 14, y); y+=4;
         doc2.setTextColor(0,0,0);
-        const rows = dados.itens.map(l=>[formatDate(l.data),l.categoria||"—",(l.descricao||"—").substring(0,35),brl(l.valor),tipoDespesa(l)===TIPO_DESPESA.REEMBOLSAVEIS?"REIMB.":"EMPRESA"]);
+        const rows = dados.itens.map(l=>[formatDate(l.data),l.categoria||"—",(l.descricao||"—"),brl(l.valor),tipoDespesa(l)===TIPO_DESPESA.REEMBOLSAVEIS?"REIMB.":"EMPRESA"]);
         const totalColab = dados.empresa+dados.reemb;
         rows.push(["","TOTAL","",brl(totalColab),""]);
         doc2.autoTable({startY:y,head:[["Data","Categoria","Descrição","Valor","Tipo"]],body:rows,styles:{fontSize:8,cellPadding:2},headStyles:{fillColor:[15,52,96],textColor:255,fontStyle:"bold"},alternateRowStyles:{fillColor:[245,247,250]},columnStyles:{3:{halign:"right",fontStyle:"bold"},4:{halign:"center"}},didParseCell:(data)=>{if(data.column.index===4&&data.cell.raw==="REIMB."){data.cell.styles.textColor=[180,120,0];data.cell.styles.fillColor=[255,251,230];}if(data.row.index===rows.length-1){data.cell.styles.fontStyle="bold";data.cell.styles.fillColor=[230,240,255];}},margin:{left:14,right:14}});
         y=doc2.lastAutoTable.finalY+6;
         if(y>250){doc2.addPage();y=20;}
       }
+      notasIndiceAnexos(doc2,lancs);
       const pageCount=doc2.internal.getNumberOfPages();
       for(let i=1;i<=pageCount;i++){
         doc2.setPage(i);
@@ -9893,7 +9918,7 @@ Retorne APENAS JSON válido, sem markdown, sem texto adicional, sem explicaçõe
       const meses   = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
       const periodoLabel = meses[deDate.getMonth()]+"-"+deDate.getFullYear()+(deDate.getMonth()!==ateDate.getMonth()?" a "+meses[ateDate.getMonth()]+"-"+ateDate.getFullYear():"");
       const comprovantes = lancs.filter(l=>l.comprovante?.url);
-      const linksComp = comprovantes.length>0?comprovantes.map(l=>`<a href="${l.comprovante.url}" style="color:#0f3460">${l.comprovante.url}</a>`).join("<br>"):"Nenhum comprovante anexado.";
+      const linksComp = comprovantes.length>0?comprovantes.map(l=>`<a href="${l.comprovante.url}" style="color:#0f3460">${escaparTextoNota(l.descricao || "Comprovante")}</a>`).join("<br>"):"Nenhum comprovante anexado.";
       const resumoHtml=resumo.map(x=>`<p style="margin:4px 0"><strong>${x.label}:</strong> ${brl(x.value)}</p>`).join("");
       const htmlBody = `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto"><div style="background:#0f3460;color:white;padding:20px 24px;border-radius:8px 8px 0 0"><h2 style="margin:0;font-size:18px">GO — Gestão de Obras</h2><p style="margin:6px 0 0;font-size:13px;opacity:.85">Relatório de Despesas — ${obraNome} · Tipo: ${tipoLabel}</p></div><div style="padding:20px 24px;border:1px solid #e0e0e0;border-top:none"><p style="margin:0 0 4px"><strong>Período:</strong> ${deFmt} a ${ateFmt}</p><p style="margin:0 0 16px"><strong>Emitido em:</strong> ${dataEnvio}</p><hr style="border:none;border-top:1px solid #eee;margin:12px 0">${resumoHtml}<p style="margin:4px 0"><strong>Lançamentos:</strong> ${lancs.length}</p><hr style="border:none;border-top:1px solid #eee;margin:12px 0"><p style="margin:0 0 6px"><strong>Comprovantes das despesas selecionadas:</strong></p><p style="font-size:12px;line-height:1.8">${linksComp}</p><hr style="border:none;border-top:1px solid #eee;margin:12px 0"><p style="font-size:11px;color:#888">O relatório completo está anexado em PDF.<br>GO — Gestão de Obras · Gerado automaticamente em ${dataEnvio}</p></div></div>`;
       setMsg("relMsg","⏳ Enviando e-mail com PDF anexado...");
@@ -14691,6 +14716,7 @@ async function vApagarFoto(
 
 
   try {
+    await evolValidarObraGravavel(_vObraId);
 
     await updateDoc(
       doc(
@@ -14763,6 +14789,7 @@ async function vTrocarFoto(
 
 
   try {
+    await evolValidarObraGravavel(_vObraId);
 
     const fd=
       new FormData();
@@ -16286,7 +16313,7 @@ function finMudarSubaba(aba) {
   async function finObterLancamentos() {
     try {
         const snap = await getDocs(collection(db, 'lancamentos'));
-        return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        return snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(l=>!l.cancelado && l.statusAnexo!=="finalizando");
     } catch(e) {
         console.error('finObterLancamentos', e);
         return [];
@@ -16700,8 +16727,8 @@ async function finObterReembolsos() {
     openAlocModal, saveAlocacao, closeAlocModal,
     // Lançamentos
     toggleReemb, onFileSelect, removeFile,
-    saveLanc, cancelLanc, editLanc, deleteLanc, loadLancs,
-    syncPendingLancs, syncPendingPontos,
+    saveLanc, cancelLanc, editLanc, deleteLanc, loadLancs, exportarComprovante,
+    syncPendingLancs, syncPendingPontos, anexarPendente,
     // Financeiro / reembolso
     finInicializarTab, finCarregarTudo, finSalvarConfigObra,
     finAbrirModalReembolso, finFecharModalReembolso, finSalvarReembolso,

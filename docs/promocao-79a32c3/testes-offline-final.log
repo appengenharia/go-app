@@ -1,0 +1,94 @@
+TAP version 13
+# Subtest: offline: PNG original sobrevive no IndexedDB, número ausente; suspensão preserva pendência e reativação envia
+ok 1 - offline: PNG original sobrevive no IndexedDB, número ausente; suspensão preserva pendência e reativação envia
+  ---
+  duration_ms: 1491.4182
+  type: 'test'
+  ...
+# Subtest: upload falho não consome sequência; perda da resposta depois do commit permite retry sem novo upload/nota
+ok 2 - upload falho não consome sequência; perda da resposta depois do commit permite retry sem novo upload/nota
+  ---
+  duration_ms: 790.6623
+  type: 'test'
+  ...
+# Subtest: formulário aberto antes da suspensão conserva dados; suspensão após upload é revalidada na transação
+ok 3 - formulário aberto antes da suspensão conserva dados; suspensão após upload é revalidada na transação
+  ---
+  duration_ms: 406.6083
+  type: 'test'
+  ...
+# Subtest: edição offline mantém ID e identificador; pendência de outro usuário/ambiente nunca é enviada
+ok 4 - edição offline mantém ID e identificador; pendência de outro usuário/ambiente nunca é enviada
+  ---
+  duration_ms: 363.2685
+  type: 'test'
+  ...
+# Subtest: seletores só oferecem JPG/PNG e seleção de PDF informa bloqueio sem upload
+ok 5 - seletores só oferecem JPG/PNG e seleção de PDF informa bloqueio sem upload
+  ---
+  duration_ms: 358.3589
+  type: 'test'
+  ...
+# Subtest: cartão mostra descrição e dados sem identificador em nenhuma linha
+ok 6 - cartão mostra descrição e dados sem identificador em nenhuma linha
+  ---
+  duration_ms: 521.3529
+  type: 'test'
+  ...
+# Subtest: link de abertura e download usam URL final; arquivo baixado recebe identificador sem mudar nome original
+ok 7 - link de abertura e download usam URL final; arquivo baixado recebe identificador sem mudar nome original
+  ---
+  duration_ms: 429.2616
+  type: 'test'
+  ...
+# Subtest: retry de operação iniciada não permite substituir a imagem offline original
+ok 8 - retry de operação iniciada não permite substituir a imagem offline original
+  ---
+  duration_ms: 467.8942
+  type: 'test'
+  ...
+# Subtest: PDF offline antigo permanece byte a byte, bloqueado mesmo após reativação e não é substituído
+ok 9 - PDF offline antigo permanece byte a byte, bloqueado mesmo após reativação e não é substituído
+  ---
+  duration_ms: 447.0585
+  type: 'test'
+  ...
+# Subtest: PDF com upload já confirmado permanece bloqueado, com URL e metadados intactos
+ok 10 - PDF com upload já confirmado permanece bloqueado, com URL e metadados intactos
+  ---
+  duration_ms: 387.5871
+  type: 'test'
+  ...
+# Subtest: PDF disfarçado em pendência é detectado pelos bytes antes de qualquer upload
+ok 11 - PDF disfarçado em pendência é detectado pelos bytes antes de qualquer upload
+  ---
+  duration_ms: 311.5839
+  type: 'test'
+  ...
+# Subtest: Apagar exige confirmação e conserva nota, sequência e comprovante; retry idempotente
+ok 12 - Apagar exige confirmação e conserva nota, sequência e comprovante; retry idempotente
+  ---
+  duration_ms: 352.1357
+  type: 'test'
+  ...
+# Subtest: Apagar nota antiga não numera nem altera outras notas ou contadores
+ok 13 - Apagar nota antiga não numera nem altera outras notas ou contadores
+  ---
+  duration_ms: 306.6304
+  type: 'test'
+  ...
+# Subtest: editar PDF histórico pela fila conserva anexo e ID, sem upload nem numeração
+ok 14 - editar PDF histórico pela fila conserva anexo e ID, sem upload nem numeração
+  ---
+  duration_ms: 398.9734
+  type: 'test'
+  ...
+1..14
+# tests 14
+# suites 0
+# pass 14
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 9269

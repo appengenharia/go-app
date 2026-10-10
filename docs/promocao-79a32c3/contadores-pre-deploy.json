@@ -1,0 +1,25 @@
+{
+  "project": "go-app-prod-53ab5",
+  "collections": {
+    "notaObras": {
+      "count": 0,
+      "more": false,
+      "fieldSets": []
+    },
+    "notaUsuarios": {
+      "count": 0,
+      "more": false,
+      "fieldSets": []
+    },
+    "notaCodigosObras": {
+      "count": 0,
+      "more": false,
+      "fieldSets": []
+    },
+    "notaCodigosUsuarios": {
+      "count": 0,
+      "more": false,
+      "fieldSets": []
+    }
+  }
+}

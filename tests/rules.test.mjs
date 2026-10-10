@@ -23,6 +23,7 @@ before(async()=>{
   await env.clearFirestore();
   await env.withSecurityRulesDisabled(async ctx=>{
     const db=ctx.firestore();
+    for(const id of ['obra','legado','v2antigo','audit-plan','retirada']) await sdk.setDoc(sdk.doc(db,'obras',id),{ativa:true});
     const profiles={autor:autorizado,responsavel:{...autorizado,evolResponsavel:true},admin:{role:'ADMIN'},visitante:{...autorizado,role:'VISITANTE'},sem:{...autorizado,permEvolucao:false},outra:{...autorizado,obras:['outra']},inativo:{...autorizado,ativo:false}};
     for(const [uid,p] of Object.entries(profiles)) await sdk.setDoc(sdk.doc(db,'usuarios',uid),p);
     await sdk.setDoc(sdk.doc(db,'obras','obra','evolConfig','main'),cfg);
@@ -132,7 +133,9 @@ test('Visitante não escreve DDS, mensagens, ponto ou despesas, inclusive própr
     await env.withSecurityRulesDisabled(async c=>sdk.setDoc(sdk.doc(c.firestore(),path),data));
     await assertFails(sdk.updateDoc(r,{texto:'Mudança'})); await assertFails(sdk.deleteDoc(r));
     await assertSucceeds(sdk.getDoc(r));
-    await assertSucceeds(sdk.setDoc(sdk.doc(user.db,path+'-user'),{uid:'autor',colaborador_uid:'autor',texto:'Permitido'}));
+    const tentativa=sdk.setDoc(sdk.doc(user.db,path+'-user'),{uid:'autor',colaborador_uid:'autor',texto:'Permitido'});
+    if(path.startsWith('lancamentos/')) await assertFails(tentativa); // nota agora exige permissão, anexo e contador atômico
+    else await assertSucceeds(tentativa);
   }
 });
 

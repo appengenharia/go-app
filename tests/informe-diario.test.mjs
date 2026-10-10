@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import {JSDOM} from 'jsdom';
+import {motivoBloqueioObra} from '../notas.mjs';
 import {validarDataReferencia} from '../evolucao-fotos.mjs';
 import {carregarDadosInformeDia,diarioDoDiaExiste,montarInformeDia,selecionarFotosDoDia} from '../evolucao-compartilhamento.mjs';
 
@@ -198,7 +199,7 @@ test('fechar e corrigir diário retroativo prepara o informe com a data fechada 
     previews.push({date,report,photos});
   };
   const ctx=vm.createContext({document:dom.window.document,$:el,db:{},_eObraId:obraId,_eClimaPrintFile:null,_eHojeStr:()=> '2026-10-06',
-    validarDataReferencia,doc,collection,getDocFromServer,getDocsFromServer,setDoc:async(ref,value)=>{writes.push(ref.path);docs.set(ref.path,{...docs.get(ref.path),...value});},serverTimestamp:()=>({serverTime:true}),
+    validarDataReferencia,motivoBloqueioObra,doc,collection,getDocFromServer,getDocsFromServer,setDoc:async(ref,value)=>{writes.push(ref.path);docs.set(ref.path,{...docs.get(ref.path),...value});},serverTimestamp:()=>({serverTime:true}),
     currentUser:{uid:'responsavel'},currentProfile:{nome:'Joana'},currentRole:'ADMIN',_ePodeEditarDiario:()=>true,
     evolAtualizarCamposDiario:()=>{},_eCarregarHistorico:async()=>{},closeModal:()=>{},toast:()=>{},console,
     evolObrasPermitidasInforme:()=>[{value:obraId}],canEvoluirObra:()=>true,

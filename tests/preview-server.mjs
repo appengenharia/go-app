@@ -1,7 +1,7 @@
 import http from 'node:http';
 import fs from 'node:fs';
 const root=new URL('../',import.meta.url);
-const allowed=new Set(['/evolucao-parametrizada.mjs','/evolucao-parametrizada-store.mjs','/evolucao-parametrizada-ui.mjs','/evolucao-parametrizada.css','/tests/preview.html','/tests/preview.mjs','/tests/fixture.mjs']);
+const allowed=new Set(['/evolucao-parametrizada.mjs','/evolucao-parametrizada-store.mjs','/notas.mjs','/evolucao-parametrizada-ui.mjs','/evolucao-parametrizada.css','/tests/preview.html','/tests/preview.mjs','/tests/fixture.mjs']);
 http.createServer((req,res)=>{
   const path=new URL(req.url,'http://127.0.0.1').pathname;
   res.setHeader('Cache-Control','no-store');

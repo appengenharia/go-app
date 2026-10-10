@@ -46,6 +46,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import { JSDOM } from 'jsdom';
 import * as despesas from '../despesas.mjs';
+import {escaparTextoNota} from '../notas.mjs';
 const source = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 function block(start, end) {
   const a=source.indexOf(start), b=source.indexOf(end,a);
@@ -53,7 +54,7 @@ function block(start, end) {
 }
 for (const role of ['ADMIN','USER']) for (const tipo of Object.values(TIPO_DESPESA)) {
   test(`lista, relatório, PDF e comprovantes usam a mesma seleção: ${role}/${tipo}`, async()=>{
-    const fixture=rows.map(r=>({...r,descricao:'nota-'+r.id,categoria:'Outros gastos',colaborador_nome:'Pessoa'}));
+    const fixture=[...rows,{...rows[0],id:'cancelada',cancelado:true,valor:99999,comprovante:{url:'cancelada.jpg'}}].map(r=>({...r,descricao:'nota-'+r.id,categoria:'Outros gastos',colaborador_nome:'Pessoa'}));
     const original=JSON.stringify(fixture);
     const dom=new JSDOM(`<div id="lancList"></div><div id="lancResumoTipo"></div><div id="relPreview"></div><div id="relPreviewContent"></div>
       <input id="filterLancObra"><input id="filterLancTipo" value="${tipo}"><select id="relObra"><option value="">Todas</option></select>
@@ -61,9 +62,9 @@ for (const role of ['ADMIN','USER']) for (const tipo of Object.values(TIPO_DESPE
     const $=id=>dom.window.document.getElementById(id);
     const tables=[],messages=[],queries=[];let saved=false;
     const pdf=new Proxy({internal:{getNumberOfPages:()=>1},lastAutoTable:{finalY:60}},{get:(target,key)=>key in target?target[key]:(...args)=>{
-      if(key==='autoTable') tables.push(args[0]); if(key==='save')saved=true;
+      if(key==='splitTextToSize') return [args[0]]; if(key==='autoTable') tables.push(args[0]); if(key==='save')saved=true;
     }});
-    const ctx=vm.createContext({...despesas,$,document:dom.window.document,db:{},currentRole:role,currentUser:{uid:'u1'},
+    const ctx=vm.createContext({...despesas,escaparTextoNota,$,document:dom.window.document,db:{},currentRole:role,currentUser:{uid:'u1'},
       loadProfile:async()=>({obras:['inimutaba']}),collection:(_,name)=>{queries.push(name);return name;},
       getDocs:async()=>({docs:fixture.map(r=>({id:r.id,data:()=>r}))}),
       window:{jspdf:{jsPDF:function(){return pdf;}}},CATEGORIAS_CORES:{'Outros gastos':'#000'},setMsg:(_,text)=>messages.push(text),console,

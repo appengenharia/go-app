@@ -9,7 +9,7 @@ function setup(profile=autorizado, cfg=config(), registros=[], onSaved=null) {
   const dom=new JSDOM('<!doctype html><body><div id="summary"></div></body>',{url:'http://127.0.0.1/'});
   globalThis.document=dom.window.document;
   let i=0, offline=false, state=cfg?calcular(cfg,registros):null, refreshed=0, refreshError=null, transactionError=null, uploadError=null, transactionCalls=0;
-  const db={}, docs=new Map([['usuarios/autor',profile],['obras/obra/evolConfig/main',cfg]]);
+  const db={}, docs=new Map([['obras/obra',{ativa:true}],['usuarios/autor',profile],['obras/obra/evolConfig/main',cfg]]);
   const snapshot=(path)=>({exists:()=>docs.get(path)!=null,data:()=>docs.get(path)});
   const sdk={
     collection:(base,...parts)=>({path:[base.path,...parts].filter(Boolean).join('/')}),

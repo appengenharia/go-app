@@ -212,7 +212,7 @@ export function criarInterface({ sdk, getContext, getState, refresh, uploadPhoto
         const input = body.querySelector(`[data-photo="${field}"]`);
         if (input.files[0]) {
           status('Enviando fotos…');
-          try { photo[field] = await uploadPhoto(input.files[0]); input.value = ''; }
+          try { photo[field] = await uploadPhoto(input.files[0], context); input.value = ''; }
           catch (e) { registrarFalha('upload', e); throw new Error(mensagemFalha(e)); }
         }
       }
@@ -423,7 +423,7 @@ export function criarInterface({ sdk, getContext, getState, refresh, uploadPhoto
       if (!motivo?.trim()) { host.remove(); return; }
       const registros = await store.carregarRegistros(context.db, context.obraId), r = registros.find(r => r.id === id);
       if (!r) throw new Error('Lançamento não encontrado.');
-      const value = input?.files?.[0] ? await uploadPhoto(input.files[0]) : '';
+      const value = input?.files?.[0] ? await uploadPhoto(input.files[0], context) : '';
       await store.salvarRegistro(context, { id, entrada: { ...r, [field]: value }, revisaoEsperada: r.revisao, motivo, operacaoId: store.novoId(context.db) });
       await atualizarTela(side); host.remove();
     });

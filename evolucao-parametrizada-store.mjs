@@ -1,3 +1,4 @@
+import { motivoBloqueioObra } from "./notas.mjs";
 import { parametrizada, validarConfig, prepararRegistro, podeProduzir, micros, ativo } from './evolucao-parametrizada.mjs';
 
 // SDK injetado para exercitar as mesmas operações no emulador, sem acessar Firebase remoto.
@@ -34,13 +35,14 @@ export function criarStore(sdk) {
     const ref = doc(db, 'obras', obraId, 'evolRegistros', id);
     const auditRef = doc(ref, 'auditoria', 'r' + (revisaoEsperada + 1));
     return runTransaction(db, async tx => {
-      const [snap, configSnap, perfil, auditSnap] = await Promise.all([
+      const [snap, configSnap, perfil, auditSnap, obraSnap] = await Promise.all([
         tx.get(ref), tx.get(doc(db, 'obras', obraId, 'evolConfig', 'main')),
-        tx.get(doc(db, 'usuarios', user.uid)), tx.get(auditRef),
+        tx.get(doc(db, 'usuarios', user.uid)), tx.get(auditRef), tx.get(doc(db, 'obras', obraId)),
       ]);
       if (!podeProduzir(perfil.data(), obraId)) throw new Error('Você não tem permissão de Evolução nesta obra.');
       // Repetição após perda da resposta: a mesma operação nunca duplica produção.
       if (auditSnap.exists() && auditSnap.data().operacaoId === operacaoId) return snap.exists() ? { ...snap.data(), id } : null;
+      const bloqueio=motivoBloqueioObra(obraSnap.data()); if(bloqueio) throw new Error(bloqueio);
       const atualCfg = configSnap.data();
       if (!parametrizada(atualCfg) || atualCfg.revisaoConfig !== cfg.revisaoConfig) throw new Error('O planejamento mudou. Atualize a obra antes de lançar.');
       const anterior = snap.exists() ? snap.data() : null;

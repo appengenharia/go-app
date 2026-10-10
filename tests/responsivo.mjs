@@ -20,7 +20,7 @@ cfg.macros[0].micros=Array.from({length:10},(_,i)=>({id:'serv'+i,desc:'Execuçã
 const ui=criarInterface({sdk:{},getContext:()=>({cfg,profile:{role:'ADMIN'}}),getState:()=>null,refresh:async()=>{},uploadPhoto:async()=>{}});
 ui.openConfig();
 </script></body></html>`;
-const allowed=new Set(['evolucao-parametrizada-ui.mjs','evolucao-parametrizada.mjs','evolucao-parametrizada-store.mjs','evolucao-planejamento-ui.mjs','evolucao-parametrizada.css','tests/fixture.mjs']);
+const allowed=new Set(['evolucao-parametrizada-ui.mjs','evolucao-parametrizada.mjs','evolucao-parametrizada-store.mjs','notas.mjs','evolucao-planejamento-ui.mjs','evolucao-parametrizada.css','tests/fixture.mjs']);
 const server=http.createServer((req,res)=>{
   const name=(req.url || '').slice(1);
   if(!name) {res.setHeader('Content-Type','text/html; charset=utf-8');res.end(pageHTML);return;}

@@ -1,0 +1,356 @@
+TAP version 13
+# Subtest: JavaScript principal continua sintaticamente válido
+ok 1 - JavaScript principal continua sintaticamente válido
+  ---
+  duration_ms: 2051.3375
+  type: 'test'
+  ...
+# Subtest: salvamento legado preserva progresso e timestamp técnico, e editor V2 segue compatível
+ok 2 - salvamento legado preserva progresso e timestamp técnico, e editor V2 segue compatível
+  ---
+  duration_ms: 5.3926
+  type: 'test'
+  ...
+# Subtest: V1 IBITU e V2 relativo mantêm cálculos de Macro, Unidade e Global
+ok 3 - V1 IBITU e V2 relativo mantêm cálculos de Macro, Unidade e Global
+  ---
+  duration_ms: 20.6923
+  type: 'test'
+  ...
+# Subtest: API App antiga preservada e galeria continua sem deleteDoc
+ok 4 - API App antiga preservada e galeria continua sem deleteDoc
+  ---
+  duration_ms: 2.3752
+  type: 'test'
+  ...
+# Subtest: legendas Antes/Depois e ampliação: V1, ADMIN
+ok 5 - legendas Antes/Depois e ampliação: V1, ADMIN
+  ---
+  duration_ms: 387.9995
+  type: 'test'
+  ...
+# Subtest: legendas Antes/Depois e ampliação: V1, USER
+ok 6 - legendas Antes/Depois e ampliação: V1, USER
+  ---
+  duration_ms: 96.2404
+  type: 'test'
+  ...
+# Subtest: legendas Antes/Depois e ampliação: V1, VISITANTE
+ok 7 - legendas Antes/Depois e ampliação: V1, VISITANTE
+  ---
+  duration_ms: 66.3611
+  type: 'test'
+  ...
+# Subtest: legendas Antes/Depois e ampliação: V2 relativo, ADMIN
+ok 8 - legendas Antes/Depois e ampliação: V2 relativo, ADMIN
+  ---
+  duration_ms: 47.5597
+  type: 'test'
+  ...
+# Subtest: legendas Antes/Depois e ampliação: V2 relativo, USER
+ok 9 - legendas Antes/Depois e ampliação: V2 relativo, USER
+  ---
+  duration_ms: 85.0254
+  type: 'test'
+  ...
+# Subtest: legendas Antes/Depois e ampliação: V2 relativo, VISITANTE
+ok 10 - legendas Antes/Depois e ampliação: V2 relativo, VISITANTE
+  ---
+  duration_ms: 84.9257
+  type: 'test'
+  ...
+# Subtest: legendas Antes/Depois e ampliação: parametrizado quantidade, ADMIN
+ok 11 - legendas Antes/Depois e ampliação: parametrizado quantidade, ADMIN
+  ---
+  duration_ms: 43.6522
+  type: 'test'
+  ...
+# Subtest: legendas Antes/Depois e ampliação: parametrizado quantidade, USER
+ok 12 - legendas Antes/Depois e ampliação: parametrizado quantidade, USER
+  ---
+  duration_ms: 54.546
+  type: 'test'
+  ...
+# Subtest: legendas Antes/Depois e ampliação: parametrizado quantidade, VISITANTE
+ok 13 - legendas Antes/Depois e ampliação: parametrizado quantidade, VISITANTE
+  ---
+  duration_ms: 90.4412
+  type: 'test'
+  ...
+# Subtest: legendas Antes/Depois e ampliação: parametrizado percentual, ADMIN
+ok 14 - legendas Antes/Depois e ampliação: parametrizado percentual, ADMIN
+  ---
+  duration_ms: 89.2663
+  type: 'test'
+  ...
+# Subtest: legendas Antes/Depois e ampliação: parametrizado percentual, USER
+ok 15 - legendas Antes/Depois e ampliação: parametrizado percentual, USER
+  ---
+  duration_ms: 46.7052
+  type: 'test'
+  ...
+# Subtest: legendas Antes/Depois e ampliação: parametrizado percentual, VISITANTE
+ok 16 - legendas Antes/Depois e ampliação: parametrizado percentual, VISITANTE
+  ---
+  duration_ms: 35.5229
+  type: 'test'
+  ...
+# Subtest: preparação consolidada está disponível no Evolução e consulta apenas dados salvos da obra/data escolhidas
+ok 17 - preparação consolidada está disponível no Evolução e consulta apenas dados salvos da obra/data escolhidas
+  ---
+  duration_ms: 2.5278
+  type: 'test'
+  ...
+# Subtest: compartilhamento prepara arquivos reais, exibe falhas, e mantém WhatsApp via link como alternativa só de texto
+ok 18 - compartilhamento prepara arquivos reais, exibe falhas, e mantém WhatsApp via link como alternativa só de texto
+  ---
+  duration_ms: 2.4208
+  type: 'test'
+  ...
+# Subtest: configuração e arquivos exclusivos de produção permanecem preservados
+ok 19 - configuração e arquivos exclusivos de produção permanecem preservados
+  ---
+  duration_ms: 835.3626
+  type: 'test'
+  ...
+# Subtest: service worker mantém Network First e não perde a resposta por falha de cache
+ok 20 - service worker mantém Network First e não perde a resposta por falha de cache
+  ---
+  duration_ms: 4.2526
+  type: 'test'
+  ...
+# Subtest: imports locais do HTML e módulos publicados resolvem sem dependência DEV
+ok 21 - imports locais do HTML e módulos publicados resolvem sem dependência DEV
+  ---
+  duration_ms: 73.9977
+  type: 'test'
+  ...
+# Subtest: cache novo tem preferência offline; ativação conserva cache anterior e pendências
+ok 22 - cache novo tem preferência offline; ativação conserva cache anterior e pendências
+  ---
+  duration_ms: 3.1163
+  type: 'test'
+  ...
+# Subtest: classificação histórica ausente é Empresa; filtros obra, mês, colaborador e tipo se combinam
+ok 23 - classificação histórica ausente é Empresa; filtros obra, mês, colaborador e tipo se combinam
+  ---
+  duration_ms: 5.5305
+  type: 'test'
+  ...
+# Subtest: lista inclui registros sem criadoEm e ordena por data de referência quando não há timestamp
+ok 24 - lista inclui registros sem criadoEm e ordena por data de referência quando não há timestamp
+  ---
+  duration_ms: 29.2414
+  type: 'test'
+  ...
+# Subtest: permissões incluem todas as obras alocadas; legado com obra_id continua compatível
+ok 25 - permissões incluem todas as obras alocadas; legado com obra_id continua compatível
+  ---
+  duration_ms: 1.262
+  type: 'test'
+  ...
+# Subtest: totais e subtotais batem com a seleção; lista vazia zera tudo
+ok 26 - totais e subtotais batem com a seleção; lista vazia zera tudo
+  ---
+  duration_ms: 1.1772
+  type: 'test'
+  ...
+# Subtest: lista, relatório, PDF e comprovantes usam a mesma seleção: ADMIN/todas
+ok 27 - lista, relatório, PDF e comprovantes usam a mesma seleção: ADMIN/todas
+  ---
+  duration_ms: 417.9549
+  type: 'test'
+  ...
+# Subtest: lista, relatório, PDF e comprovantes usam a mesma seleção: ADMIN/reembolsaveis
+ok 28 - lista, relatório, PDF e comprovantes usam a mesma seleção: ADMIN/reembolsaveis
+  ---
+  duration_ms: 46.3052
+  type: 'test'
+  ...
+# Subtest: lista, relatório, PDF e comprovantes usam a mesma seleção: ADMIN/empresa
+ok 29 - lista, relatório, PDF e comprovantes usam a mesma seleção: ADMIN/empresa
+  ---
+  duration_ms: 100.3381
+  type: 'test'
+  ...
+# Subtest: lista, relatório, PDF e comprovantes usam a mesma seleção: USER/todas
+ok 30 - lista, relatório, PDF e comprovantes usam a mesma seleção: USER/todas
+  ---
+  duration_ms: 100.6091
+  type: 'test'
+  ...
+# Subtest: lista, relatório, PDF e comprovantes usam a mesma seleção: USER/reembolsaveis
+ok 31 - lista, relatório, PDF e comprovantes usam a mesma seleção: USER/reembolsaveis
+  ---
+  duration_ms: 53.5488
+  type: 'test'
+  ...
+# Subtest: lista, relatório, PDF e comprovantes usam a mesma seleção: USER/empresa
+ok 32 - lista, relatório, PDF e comprovantes usam a mesma seleção: USER/empresa
+  ---
+  duration_ms: 28.1356
+  type: 'test'
+  ...
+# Falha no fluxo de evolução parametrizada {
+#   etapa: 'transacao',
+#   name: 'Error',
+#   code: '',
+#   message: 'Falha durante transacao.',
+#   stack: 'at runTransaction\\n' +
+#     'at Object.salvarRegistro\\n' +
+#     'at file\\n' +
+#     'at busy\\n' +
+#     'at body.querySelector.onclick\\n' +
+#     'at HTMLButtonElement.invokeTheCallbackFunction\\n' +
+#     'at HTMLButtonElement.<anonymous>\\n' +
+#     'at innerInvokeEventListeners'
+# }
+# Subtest: formulário só oferece Micros aplicáveis; grava quantidade sem percentual manual
+ok 33 - formulário só oferece Micros aplicáveis; grava quantidade sem percentual manual
+  ---
+  duration_ms: 225.9408
+  type: 'test'
+  ...
+# Subtest: erros de rede mantêm formulário e não apresentam gravação parcial
+ok 34 - erros de rede mantêm formulário e não apresentam gravação parcial
+  ---
+  duration_ms: 76.9983
+  type: 'test'
+  ...
+# Falha no fluxo de evolução parametrizada {
+#   etapa: 'transacao',
+#   name: 'Error',
+#   code: 'permission-denied',
+#   message: 'Erro do serviço (permission-denied).',
+#   stack: 'at TestContext.<anonymous>\\n' +
+#     'at Test.runInAsyncScope\\n' +
+#     'at Test.run\\n' +
+#     'at Test.processPendingSubtests\\n' +
+#     'at Test.postRun\\n' +
+#     'at Test.run\\n' +
+#     'at async'
+# }
+# Subtest: transação salva e refresh com quota mantém o lançamento marcado como salvo
+ok 35 - transação salva e refresh com quota mantém o lançamento marcado como salvo
+  ---
+  duration_ms: 66.2209
+  type: 'test'
+  ...
+# Falha no fluxo de evolução parametrizada {
+#   etapa: 'upload',
+#   name: 'Error',
+#   code: '',
+#   message: 'Falha durante upload.',
+#   stack: 'at TestContext.<anonymous>\\n' +
+#     'at Test.runInAsyncScope\\n' +
+#     'at Test.run\\n' +
+#     'at Test.processPendingSubtests\\n' +
+#     'at Test.postRun\\n' +
+#     'at Test.run\\n' +
+#     'at async'
+# }
+# Subtest: transação recusada preserva campos e fotos e permite tentar novamente
+ok 36 - transação recusada preserva campos e fotos e permite tentar novamente
+  ---
+  duration_ms: 55.7766
+  type: 'test'
+  ...
+# Subtest: falha de upload não inicia transação nem apaga dados do formulário
+ok 37 - falha de upload não inicia transação nem apaga dados do formulário
+  ---
+  duration_ms: 27.2579
+  type: 'test'
+  ...
+# Subtest: repetir a mesma operação não duplica lançamento nem auditoria
+ok 38 - repetir a mesma operação não duplica lançamento nem auditoria
+  ---
+  duration_ms: 8.1112
+  type: 'test'
+  ...
+# Subtest: data retroativa persistida alimenta prévia de compartilhamento; correção prepara versão atualizada
+ok 39 - data retroativa persistida alimenta prévia de compartilhamento; correção prepara versão atualizada
+  ---
+  duration_ms: 48.2821
+  type: 'test'
+  ...
+# Subtest: Visitante vê metas e histórico, sem controles de escrita
+ok 40 - Visitante vê metas e histórico, sem controles de escrita
+  ---
+  duration_ms: 24.3594
+  type: 'test'
+  ...
+# Subtest: editor ADMIN aceita tipo genérico, locais, Macros, Micros e metas
+ok 41 - editor ADMIN aceita tipo genérico, locais, Macros, Micros e metas
+  ---
+  duration_ms: 158.841
+  type: 'test'
+  ...
+# Subtest: configuração incompleta fica aberta com erro claro
+ok 42 - configuração incompleta fica aberta com erro claro
+  ---
+  duration_ms: 171.9971
+  type: 'test'
+  ...
+# Subtest: editor recolhível preserva campos e estado; erro abre Serviço e Etapa corretos
+ok 43 - editor recolhível preserva campos e estado; erro abre Serviço e Etapa corretos
+  ---
+  duration_ms: 172.1945
+  type: 'test'
+  ...
+# Subtest: último peso automático recalcula e bloqueia distribuição acima de 100
+ok 44 - último peso automático recalcula e bloqueia distribuição acima de 100
+  ---
+  duration_ms: 119.2399
+  type: 'test'
+  ...
+# Subtest: percentual diário converte meta 3 + 10% em 0.3; correção mantém auditoria
+ok 45 - percentual diário converte meta 3 + 10% em 0.3; correção mantém auditoria
+  ---
+  duration_ms: 61.3973
+  type: 'test'
+  ...
+# Subtest: resumo de Etapas preservado na Evolução para ADMIN
+ok 46 - resumo de Etapas preservado na Evolução para ADMIN
+  ---
+  duration_ms: 72.1428
+  type: 'test'
+  ...
+# Subtest: resumo de Etapas preservado na Evolução para USER
+ok 47 - resumo de Etapas preservado na Evolução para USER
+  ---
+  duration_ms: 25.8789
+  type: 'test'
+  ...
+# Subtest: Visitante vê o mesmo motor parametrizado sem controles operacionais
+ok 48 - Visitante vê o mesmo motor parametrizado sem controles operacionais
+  ---
+  duration_ms: 28.2057
+  type: 'test'
+  ...
+# Subtest: substituição na UI preserva Serviço salvo, exige confirmação e audita planejamento
+ok 49 - substituição na UI preserva Serviço salvo, exige confirmação e audita planejamento
+  ---
+  duration_ms: 294.2764
+  type: 'test'
+  ...
+# Subtest: Serviço retirado some de novos lançamentos; somente ADMIN edita seu histórico
+ok 50 - Serviço retirado some de novos lançamentos; somente ADMIN edita seu histórico
+  ---
+  duration_ms: 74.378
+  type: 'test'
+  ...
+# Subtest: edição exige motivo, preserva foto Depois ao remover Antes, histórico sem fotos acessível
+ok 51 - edição exige motivo, preserva foto Depois ao remover Antes, histórico sem fotos acessível
+  ---
+  duration_ms: 80.2031
+  type: 'test'
+  ...
+1..51
+# tests 51
+# suites 0
+# pass 51
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 7647.1264

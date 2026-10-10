@@ -74,7 +74,7 @@ service cloud.firestore {
     }
 
     function canEvoluirObra(obraId) {
-      return isAuth() &&
+      return isAuth() && obraGravavel(obraId) &&
         canEvoluirObraAuth(obraId);
     }
 
@@ -177,13 +177,13 @@ service cloud.firestore {
         allow read: if isAuth();
         // No modo percentual o acumulado é derivado dos registros, nunca editado pelo cliente.
         allow create, update: if canEvoluirObra(obraId) && !evolPercentual(obraId);
-        allow delete: if isAdmin();
+        allow delete: if isAdmin() && obraGravavel(obraId);
       }
 
       match /evolHistorico/{docId} {
         allow read: if isAuth();
         allow create, update: if canEvoluirObra(obraId);
-        allow delete: if isAdmin();
+        allow delete: if isAdmin() && obraGravavel(obraId);
       }
 
       match /evolRegistros/{docId} {
@@ -200,7 +200,7 @@ service cloud.firestore {
              auditoriaVinculada(obraId, docId, null)));
 
         allow update:
-          if (!evolPercentual(obraId) && (isAdmin() ||
+          if (obraGravavel(obraId) && !evolPercentual(obraId) && (isAdmin() ||
           (
             canEvoluirObra(obraId) &&
             request.resource.data
@@ -236,7 +236,7 @@ service cloud.firestore {
             auditoriaVinculada(obraId, docId, resource.data));
 
         allow delete:
-          if isAdmin() && !evolPercentual(obraId);
+          if isAdmin() && obraGravavel(obraId) && !evolPercentual(obraId);
 
         match /auditoria/{auditId} {
           allow read: if isAuth();
@@ -291,16 +291,101 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    match /lancamentos/{lancId} {
+    // Status exclusivo de notas/evolução. Não altera a autorização do Ponto/DDS.
+    function obraGravavel(obraId) {
+      let o = get(/databases/$(database)/documents/obras/$(obraId)).data;
+      return o.get("ativa", true) == true && o.get("statusOperacional", "ativa") == "ativa";
+    }
+    function podeNota(obraId) {
+      let u = get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data;
+      return isAuth() && obraGravavel(obraId) && u.get("ativo", true) == true &&
+        (u.get("role", "") == "ADMIN" || (u.get("role", "") == "USER" &&
+          u.get("canLancamentos", false) == true &&
+          (u.get("obra_id", "") == obraId || obraId in u.get("obras", []))));
+    }
+    function numeroTexto(n) {
+      return (n < 10 ? "00000" : n < 100 ? "0000" : n < 1000 ? "000" :
+        n < 10000 ? "00" : n < 100000 ? "0" : "") + string(n);
+    }
+    function camposNotaValidos(r) {
+      return r.data is string && r.data.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') &&
+        r.categoria is string && r.categoria.size() > 0 && r.categoria.size() <= 200 &&
+        r.descricao is string && r.descricao.size() > 0 && r.descricao.size() <= 10000 &&
+        r.valor is number && r.valor > 0 && r.valor <= 9007199254740991 && r.reembolsavel is bool &&
+        (r.comprovante == null ? isAdmin() : (r.comprovante is map &&
+          r.comprovante.url is string && r.comprovante.url.matches('^https://res[.]cloudinary[.]com/dibvvm6ix/.*') &&
+          r.comprovante.tipo in ["imagem", "pdf"] && r.comprovante.nome is string));
+    }
+    function contadorVinculado(obraId, lancId, c) {
+      let r = getAfter(/databases/$(database)/documents/lancamentos/$(lancId)).data;
+      return !exists(/databases/$(database)/documents/lancamentos/$(lancId)) &&
+        r.obra_id == obraId && r.colaborador_uid == request.auth.uid && r.sequencia == c.ultimaSequencia &&
+        r.codigoObra == c.codigo && r.criadoEm == request.time;
+    }
+    match /notaObras/{obraId} {
       allow read: if isAuth();
-      allow create: if isOperacional();
-
-      allow update, delete:
-        if isAdmin() ||
-        (
-          isOperacional() &&
-          resource.data.colaborador_uid == request.auth.uid
-        );
+      allow create: if podeNota(obraId) && request.resource.data.keys().hasOnly(["codigo", "ultimaSequencia", "ultimoLancamentoId"]) &&
+        request.resource.data.codigo.matches('^[A-Z]{3}$') && request.resource.data.ultimaSequencia == 1 &&
+        getAfter(/databases/$(database)/documents/notaCodigosObras/$(request.resource.data.codigo)).data.obraId == obraId &&
+        contadorVinculado(obraId, request.resource.data.ultimoLancamentoId, request.resource.data);
+      allow update: if podeNota(obraId) && request.resource.data.keys().hasOnly(["codigo", "ultimaSequencia", "ultimoLancamentoId"]) &&
+        request.resource.data.codigo == resource.data.codigo && request.resource.data.ultimaSequencia is int &&
+        request.resource.data.ultimaSequencia == resource.data.ultimaSequencia + 1 &&
+        request.resource.data.ultimaSequencia <= 9007199254740991 &&
+        contadorVinculado(obraId, request.resource.data.ultimoLancamentoId, request.resource.data);
+      allow delete: if false;
+    }
+    match /notaCodigosObras/{codigo} {
+      allow read: if isAuth();
+      allow create: if request.resource.data.keys().hasOnly(["obraId"]) && codigo.matches('^[A-Z]{3}$') &&
+        podeNota(request.resource.data.obraId) &&
+        !exists(/databases/$(database)/documents/notaObras/$(request.resource.data.obraId)) &&
+        getAfter(/databases/$(database)/documents/notaObras/$(request.resource.data.obraId)).data.codigo == codigo;
+      allow update, delete: if false;
+    }
+    match /notaUsuarios/{uid} {
+      allow read: if isAuth();
+      allow create: if isOwner(uid) && request.resource.data.keys().hasOnly(["codigo"]) && request.resource.data.codigo.matches('^[A-Z]{3}$') &&
+        getAfter(/databases/$(database)/documents/notaCodigosUsuarios/$(request.resource.data.codigo)).data.uid == uid;
+      allow update, delete: if false;
+    }
+    match /notaCodigosUsuarios/{codigo} {
+      allow read: if isAuth();
+      allow create: if isAuth() && request.resource.data.keys().hasOnly(["uid"]) && request.resource.data.uid == request.auth.uid &&
+        codigo.matches('^[A-Z]{3}$') && !exists(/databases/$(database)/documents/notaUsuarios/$(request.auth.uid)) &&
+        getAfter(/databases/$(database)/documents/notaUsuarios/$(request.auth.uid)).data.codigo == codigo;
+      allow update, delete: if false;
+    }
+    match /lancamentos/{lancId} {
+      // Mantém o contrato de leitura existente; filtros de UI permanecem alocação/permissão.
+      allow read: if isAuth();
+      allow create: if podeNota(request.resource.data.obra_id) &&
+        request.resource.data.keys().hasOnly(["data", "categoria", "descricao", "valor", "reembolsavel", "comprovante", "obra_id", "obra_nome", "colaborador_uid", "colaborador_nome", "identificador", "codigoObra", "codigoUsuario", "sequencia", "operacaoId", "revisaoNota", "cancelado", "criadoEm"]) &&
+        camposNotaValidos(request.resource.data) &&
+        (request.resource.data.comprovante == null || (request.resource.data.comprovante.tipo == "imagem" &&
+          request.resource.data.comprovante.get("mime", "") in ["image/jpeg", "image/png"])) &&
+        request.resource.data.colaborador_uid == request.auth.uid &&
+        request.resource.data.criadoEm == request.time && request.resource.data.revisaoNota == 1 && request.resource.data.cancelado == false &&
+        request.resource.data.operacaoId == lancId && request.resource.data.sequencia is int && request.resource.data.sequencia > 0 &&
+        request.resource.data.sequencia <= 9007199254740991 &&
+        request.resource.data.codigoUsuario == getAfter(/databases/$(database)/documents/notaUsuarios/$(request.auth.uid)).data.codigo &&
+        request.resource.data.identificador == request.resource.data.codigoObra + "_" + request.resource.data.codigoUsuario + "_" + numeroTexto(request.resource.data.sequencia) &&
+        contadorVinculado(request.resource.data.obra_id, lancId,
+          getAfter(/databases/$(database)/documents/notaObras/$(request.resource.data.obra_id)).data) &&
+        getAfter(/databases/$(database)/documents/notaObras/$(request.resource.data.obra_id)).data.ultimoLancamentoId == lancId;
+      allow update: if podeNota(resource.data.obra_id) && (isAdmin() || resource.data.colaborador_uid == request.auth.uid) &&
+        resource.data.get("cancelado", false) == false &&
+        ((request.resource.data.diff(resource.data).affectedKeys().hasOnly(["data", "categoria", "descricao", "valor", "reembolsavel", "comprovante", "revisaoNota", "ultimaOperacaoId", "atualizadoEm", "atualizadoPor"]) &&
+          camposNotaValidos(request.resource.data) &&
+          (request.resource.data.comprovante == resource.data.get("comprovante", null) || request.resource.data.comprovante == null ||
+            (request.resource.data.comprovante.tipo == "imagem" && request.resource.data.comprovante.get("mime", "") in ["image/jpeg", "image/png"])) &&
+          request.resource.data.revisaoNota == resource.data.get("revisaoNota", 0) + 1 &&
+          request.resource.data.ultimaOperacaoId is string && request.resource.data.ultimaOperacaoId.size() > 0 &&
+          request.resource.data.atualizadoEm == request.time && request.resource.data.atualizadoPor == request.auth.uid) ||
+         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(["cancelado", "canceladoPor", "canceladoEm"]) &&
+          request.resource.data.cancelado == true && request.resource.data.canceladoPor == request.auth.uid && request.resource.data.canceladoEm == request.time));
+      // Apagar é lógico, inclusive para notas antigas.
+      allow delete: if false;
     }
 
     match /pontos/{pontoId} {

@@ -1,0 +1,38 @@
+i  emulators: Starting emulators: firestore
+i  emulators: Detected demo project ID "demo-go-evolucao", emulated services will use a demo configuration and attempts to access non-emulated services for this project will fail.
+i  firestore: Firestore Emulator logging to firestore-debug.log
++  firestore: Firestore Emulator was started in standard edition.
++  firestore: Firestore Emulator UI websocket is running on 9150.
+i  Running script: node --test tests/rollback-notas.test.mjs
+TAP version 13
+# [2026-10-10T00:40:28.713Z]  @firebase/firestore: Firestore (10.14.1): GrpcConnection RPC 'Write' stream 0x56d00439 error. Code: 7 Message: 7 PERMISSION_DENIED:
+# false for 'delete' @ L385
+# [2026-10-10T00:40:28.818Z]  @firebase/firestore: Firestore (10.14.1): GrpcConnection RPC 'Write' stream 0x56d0043a error. Code: 7 Message: 7 PERMISSION_DENIED:
+# false for 'update' @ L373
+# [2026-10-10T00:40:28.905Z]  @firebase/firestore: Firestore (10.14.1): GrpcConnection RPC 'Write' stream 0x56d0043b error. Code: 7 Message: 7 PERMISSION_DENIED:
+# false for 'create' @ L359, false for 'update' @ L373
+# [2026-10-10T00:40:28.940Z]  @firebase/firestore: Firestore (10.14.1): GrpcConnection RPC 'Write' stream 0x56d0043c error. Code: 7 Message: 7 PERMISSION_DENIED:
+# false for 'update' @ L328
+# [2026-10-10T00:40:28.970Z]  @firebase/firestore: Firestore (10.14.1): GrpcConnection RPC 'Write' stream 0x56d0043d error. Code: 7 Message: 7 PERMISSION_DENIED:
+# false for 'update' @ L203
+# Subtest: rollback anterior em manutenção: JavaScript válido e sem gravação/descarte de fila
+ok 1 - rollback anterior em manutenção: JavaScript válido e sem gravação/descarte de fila
+  ---
+  duration_ms: 9622.5927
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 10778.9966
++  Script exited successfully (code 0)
+i  emulators: Shutting down emulators.
+i  firestore: Stopping Firestore Emulator
+!  Firestore Emulator has exited upon receiving signal: SIGINT
+i  hub: Stopping emulator hub
+i  logging: Stopping Logging Emulator

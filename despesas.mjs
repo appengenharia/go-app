@@ -40,6 +40,8 @@ export function filtrarLancamentos(lancamentos, filtros = {}) {
   const de = filtros.de || '';
   const ate = filtros.ate || '';
   return (Array.isArray(lancamentos) ? lancamentos : []).filter(l => {
+    if(l?.statusAnexo === 'finalizando') return false;
+    if (l?.cancelado === true && !filtros.incluirCanceladas) return false;
     if (obraId && l?.obra_id !== obraId) return false;
     if (colaboradorUid && l?.colaborador_uid !== colaboradorUid) return false;
     if (de && (!l?.data || l.data < de)) return false;
@@ -52,6 +54,8 @@ export function filtrarLancamentos(lancamentos, filtros = {}) {
 export function calcularTotaisDespesas(lancamentos) {
   const totais = { reembolsaveis: 0, empresa: 0, geral: 0, quantidade: 0 };
   for (const l of Array.isArray(lancamentos) ? lancamentos : []) {
+    if(l?.statusAnexo === 'finalizando') continue;
+    if(l?.cancelado === true) continue;
     const valor = Number(l?.valor) || 0;
     totais[tipoDespesa(l)] += valor;
     totais.geral += valor;
